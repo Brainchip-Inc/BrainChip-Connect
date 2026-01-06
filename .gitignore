@@ -1,0 +1,124 @@
+# OSX
+.DS_Store
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+**/.xcode.env.local
+
+# Android/IntelliJ
+build/
+.idea/
+.gradle/
+local.properties
+*.iml
+*.hprof
+.cxx/
+*.keystore
+!debug.keystore
+.kotlin/
+
+# node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots/
+**/fastlane/test_output/
+
+# Bundle artifact
+*.jsbundle
+
+# Ruby / CocoaPods
+**/Pods/
+vendor/bundle/
+
+# Temporary files created by Metro to check the health of the file watcher
+.metro-health-check*
+
+# Testing
+/coverage/
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Backup Files
+*.orig
+
+# Editor Files
+*.swp
+*~
+
+# Source maps
+*.map
+
+# Package lock (if using npm)
+package-lock.json
+
+# React Native Bundler
+*.jsbundle
+.expo/
+
+# IDE Settings
+.vscode/
+
+# Local Environment Variables
+.env
+.env.local
+
+# Android-specific directories for React Native
+# Exclude generated build directories and debug/release variants
+android/app/src/debug/
+android/app/src/release/
+android/.gradle/
+android/.idea/
+android/build/
+
+# Exclude the entire Android directory (if you don't want to push `android/` folder)
+# android/
+
+# iOS
+# Exclude build artifacts, pods, and user-specific files
+ios/Pods/
+ios/build/
+ios/xcuserdata/
+ios/*.xcuserstate
+ios/*.hmap
+ios/*.ipa
+ios/*.dSYM.zip
+ios/*.dSYM
+
+
+# Exclude other iOS-specific files
+# Ignore specific files you don't need to share with other developers
+**/Pods/
+**/fastlane/screenshots/
+**/fastlane/test_output/
+
+#Environment files
+.env.production
+.env.development
+.env.test
+
