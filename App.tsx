@@ -8,16 +8,24 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import SplashScreen from './src/app/screens/SplashScreen';
 import GetStartedScreen from './src/app/screens/Start/GetStartedScreen';
 import HomeScreen from './src/app/screens/HomeScreen';
-import DeviceDetailsScreen from './src/app/screens/DeviceDetailsScreen';
+import DeviceDetailsScreen from './src/app/screens/Start/DeviceDetailsScreen';
 import SettingsScreen from './src/app/screens/SettingsScreen';
 import { darkTheme, lightTheme } from './src/app/theme/paperTheme';
+import PermissionsScreen from './src/app/screens/Start/PermissionScreen';
+import DeviceDiscoveryScreen from './src/app/screens/Start/DeviceDiscovery';
 
 export type RootParamList = {
   Splash: undefined;
   GetStarted: undefined;
   Home: undefined;
-  DeviceDetails: undefined;
   Settings: undefined;
+  Permissions: undefined;
+  DeviceDiscovery: undefined;
+  DeviceDetails: {
+    deviceId: string;
+    deviceName: string;
+    rssi: number | null;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootParamList>();
@@ -31,7 +39,7 @@ const App = () => {
     // Simulate app loading (1.5 sec)
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1500);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -53,6 +61,14 @@ const App = () => {
                   component={DeviceDetailsScreen}
                 />
                 <Stack.Screen name="Settings" component={SettingsScreen} />
+                <Stack.Screen
+                  name="Permissions"
+                  component={PermissionsScreen}
+                />
+                <Stack.Screen
+                  name="DeviceDiscovery"
+                  component={DeviceDiscoveryScreen}
+                />
               </>
             )}
           </Stack.Navigator>

@@ -1,45 +1,77 @@
 import React from 'react';
-import { View, Dimensions } from 'react-native';
-import { Card, Text } from 'react-native-paper';
-import { SvgProps, SvgXml } from 'react-native-svg';
+import { View, StyleSheet } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
 
-interface CardComponentProps {
+interface CardProps {
   title: string;
   subtitle: string;
-  Icon: string; // Accept SVG component
+  Icon: React.ReactNode;
 }
 
-const { width } = Dimensions.get('window');
+const CardComponent: React.FC<CardProps> = ({ title, subtitle, Icon }) => {
+  const theme = useTheme();
 
-const CardComponent: React.FC<CardComponentProps> = ({
-  title,
-  subtitle,
-  Icon,
-}) => {
   return (
-    <Card style={{ marginBottom: 20, borderRadius: 12, elevation: 2 }}>
-      <Card.Content style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {/* SVG Icon */}
-        {Icon && <SvgXml xml={Icon} width={80} height={80} />}
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.colors.surface,
+          shadowColor: theme.colors.shadow,
+        },
+      ]}
+    >
+      {/* Icon Container */}
+      <View
+        style={[
+          styles.iconContainer,
+          { backgroundColor: theme.colors.primaryContainer },
+        ]}
+      >
+        {Icon}
+      </View>
 
-        {/* Text */}
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontWeight: '700',
-              fontSize: width * 0.045,
-              marginBottom: 4,
-            }}
-          >
-            {title}
-          </Text>
-          <Text style={{ color: 'gray', fontSize: width * 0.035 }}>
-            {subtitle}
-          </Text>
-        </View>
-      </Card.Content>
-    </Card>
+      {/* Text Content */}
+      <View style={styles.textContainer}>
+        <Text
+          variant="titleMedium"
+          style={{ fontWeight: '600', marginBottom: 2 }}
+        >
+          {title}
+        </Text>
+        <Text
+          variant="bodySmall"
+          style={{ color: theme.colors.onSurfaceVariant }}
+        >
+          {subtitle}
+        </Text>
+      </View>
+    </View>
   );
 };
 
 export default CardComponent;
+
+const styles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    elevation: 3, // Android
+    shadowOffset: { width: 0, height: 4 }, // iOS
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  textContainer: {
+    flex: 1,
+  },
+});
