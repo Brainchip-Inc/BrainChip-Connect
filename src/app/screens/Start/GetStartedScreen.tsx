@@ -14,22 +14,22 @@ import { RootParamList } from '../../../../App';
 const cardData = [
   {
     title: 'Bluetooth Low Energy',
-    subtitle: 'Power-efficient wireless device communication',
+    subtitle: 'Wireless connectivity optimized for minimal power consumption',
     Icon: <BLE />,
   },
   {
     title: 'AI Application Control',
-    subtitle: 'Deploy and manage on-device neuromorphic models',
+    subtitle: 'Deploy and manage neuromorphic models on device',
     Icon: <AIAppControl />,
   },
   {
     title: 'Real-time Sensor Data',
-    subtitle: 'Live streaming and visualization with low latency',
+    subtitle: 'Stream and visualize sensor readings with low latency',
     Icon: <SensorData />,
   },
   {
     title: 'Over-the-Air Updates',
-    subtitle: 'Update firmware securely without physical access',
+    subtitle: 'Seamless firmware updates without physical access',
     Icon: <OTA />,
   },
 ];
@@ -41,8 +41,9 @@ const GetStartedScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
 
   const isSmallDevice = width < 375;
-  const contentMaxWidth = width >= 768 ? 620 : '100%';
-  const logoSize = Math.min(width * 0.45, 160);
+  const contentMaxWidth = width >= 768 ? 520 : '100%';
+  const logoSize = Math.min(width * 0.42, 150);
+  const spacing = isSmallDevice ? 12 : 16;
 
   return (
     <View
@@ -61,7 +62,6 @@ const GetStartedScreen: React.FC = () => {
           alignItems: 'center',
         }}
       >
-        {/* Main Content */}
         <View
           style={{
             flex: 1,
@@ -71,45 +71,49 @@ const GetStartedScreen: React.FC = () => {
             alignItems: 'center',
           }}
         >
-          {/* Logo */}
           <Image
             source={require('../../assets/images/00_Start/Logo.png')}
             resizeMode="contain"
             style={{
               width: logoSize,
               height: logoSize,
-              marginBottom: 16,
+              marginBottom: 6,
             }}
           />
 
-          {/* Title */}
           <Text
-            variant="headlineSmall"
+            variant="labelMedium"
+            style={{
+              color: theme.colors.onSurfaceVariant,
+              marginBottom: spacing,
+            }}
+          >
+            Akida Mobile Connect
+          </Text>
+
+          <Text
+            variant="headlineMedium"
             style={{
               textAlign: 'center',
               fontWeight: '700',
-              marginBottom: 8,
-              fontSize: 20,
+              marginBottom: 6,
             }}
           >
-            Edge AI IoT Device Management
+            Edge AI IoT device management
           </Text>
 
-          {/* Subtitle */}
           <Text
             variant="bodyMedium"
             style={{
               textAlign: 'center',
               color: theme.colors.onSurfaceVariant,
-              marginBottom: 24,
-              paddingHorizontal: 12,
-              fontSize: 16,
+              marginBottom: spacing * 1.5,
+              paddingHorizontal: 8,
             }}
           >
             with BLE connectivity, OTA updates, and live sensor monitoring
           </Text>
 
-          {/* Cards */}
           <View style={{ width: '100%', gap: 12 }}>
             {cardData.map((card, index) => (
               <CardComponent
@@ -122,20 +126,20 @@ const GetStartedScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* CTA */}
         <View style={{ width: '100%', maxWidth: contentMaxWidth }}>
           <Button
             mode="contained"
             onPress={() => navigation.navigate('Permissions')}
             contentStyle={{
-              paddingVertical: isSmallDevice ? 10 : 12,
+              paddingVertical: isSmallDevice ? 12 : 14,
             }}
             labelStyle={{
               fontSize: 15,
               fontWeight: '600',
             }}
             style={{
-              borderRadius: 12,
+              borderRadius: 0, // flat like image
+              marginBottom: spacing,
             }}
           >
             Get Started

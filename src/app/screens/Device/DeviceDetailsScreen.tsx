@@ -14,8 +14,6 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
-import { Portal, Modal, IconButton } from 'react-native-paper';
-import { Buffer } from 'buffer';
 
 type DeviceDetailsRouteProp = RouteProp<RootParamList, 'DeviceDetails'>;
 
@@ -33,17 +31,6 @@ const DeviceDetailsScreen: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<
     'connected' | 'disconnected' | 'error'
   >('connected');
-  const [uuidModalVisible, setUuidModalVisible] = useState(false);
-  const [bleData, setBleData] = useState<{
-    serviceUUID: string;
-    characteristicUUID: string;
-    value: string;
-  } | null>(null);
-  const [bleDataDirect, setBleDataDirect] = useState<{
-    serviceUUID: string;
-    characteristicUUID: string;
-    value: string;
-  } | null>(null);
 
   const isSmallDevice = width < 375;
   const isMediumDevice = width >= 375 && width < 768;
@@ -93,7 +80,7 @@ const DeviceDetailsScreen: React.FC = () => {
                 [
                   {
                     text: 'OK',
-                    onPress: () => navigation.goBack(),
+                    onPress: () => navigation.navigate('DeviceDiscovery'),
                   },
                 ],
               );
@@ -125,46 +112,8 @@ const DeviceDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleDiscoverAndRead = async () => {
-    try {
-      const device = await BleService.connectDevice(deviceId);
-      await device.discoverAllServicesAndCharacteristics();
-
-      const services = await device.services();
-
-      for (const service of services) {
-        const characteristics = await service.characteristics();
-
-        for (const char of characteristics) {
-          if (char.isReadable) {
-            const readChar = await char.read();
-
-            const decodedValue = readChar.value
-              ? Buffer.from(readChar.value, 'base64').toString('utf-8')
-              : 'No data';
-
-            setBleDataDirect({
-              serviceUUID: service.uuid,
-              characteristicUUID: char.uuid,
-              value: decodedValue,
-            });
-
-            return; // Stop after first readable characteristic
-          }
-        }
-      }
-
-      Alert.alert('No Data', 'No readable characteristic found.');
-    } catch (error) {
-      console.error('Read error:', error);
-      Alert.alert('Error', 'Failed to read data from device.');
-    }
-  };
-
   useEffect(() => {
-    // Check connection status periodically
     const interval = setInterval(checkConnection, 5000);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -186,17 +135,10 @@ const DeviceDetailsScreen: React.FC = () => {
           borderBottomColor: theme.colors.outline,
         }}
       >
-        <View
-          style={{
-            alignItems: 'center',
-            maxWidth,
-            width: '100%',
-            alignSelf: 'center',
-          }}
-        >
+        <View style={{ maxWidth, width: '100%', alignSelf: 'center' }}>
           <Button
             mode="text"
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate('DeviceDiscovery')}
             icon={() => <ArrowLeft size={20} color={theme.colors.primary} />}
             style={{ alignSelf: 'flex-start', marginBottom: spacing }}
           >
@@ -204,11 +146,7 @@ const DeviceDetailsScreen: React.FC = () => {
           </Button>
           <Text
             variant={isSmallDevice ? 'headlineSmall' : 'headlineMedium'}
-            style={{
-              fontWeight: '700',
-              marginBottom: spacing * 0.5,
-              textAlign: 'center',
-            }}
+            style={{ fontWeight: '700', textAlign: 'center' }}
           >
             Device Details
           </Text>
@@ -429,33 +367,11 @@ const DeviceDetailsScreen: React.FC = () => {
             >
               {isDisconnecting ? 'Disconnecting...' : 'Disconnect Device'}
             </Button>
-            {/* Discover UUID*/}
-            <Button
-              mode="contained"
-              onPress={handleDiscoverAndRead}
-              contentStyle={{ paddingVertical: isSmallDevice ? 6 : 8 }}
-              labelStyle={{
-                fontSize: isSmallDevice ? 13 : 14,
-                fontWeight: '600',
-              }}
-            >
-              Discover UUID
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={() => setBleDataDirect(null)}
-              contentStyle={{ paddingVertical: isSmallDevice ? 6 : 8 }}
-              labelStyle={{
-                fontSize: isSmallDevice ? 13 : 14,
-                fontWeight: '600',
-              }}
-            >
-              Clear Data
-            </Button>
+
             {/* Back Button */}
             <Button
               mode="outlined"
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate('DeviceDiscovery')}
               contentStyle={{ paddingVertical: isSmallDevice ? 6 : 8 }}
               labelStyle={{
                 fontSize: isSmallDevice ? 13 : 14,
@@ -487,107 +403,6 @@ const DeviceDetailsScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
-      {bleDataDirect && (
-        <View
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderWidth: 1,
-            borderColor: theme.colors.outline,
-            padding: spacing,
-            marginTop: spacing,
-            width: '100%',
-          }}
-        >
-          <Text
-            variant="titleMedium"
-            style={{ fontWeight: '600', marginBottom: spacing * 0.5 }}
-          >
-            Device Data
-          </Text>
-
-          <Text variant="labelSmall">Service UUID</Text>
-          <Text style={{ fontFamily: 'monospace', marginBottom: spacing }}>
-            {bleDataDirect.serviceUUID}
-          </Text>
-
-          <Text variant="labelSmall">Characteristic UUID</Text>
-          <Text style={{ fontFamily: 'monospace', marginBottom: spacing }}>
-            {bleDataDirect.characteristicUUID}
-          </Text>
-
-          <Text variant="labelSmall">Value</Text>
-          <Text
-            style={{
-              fontFamily: 'monospace',
-              backgroundColor: '#00000010',
-              padding: spacing * 0.5,
-            }}
-          >
-            {bleDataDirect.value}
-          </Text>
-        </View>
-      )}
-      <Portal>
-        <Modal
-          visible={uuidModalVisible}
-          onDismiss={() => setUuidModalVisible(false)}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.surface,
-            margin: spacing,
-            padding: spacing,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: spacing,
-            }}
-          >
-            <Text variant="titleMedium" style={{ fontWeight: '700' }}>
-              BLE Data
-            </Text>
-            <IconButton
-              icon="close"
-              onPress={() => setUuidModalVisible(false)}
-            />
-          </View>
-
-          {bleData && (
-            <>
-              <Text variant="labelSmall">Service UUID</Text>
-              <Text style={{ fontFamily: 'monospace', marginBottom: spacing }}>
-                {bleData.serviceUUID}
-              </Text>
-
-              <Text variant="labelSmall">Characteristic UUID</Text>
-              <Text style={{ fontFamily: 'monospace', marginBottom: spacing }}>
-                {bleData.characteristicUUID}
-              </Text>
-
-              <Text variant="labelSmall">Data</Text>
-              <Text
-                style={{
-                  fontFamily: 'monospace',
-                  backgroundColor: '#00000010',
-                  padding: spacing * 0.5,
-                }}
-              >
-                {bleData.value}
-              </Text>
-            </>
-          )}
-
-          <Button
-            mode="contained"
-            onPress={() => setUuidModalVisible(false)}
-            style={{ marginTop: spacing }}
-          >
-            Close
-          </Button>
-        </Modal>
-      </Portal>
     </View>
   );
 };

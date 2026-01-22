@@ -8,11 +8,16 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import SplashScreen from './src/app/screens/SplashScreen';
 import GetStartedScreen from './src/app/screens/Start/GetStartedScreen';
 import HomeScreen from './src/app/screens/HomeScreen';
-import DeviceDetailsScreen from './src/app/screens/Start/DeviceDetailsScreen';
 import SettingsScreen from './src/app/screens/SettingsScreen';
 import { darkTheme, lightTheme } from './src/app/theme/paperTheme';
 import PermissionsScreen from './src/app/screens/Start/PermissionScreen';
-import DeviceDiscoveryScreen from './src/app/screens/Start/DeviceDiscovery';
+import PrivacyPolicyScreen from './src/app/screens/Start/PrivacyPolicyScreen';
+import TermsAndConditionsScreen from './src/app/screens/Start/TermsAndConditionsScreen';
+import DevicePreviewScreen from './src/app/screens/Device/DevicePreviewScreen';
+import DeviceConnectingScreen from './src/app/screens/Device/DeviceConnectingScreen';
+import DeviceDetailsScreen from './src/app/screens/Device/DeviceDetailsScreen';
+import DeviceDiscoveryScreen from './src/app/screens/Device/DeviceDiscoveryScreen';
+// import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplicationScreen';
 
 export type RootParamList = {
   Splash: undefined;
@@ -26,6 +31,23 @@ export type RootParamList = {
     deviceName: string;
     rssi: number | null;
   };
+  PrivacyPolicy: {
+    onAccept?: () => void;
+  };
+  TermsAndConditions: {
+    onAccept?: () => void;
+  };
+  DevicePreview: {
+    deviceId: string;
+    deviceName: string;
+    rssi: number | null;
+  };
+  DeviceConnecting: {
+    deviceId: string;
+    deviceName: string;
+    rssi: number | null;
+  };
+  DeviceApplications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootParamList>();
@@ -69,6 +91,31 @@ const App = () => {
                   name="DeviceDiscovery"
                   component={DeviceDiscoveryScreen}
                 />
+                <Stack.Screen
+                  name="PrivacyPolicy"
+                  component={PrivacyPolicyScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="TermsAndConditions"
+                  component={TermsAndConditionsScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="DevicePreview"
+                  component={DevicePreviewScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="DeviceConnecting"
+                  component={DeviceConnectingScreen}
+                  options={{ headerShown: false }}
+                />
+                {/* <Stack.Screen
+                  name="DeviceApplications"
+                  component={DeviceApplicationsScreen}
+                  options={{ headerShown: false }}
+                /> */}
               </>
             )}
           </Stack.Navigator>

@@ -130,16 +130,27 @@ const PermissionsScreen: React.FC = () => {
 
   const canProceed = privacyAccepted && termsAccepted;
 
+  // const openPrivacyPolicy = () => {
+  //   setModalTitle('Privacy Policy');
+  //   setModalContent(PRIVACY_POLICY);
+  //   setModalVisible(true);
+  // };
   const openPrivacyPolicy = () => {
-    setModalTitle('Privacy Policy');
-    setModalContent(PRIVACY_POLICY);
-    setModalVisible(true);
+    navigation.navigate('PrivacyPolicy', {
+      onAccept: () => setPrivacyAccepted(true),
+    });
   };
 
+  // const openTermsAndConditions = () => {
+  //   setModalTitle('Terms and Conditions');
+  //   setModalContent(TERMS_CONDITIONS);
+  //   setModalVisible(true);
+  // };
+
   const openTermsAndConditions = () => {
-    setModalTitle('Terms and Conditions');
-    setModalContent(TERMS_CONDITIONS);
-    setModalVisible(true);
+    navigation.navigate('TermsAndConditions', {
+      onAccept: () => setTermsAccepted(true),
+    });
   };
 
   const handleGrantPermissions = async () => {
@@ -296,6 +307,7 @@ const PermissionsScreen: React.FC = () => {
                       color: theme.colors.primary,
                       textDecorationLine: 'underline',
                       fontWeight: 'bold',
+                      cursor: 'pointer',
                     }}
                     onPress={e => {
                       e?.stopPropagation?.();
@@ -354,6 +366,7 @@ const PermissionsScreen: React.FC = () => {
                       color: theme.colors.primary,
                       textDecorationLine: 'underline',
                       fontWeight: 'bold',
+                      cursor: 'pointer',
                     }}
                     onPress={e => {
                       e?.stopPropagation?.();
