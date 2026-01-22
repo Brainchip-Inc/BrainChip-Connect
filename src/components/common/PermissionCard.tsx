@@ -25,6 +25,9 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
         {
           backgroundColor: theme.colors.surface,
           shadowColor: theme.colors.shadow,
+          borderRadius: 1,
+          borderWidth: 1,
+          borderColor: theme.colors.outline,
         },
       ]}
     >
@@ -71,11 +74,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     padding: 10,
-    borderRadius: 10,
-    elevation: 2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+    borderRadius: 1,
   },
   iconContainer: {
     width: 44,

@@ -1,286 +1,267 @@
-import React, { useState } from 'react';
-import { View, ScrollView, useWindowDimensions, Image } from 'react-native';
-import {
-  Text,
-  Button,
-  useTheme,
-  ProgressBar,
-  Divider,
-} from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, useWindowDimensions, Alert } from 'react-native';
+import { Text, useTheme, ProgressBar } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Cpu, Bell, Home, Settings, User, Activity } from 'lucide-react-native';
+import { Bluetooth, CheckCircle2, Loader } from 'lucide-react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootParamList } from '../../../../App';
+import BleService from '../../../services/ble/bleManager';
 
-interface AppItem {
-  id: string;
-  name: string;
-  description: string;
-  size: string;
-}
+type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
-const APPS: AppItem[] = [
-  {
-    id: 'keyword',
-    name: 'Keyword Spotting',
-    description: 'Voice-activated wake word detection using microphone input',
-    size: '128 kB',
-  },
-  {
-    id: 'anomaly',
-    name: 'Anomaly Detection',
-    description:
-      'Real-time anomaly detection from vibration and acoustic patterns',
-    size: '96 kB',
-  },
-  {
-    id: 'imu',
-    name: 'IMU Gesture',
-    description: 'Motion gesture recognition using 6-axis IMU sensor data',
-    size: '112 kB',
-  },
-  {
-    id: 'vision',
-    name: 'Vision Lite',
-    description: 'Lightweight image classification for object detection',
-    size: '256 kB',
-  },
+const ConnectionSteps = [
+  { id: 1, label: 'Establishing connection', duration: 2000 },
+  { id: 2, label: 'Authenticating', duration: 2000 },
+  { id: 3, label: 'Reading device info', duration: 1500 },
+  { id: 4, label: 'Syncing configuration', duration: 1500 },
 ];
 
-const DeviceApplicationsScreen: React.FC = () => {
+const DeviceConnectingScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
+  const route = useRoute<DeviceConnectingRouteProp>();
+  const { width } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
 
-  const spacing = width < 375 ? 12 : 16;
-  const horizontalPadding = width < 375 ? 16 : 20;
-  const maxWidth = width >= 768 ? 720 : width;
+  const { deviceId, deviceName, rssi } = route.params;
+
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  const isSmallDevice = width < 375;
+  const isMediumDevice = width >= 375 && width < 768;
+  const isLargeDevice = width >= 768;
+
+  const spacing = isSmallDevice ? 12 : isMediumDevice ? 16 : 20;
+  const horizontalPadding = isSmallDevice
+    ? 16
+    : isMediumDevice
+    ? 20
+    : Math.min(width * 0.1, 80);
+  const maxWidth = isLargeDevice ? 600 : width;
+
+  useEffect(() => {
+    let stepIndex = 0;
+    let progressValue = 0;
+    const totalSteps = ConnectionSteps.length;
+
+    const connectDevice = async () => {
+      try {
+        // Start connection process
+        const connection = BleService.connectDevice(deviceId);
+
+        // Simulate connection steps with progress
+        const stepInterval = setInterval(() => {
+          if (stepIndex < totalSteps) {
+            setCurrentStep(stepIndex);
+            progressValue = (stepIndex + 1) / totalSteps;
+            setProgress(progressValue);
+            stepIndex++;
+          } else {
+            clearInterval(stepInterval);
+          }
+        }, 1800);
+
+        // Wait for actual connection
+        await connection;
+
+        // All steps completed
+        setTimeout(() => {
+          setCurrentStep(totalSteps);
+          setProgress(1);
+
+          // Navigate to Device Details
+          setTimeout(() => {
+            // navigation.replace('DeviceDetails', {
+            //   deviceId,
+            //   deviceName,
+            //   rssi,
+            // });
+            navigation.replace('DeviceApplications');
+          }, 500);
+        }, 500);
+      } catch (error: any) {
+        console.error('Connection error:', error);
+        Alert.alert(
+          'Connection Failed',
+          error.message || 'Failed to connect to the device. Please try again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ],
+        );
+      }
+    };
+
+    connectDevice();
+  }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      {/* ================= HEADER ================= */}
-      <View
-        style={{
-          paddingTop: insets.top,
-          paddingHorizontal: horizontalPadding,
-          paddingBottom: spacing,
-          backgroundColor: '#111111',
-        }}
-      >
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.colors.background,
+        paddingTop: insets.top,
+        paddingHorizontal: horizontalPadding,
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <View style={{ width: '100%', maxWidth, alignItems: 'center' }}>
+        {/* Device Icon with Animation */}
         <View
           style={{
-            maxWidth,
-            width: '100%',
-            alignSelf: 'center',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
+            width: 120,
+            height: 120,
+            backgroundColor: 'rgba(0, 97, 237, 0.1)',
             alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: spacing * 2,
           }}
         >
-          {/* Left */}
-          <View>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
-              brainchip*
-            </Text>
-            <Text style={{ color: '#aaa', fontSize: 11 }}>
-              Akida Mobile Connect
-            </Text>
-          </View>
-
-          {/* Right */}
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
-              BrainChip-AKD1000-A7F3
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: '#0BD6A5',
-                  marginRight: 6,
-                }}
-              />
-              <Text style={{ color: '#0BD6A5', fontSize: 11 }}>Connected</Text>
-            </View>
-          </View>
+          <Bluetooth size={60} color={theme.colors.primary} strokeWidth={1.5} />
         </View>
-      </View>
 
-      {/* ================= CONTENT ================= */}
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: horizontalPadding,
-          paddingBottom: insets.bottom + 90,
-          alignItems: 'center',
-        }}
-      >
-        <View style={{ width: '100%', maxWidth }}>
-          <Text
-            variant="headlineMedium"
-            style={{ fontWeight: '700', marginTop: spacing * 1.5 }}
-          >
-            Select the Application
-          </Text>
+        {/* Device Name */}
+        <Text
+          variant={isSmallDevice ? 'headlineSmall' : 'headlineMedium'}
+          style={{
+            fontWeight: '700',
+            marginBottom: spacing * 2,
+            textAlign: 'center',
+          }}
+        >
+          {deviceName}
+        </Text>
 
-          {/* Default configuration */}
+        {/* Progress Bar */}
+        <View style={{ width: '100%', marginBottom: spacing * 3 }}>
           <View
             style={{
-              backgroundColor: theme.colors.surface,
-              borderWidth: 1,
-              borderColor: theme.colors.outline,
-              padding: spacing,
-              marginTop: spacing,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginBottom: spacing * 0.5,
             }}
           >
-            <Text variant="labelMedium" style={{ marginBottom: 4 }}>
-              Default Configuration
-            </Text>
             <Text
-              variant="bodySmall"
+              variant="labelMedium"
               style={{ color: theme.colors.onSurfaceVariant }}
             >
-              No specific firmware build installed. All 4 AI use cases are
-              currently available on your device. You can install a specialized
-              build from Settings → Firmware Update.
+              {currentStep < ConnectionSteps.length
+                ? ConnectionSteps[currentStep].label
+                : 'Connected'}
+            </Text>
+            <Text
+              variant="labelMedium"
+              style={{ color: theme.colors.primary, fontWeight: '600' }}
+            >
+              {Math.round(progress * 100)}%
             </Text>
           </View>
+          <ProgressBar
+            progress={progress}
+            color={theme.colors.primary}
+            style={{ height: 8, backgroundColor: 'rgba(0, 97, 237, 0.1)' }}
+          />
+        </View>
 
-          {/* Applications */}
-          {APPS.map(app => (
-            <View
-              key={app.id}
-              style={{
-                backgroundColor: theme.colors.surface,
-                borderWidth: 1,
-                borderColor: theme.colors.outline,
-                padding: spacing,
-                marginTop: spacing * 1.25,
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Cpu size={20} color={theme.colors.primary} />
-                <Text
-                  variant="titleMedium"
-                  style={{ fontWeight: '600', marginLeft: 8 }}
-                >
-                  {app.name}
-                </Text>
-              </View>
+        {/* Connection Steps */}
+        <View
+          style={{
+            width: '100%',
+            backgroundColor: theme.colors.surface,
+            borderWidth: 1,
+            borderColor: theme.colors.outline,
+            padding: spacing * 1.5,
+          }}
+        >
+          {ConnectionSteps.map((step, index) => {
+            const isCompleted = index < currentStep;
+            const isCurrent = index === currentStep;
+            const isPending = index > currentStep;
 
-              <Text
-                variant="bodySmall"
-                style={{
-                  color: theme.colors.onSurfaceVariant,
-                  marginTop: 6,
-                }}
-              >
-                {app.description}
-              </Text>
-
-              <Text
-                variant="bodySmall"
-                style={{
-                  color: theme.colors.onSurfaceVariant,
-                  marginTop: 4,
-                }}
-              >
-                ◦ Size: {app.size}
-              </Text>
-
+            return (
               <View
+                key={step.id}
                 style={{
                   flexDirection: 'row',
-                  gap: spacing,
-                  marginTop: spacing,
+                  alignItems: 'center',
+                  marginBottom:
+                    index < ConnectionSteps.length - 1 ? spacing : 0,
                 }}
               >
-                <Button mode="outlined" style={{ flex: 1 }}>
-                  More Information
-                </Button>
-                <Button mode="contained" style={{ flex: 1 }}>
-                  Deploy Application
-                </Button>
+                {/* Icon */}
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: isCompleted
+                      ? '#0BD6A5'
+                      : isCurrent
+                      ? 'rgba(0, 97, 237, 0.1)'
+                      : 'rgba(0, 0, 0, 0.05)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: spacing,
+                  }}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 size={20} color="#FFFFFF" strokeWidth={2} />
+                  ) : isCurrent ? (
+                    <Loader
+                      size={20}
+                      color={theme.colors.primary}
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: theme.colors.outline,
+                      }}
+                    />
+                  )}
+                </View>
+
+                {/* Label */}
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    color:
+                      isCompleted || isCurrent
+                        ? theme.colors.onSurface
+                        : theme.colors.onSurfaceVariant,
+                    fontWeight: isCurrent ? '600' : '400',
+                  }}
+                >
+                  {step.label}
+                </Text>
               </View>
-            </View>
-          ))}
-
-          {/* Device Status */}
-          <Text
-            variant="titleMedium"
-            style={{ fontWeight: '600', marginTop: spacing * 2 }}
-          >
-            Device Status
-          </Text>
-
-          <View
-            style={{
-              backgroundColor: theme.colors.surface,
-              borderWidth: 1,
-              borderColor: theme.colors.outline,
-              padding: spacing,
-              marginTop: spacing,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginBottom: 6,
-              }}
-            >
-              <Text variant="bodySmall">Battery</Text>
-              <Text variant="bodySmall" style={{ fontWeight: '600' }}>
-                87%
-              </Text>
-            </View>
-
-            <ProgressBar
-              progress={0.87}
-              color={theme.colors.secondary}
-              style={{ height: 6, marginBottom: 6 }}
-            />
-
-            <Text
-              variant="bodySmall"
-              style={{ color: theme.colors.onSurfaceVariant }}
-            >
-              Power Mode: Balanced · 342 minutes left
-            </Text>
-          </View>
+            );
+          })}
         </View>
-      </ScrollView>
 
-      {/* ================= BOTTOM NAV ================= */}
-      <View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          paddingBottom: insets.bottom,
-          backgroundColor: theme.colors.surface,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.outline,
-        }}
-      >
-        <View
+        {/* Info Text */}
+        <Text
+          variant="bodySmall"
           style={{
-            maxWidth,
-            width: '100%',
-            alignSelf: 'center',
-            flexDirection: 'row',
-            justifyContent: 'space-around',
-            paddingVertical: 10,
+            color: theme.colors.onSurfaceVariant,
+            marginTop: spacing * 2,
+            textAlign: 'center',
+            lineHeight: 20,
           }}
         >
-          <Home size={20} color={theme.colors.primary} />
-          <Bell size={20} color={theme.colors.onSurfaceVariant} />
-          <Settings size={20} color={theme.colors.onSurfaceVariant} />
-          <User size={20} color={theme.colors.onSurfaceVariant} />
-        </View>
+          Please wait while we establish a secure connection with your device...
+        </Text>
       </View>
     </View>
   );
 };
 
-export default DeviceApplicationsScreen;
+export default DeviceConnectingScreen;

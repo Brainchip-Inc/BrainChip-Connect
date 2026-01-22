@@ -17,7 +17,7 @@ import DevicePreviewScreen from './src/app/screens/Device/DevicePreviewScreen';
 import DeviceConnectingScreen from './src/app/screens/Device/DeviceConnectingScreen';
 import DeviceDetailsScreen from './src/app/screens/Device/DeviceDetailsScreen';
 import DeviceDiscoveryScreen from './src/app/screens/Device/DeviceDiscoveryScreen';
-// import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplicationScreen';
+import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplicationScreen';
 
 export type RootParamList = {
   Splash: undefined;
@@ -111,11 +111,11 @@ const App = () => {
                   component={DeviceConnectingScreen}
                   options={{ headerShown: false }}
                 />
-                {/* <Stack.Screen
+                <Stack.Screen
                   name="DeviceApplications"
                   component={DeviceApplicationsScreen}
                   options={{ headerShown: false }}
-                /> */}
+                />
               </>
             )}
           </Stack.Navigator>

@@ -18,6 +18,9 @@ const CardComponent: React.FC<CardProps> = ({ title, subtitle, Icon }) => {
         {
           backgroundColor: theme.colors.surface,
           shadowColor: theme.colors.shadow,
+          borderRadius: 1,
+          borderWidth: 1,
+          borderColor: theme.colors.outline,
         },
       ]}
     >
@@ -57,11 +60,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderRadius: 16,
-    elevation: 3, // Android
-    shadowOffset: { width: 0, height: 4 }, // iOS
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    borderRadius: 1,
   },
   iconContainer: {
     width: 48,
