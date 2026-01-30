@@ -390,53 +390,62 @@ const PermissionsScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
 
-      {/* Bottom Action Buttons */}
-      <View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          paddingHorizontal: horizontalPadding,
-          paddingTop: spacing,
-          paddingBottom: insets.bottom + spacing,
-          backgroundColor: theme.colors.surface,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.outline,
-          alignItems: 'center',
-        }}
-      >
-        <View style={{ width: '100%', maxWidth, gap: spacing * 0.75 }}>
-          <Button
-            mode="contained"
-            onPress={handleGrantPermissions}
-            disabled={!canProceed || isGranting}
-            loading={isGranting}
-            contentStyle={{ paddingVertical: isSmallDevice ? 6 : 8 }}
-            labelStyle={{
-              fontSize: isSmallDevice ? 13 : 14,
-              fontWeight: '600',
-            }}
-          >
-            {isGranting ? 'Requesting Permissions...' : 'Grant Permissions'}
-          </Button>
+        {/* Bottom Action Buttons */}
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            width: '100%',
+            alignItems: 'center',
+            paddingBottom: insets.bottom + 24,
+            backgroundColor: 'transparent',
+          }}
+        >
+          <View style={{ width: '100%', maxWidth }}>
+            {/* Grant Permissions */}
+            <Button
+              mode="contained"
+              onPress={handleGrantPermissions}
+              disabled={!canProceed || isGranting}
+              loading={isGranting}
+              contentStyle={{ height: 58 }}
+              style={{
+                borderRadius: 0,
+                backgroundColor: canProceed ? '#0061ED' : '#E5E7EB',
+              }}
+              labelStyle={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: canProceed ? '#FFFFFF' : 'rgba(0,0,0,0.4)',
+              }}
+            >
+              {isGranting ? 'Requesting Permissions...' : 'Grant Permissions'}
+            </Button>
 
-          <Button
-            mode="outlined"
-            onPress={() => navigation.goBack()}
-            disabled={isGranting}
-            contentStyle={{ paddingVertical: isSmallDevice ? 6 : 8 }}
-            labelStyle={{
-              fontSize: isSmallDevice ? 13 : 14,
-              fontWeight: '600',
-            }}
-          >
-            Back
-          </Button>
+            {/* Back */}
+            <Button
+              mode="outlined"
+              onPress={() => navigation.goBack()}
+              disabled={isGranting}
+              contentStyle={{ height: 48 }}
+              style={{
+                borderRadius: 0,
+                borderColor: '#E5E7EB',
+                marginTop: 12,
+                backgroundColor: '#FFFFFF',
+              }}
+              labelStyle={{
+                fontSize: 14,
+                fontWeight: '500',
+                color: '#000000',
+              }}
+            >
+              Back
+            </Button>
+          </View>
         </View>
-      </View>
+      </ScrollView>
 
       {/* Modal for Privacy Policy / Terms */}
       <Portal>

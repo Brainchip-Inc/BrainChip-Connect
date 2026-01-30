@@ -50,5 +50,29 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<!-- Bluetooth -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app uses Bluetooth to scan and connect to nearby devices.</string>
+
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app uses Bluetooth to communicate with Bluetooth devices.</string>
+
+	<!-- Location (Fine + Coarse) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app uses location to discover nearby Bluetooth devices.</string>
+
+	<!-- Background Location -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs location access even when the app is in the background.</string>
+
+	<key>UIBackgroundModes</key>
+	<array>
+	<string>location</string>
+	</array>
+
+	<!-- Notifications -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>This app sends notifications to keep you updated.</string>
+
 </dict>
 </plist>

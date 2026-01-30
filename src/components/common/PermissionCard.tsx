@@ -46,10 +46,10 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
             {title}
           </Text>
           {required && (
-            <View
-              style={[styles.badge, { backgroundColor: theme.colors.error }]}
-            >
-              <Text style={styles.badgeText}>REQUIRED</Text>
+            <View style={[styles.badge]}>
+              <Text style={[styles.badgeText, { color: theme.colors.error }]}>
+                REQUIRED
+              </Text>
             </View>
           )}
         </View>
@@ -94,14 +94,14 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   badge: {
-    marginLeft: 8,
-    paddingHorizontal: 8,
+    marginLeft: 6,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
