@@ -31,7 +31,7 @@ class BleService {
     try {
       const state = await this.bleManager.state();
       return state === State.PoweredOn;
-    } catch (error) {
+    } catch {
       return false;
     }
   };
@@ -48,6 +48,61 @@ class BleService {
     return () => {
       this.stateSubscription?.remove();
       this.stateSubscription = null;
+    };
+  };
+
+  /**
+   * Check current permission state without prompting the user.
+   */
+  checkAllPermissions = async (): Promise<{
+    bluetooth: boolean;
+    location: boolean;
+    notifications: boolean;
+  }> => {
+    if (Platform.OS === 'android') {
+      try {
+        const androidVersion = Platform.Version;
+
+        const bluetoothGranted =
+          androidVersion >= 31
+            ? (await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+              )) &&
+              (await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+              ))
+            : true;
+
+        const locationGranted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
+
+        const notificationsGranted =
+          androidVersion >= 33
+            ? await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+              )
+            : true;
+
+        return {
+          bluetooth: bluetoothGranted,
+          location: locationGranted,
+          notifications: notificationsGranted,
+        };
+      } catch {
+        return {
+          bluetooth: false,
+          location: false,
+          notifications: false,
+        };
+      }
+    }
+
+    // For iOS, permissions are handled through Info.plist.
+    return {
+      bluetooth: true,
+      location: true,
+      notifications: true,
     };
   };
 
@@ -135,7 +190,7 @@ class BleService {
           location: locationGranted,
           notifications: notificationsGranted,
         };
-      } catch (error) {
+      } catch {
         return {
           bluetooth: false,
           location: false,
@@ -232,7 +287,7 @@ class BleService {
   isDeviceConnected = async (deviceId: string): Promise<boolean> => {
     try {
       return await this.bleManager.isDeviceConnected(deviceId);
-    } catch (error) {
+    } catch {
       return false;
     }
   };
@@ -243,7 +298,7 @@ class BleService {
   getConnectedDevices = async (serviceUUIDs: string[] = []): Promise<Device[]> => {
     try {
       return await this.bleManager.connectedDevices(serviceUUIDs);
-    } catch (error) {
+    } catch {
       return [];
     }
   };

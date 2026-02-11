@@ -21,8 +21,12 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import PermissionCard from '../../../components/common/PermissionCard';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBleStore } from '../../store/useBleStore';
+import {
+  getAcceptanceState,
+  setPrivacyAcceptedPersisted,
+  setTermsAcceptedPersisted,
+} from '../../store/acceptanceStorage';
 
 const cardData = [
   {
@@ -48,60 +52,6 @@ const cardData = [
   },
 ];
 
-const PRIVACY_POLICY = `Privacy Policy
-
-Last updated: January 2026
-
-1. Information We Collect
-We do not collect, store, or transmit any personal information. All data remains on your device.
-
-2. Device Permissions
-- Bluetooth: Required for connecting to Edge AI devices
-- Location: Only used for Bluetooth scanning on Android (not for tracking)
-- Notifications: Only for device alerts
-
-3. Data Storage
-All application data is stored locally on your device. We do not have access to your data.
-
-4. Third-Party Services
-This app does not integrate with any third-party analytics or tracking services.
-
-5. Changes to This Policy
-We may update this policy from time to time. Changes will be posted in the app.
-
-Contact: support@brainchip.com`;
-
-const TERMS_CONDITIONS = `Terms and Conditions
-
-Last updated: January 2026
-
-1. Acceptance of Terms
-By using this application, you agree to these terms and conditions.
-
-2. Purpose
-This is a development and testing tool for BrainChip Edge AI devices. It is not designed for collecting or processing sensitive data.
-
-3. User Responsibilities
-- Use the app only with authorized devices
-- Do not use for unauthorized data collection
-- Ensure compliance with local regulations
-
-4. Limitations
-- The app is provided "as is" without warranties
-- We are not responsible for device misuse
-- Not intended for medical or safety-critical applications
-
-5. Updates
-The app may receive updates to improve functionality and security.
-
-6. Termination
-We reserve the right to discontinue the service at any time.
-
-Contact: support@brainchip.com`;
-
-const STORAGE_KEY_PRIVACY = '@spark_privacy_accepted';
-const STORAGE_KEY_TERMS = '@spark_terms_accepted';
-
 const PermissionsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
   const { width } = useWindowDimensions();
@@ -119,16 +69,12 @@ const PermissionsScreen: React.FC = () => {
   // Load persisted acceptance state on mount
   useEffect(() => {
     const loadAcceptance = async () => {
-      try {
-        const [privacy, terms] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEY_PRIVACY),
-          AsyncStorage.getItem(STORAGE_KEY_TERMS),
-        ]);
-        if (privacy === 'true') setPrivacyAccepted(true);
-        if (terms === 'true') setTermsAccepted(true);
-      } catch {}
+      const { privacyAccepted: privacy, termsAccepted: terms } =
+        await getAcceptanceState();
+      setPrivacyAccepted(privacy);
+      setTermsAccepted(terms);
     };
-    loadAcceptance();
+    loadAcceptance().catch(() => {});
   }, [setPrivacyAccepted, setTermsAccepted]);
 
   const isSmallDevice = width < 375;
@@ -149,7 +95,7 @@ const PermissionsScreen: React.FC = () => {
     navigation.navigate('PrivacyPolicy', {
       onAccept: () => {
         setPrivacyAccepted(true);
-        AsyncStorage.setItem(STORAGE_KEY_PRIVACY, 'true').catch(() => {});
+        setPrivacyAcceptedPersisted(true).catch(() => {});
       },
     });
   };
@@ -158,9 +104,21 @@ const PermissionsScreen: React.FC = () => {
     navigation.navigate('TermsAndConditions', {
       onAccept: () => {
         setTermsAccepted(true);
-        AsyncStorage.setItem(STORAGE_KEY_TERMS, 'true').catch(() => {});
+        setTermsAcceptedPersisted(true).catch(() => {});
       },
     });
+  };
+
+  const togglePrivacyAccepted = () => {
+    const nextValue = !privacyAccepted;
+    setPrivacyAccepted(nextValue);
+    setPrivacyAcceptedPersisted(nextValue).catch(() => {});
+  };
+
+  const toggleTermsAccepted = () => {
+    const nextValue = !termsAccepted;
+    setTermsAccepted(nextValue);
+    setTermsAcceptedPersisted(nextValue).catch(() => {});
   };
 
   const handleGrantPermissions = async () => {
@@ -204,7 +162,7 @@ const PermissionsScreen: React.FC = () => {
 
       setIsGranting(false);
       navigation.navigate('DeviceDiscovery');
-    } catch (error) {
+    } catch {
       setIsGranting(false);
       Alert.alert(
         'Error',
@@ -266,7 +224,7 @@ const PermissionsScreen: React.FC = () => {
           <View style={{ gap: spacing }}>
             {/* Privacy Policy Checkbox */}
             <TouchableOpacity
-              onPress={() => setPrivacyAccepted(!privacyAccepted)}
+              onPress={togglePrivacyAccepted}
               activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
@@ -325,7 +283,7 @@ const PermissionsScreen: React.FC = () => {
 
             {/* Terms and Conditions Checkbox */}
             <TouchableOpacity
-              onPress={() => setTermsAccepted(!termsAccepted)}
+              onPress={toggleTermsAccepted}
               activeOpacity={0.7}
               style={{
                 flexDirection: 'row',

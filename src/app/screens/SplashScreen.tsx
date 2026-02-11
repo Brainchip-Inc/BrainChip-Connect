@@ -1,20 +1,56 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Image } from 'react-native';
 import { Text, ActivityIndicator, useTheme } from 'react-native-paper';
-import BrainChipTheme, { Colors } from '../theme/theme';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootParamList } from '../../../App';
+import BleService from '../../services/ble/bleManager';
+import { getAcceptanceState } from '../store/acceptanceStorage';
+import { Colors } from '../theme/theme';
 
 interface SplashScreenProps {
-  navigation: any;
+  navigation: NativeStackNavigationProp<RootParamList>;
 }
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
   const theme = useTheme();
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('GetStarted');
-    }, 2000); // slightly longer for better UX
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveStartupRoute = async () => {
+      const { privacyAccepted, termsAccepted } = await getAcceptanceState();
+
+      if (!isMounted) return;
+
+      if (!privacyAccepted || !termsAccepted) {
+        navigation.replace('GetStarted');
+        return;
+      }
+
+      const [permissions, isBluetoothEnabled] = await Promise.all([
+        BleService.checkAllPermissions(),
+        BleService.isBluetoothEnabled(),
+      ]);
+
+      if (!isMounted) return;
+
+      if (permissions.bluetooth && permissions.location && isBluetoothEnabled) {
+        navigation.replace('DeviceDiscovery');
+        return;
+      }
+
+      navigation.replace('Permissions');
+    };
+
+    resolveStartupRoute().catch(() => {
+      if (isMounted) {
+        navigation.replace('GetStarted');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigation]);
 
   return (
