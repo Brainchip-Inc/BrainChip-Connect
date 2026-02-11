@@ -1,32 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   ScrollView,
   useWindowDimensions,
-  Platform,
   Alert,
   TouchableOpacity,
 } from 'react-native';
 import {
   Text,
   Button,
-  Portal,
-  Modal,
   useTheme,
-  IconButton,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckSquare, Square, X } from 'lucide-react-native';
-import CardComponent from '../../../components/common/CardComponent';
+import { CheckSquare, Square } from 'lucide-react-native';
 import BleIcon from '../../assets/images/00_Permissions/Bluetooth Icon.svg';
 import LocationIcon from '../../assets/images/00_Permissions/Location Icon.svg';
 import NotificationIcon from '../../assets/images/00_Permissions/NotificationsIcon.svg';
-import SensorData from '../../assets/images/00_Start/SensorData.svg';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import PermissionCard from '../../../components/common/PermissionCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useBleStore } from '../../store/useBleStore';
 
 const cardData = [
   {
@@ -103,18 +99,37 @@ We reserve the right to discontinue the service at any time.
 
 Contact: support@brainchip.com`;
 
+const STORAGE_KEY_PRIVACY = '@spark_privacy_accepted';
+const STORAGE_KEY_TERMS = '@spark_terms_accepted';
+
 const PermissionsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
   const { width } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalContent, setModalContent] = useState('');
-  const [modalTitle, setModalTitle] = useState('');
+  const {
+    privacyAccepted, setPrivacyAccepted,
+    termsAccepted, setTermsAccepted,
+    setPermissions,
+  } = useBleStore();
+
   const [isGranting, setIsGranting] = useState(false);
+
+  // Load persisted acceptance state on mount
+  useEffect(() => {
+    const loadAcceptance = async () => {
+      try {
+        const [privacy, terms] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY_PRIVACY),
+          AsyncStorage.getItem(STORAGE_KEY_TERMS),
+        ]);
+        if (privacy === 'true') setPrivacyAccepted(true);
+        if (terms === 'true') setTermsAccepted(true);
+      } catch {}
+    };
+    loadAcceptance();
+  }, [setPrivacyAccepted, setTermsAccepted]);
 
   const isSmallDevice = width < 375;
   const isMediumDevice = width >= 375 && width < 768;
@@ -130,26 +145,21 @@ const PermissionsScreen: React.FC = () => {
 
   const canProceed = privacyAccepted && termsAccepted;
 
-  // const openPrivacyPolicy = () => {
-  //   setModalTitle('Privacy Policy');
-  //   setModalContent(PRIVACY_POLICY);
-  //   setModalVisible(true);
-  // };
   const openPrivacyPolicy = () => {
     navigation.navigate('PrivacyPolicy', {
-      onAccept: () => setPrivacyAccepted(true),
+      onAccept: () => {
+        setPrivacyAccepted(true);
+        AsyncStorage.setItem(STORAGE_KEY_PRIVACY, 'true').catch(() => {});
+      },
     });
   };
 
-  // const openTermsAndConditions = () => {
-  //   setModalTitle('Terms and Conditions');
-  //   setModalContent(TERMS_CONDITIONS);
-  //   setModalVisible(true);
-  // };
-
   const openTermsAndConditions = () => {
     navigation.navigate('TermsAndConditions', {
-      onAccept: () => setTermsAccepted(true),
+      onAccept: () => {
+        setTermsAccepted(true);
+        AsyncStorage.setItem(STORAGE_KEY_TERMS, 'true').catch(() => {});
+      },
     });
   };
 
@@ -157,14 +167,9 @@ const PermissionsScreen: React.FC = () => {
     setIsGranting(true);
 
     try {
-      console.log('Requesting all permissions...');
-
-      // Request all permissions (Bluetooth, Location, Notifications)
       const permissions = await BleService.requestAllPermissions();
+      setPermissions(permissions);
 
-      console.log('Permission results:', permissions);
-
-      // Check if Bluetooth permission is granted (required)
       if (!permissions.bluetooth) {
         setIsGranting(false);
         Alert.alert(
@@ -175,7 +180,6 @@ const PermissionsScreen: React.FC = () => {
         return;
       }
 
-      // Check if Location permission is granted (required for BLE scanning)
       if (!permissions.location) {
         setIsGranting(false);
         Alert.alert(
@@ -186,15 +190,7 @@ const PermissionsScreen: React.FC = () => {
         return;
       }
 
-      // Notification permission is optional, just log if not granted
-      if (!permissions.notifications) {
-        console.log('Notification permission not granted (optional)');
-      }
-
-      // Check if Bluetooth is enabled
-      console.log('Checking Bluetooth state...');
       const isEnabled = await BleService.isBluetoothEnabled();
-      console.log('Bluetooth enabled:', isEnabled);
 
       if (!isEnabled) {
         setIsGranting(false);
@@ -206,12 +202,9 @@ const PermissionsScreen: React.FC = () => {
         return;
       }
 
-      // All required permissions granted and Bluetooth is enabled
-      console.log('All permissions granted, navigating to DeviceDiscovery');
       setIsGranting(false);
       navigation.navigate('DeviceDiscovery');
     } catch (error) {
-      console.error('Error granting permissions:', error);
       setIsGranting(false);
       Alert.alert(
         'Error',
@@ -447,59 +440,6 @@ const PermissionsScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      {/* Modal for Privacy Policy / Terms */}
-      <Portal>
-        <Modal
-          visible={modalVisible}
-          onDismiss={() => setModalVisible(false)}
-          dismissable={true}
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          }}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.surface,
-            marginHorizontal: horizontalPadding,
-            marginVertical: spacing * 4,
-            padding: spacing * 1.5,
-            maxHeight: '80%',
-          }}
-        >
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: spacing,
-            }}
-          >
-            <Text
-              variant="headlineSmall"
-              style={{ fontWeight: '700', flex: 1 }}
-            >
-              {modalTitle}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              hitSlop={10}
-            >
-              <X size={24} color={theme.colors.onSurface} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text variant="bodyMedium" style={{ lineHeight: 22 }}>
-              {modalContent}
-            </Text>
-          </ScrollView>
-          <Button
-            mode="contained"
-            onPress={() => setModalVisible(false)}
-            style={{ marginTop: spacing * 1.5 }}
-            contentStyle={{ paddingVertical: 8 }}
-          >
-            Close
-          </Button>
-        </Modal>
-      </Portal>
     </View>
   );
 };
