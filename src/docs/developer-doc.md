@@ -13,7 +13,7 @@ Before starting, make sure you have the following installed:
 
 ### Required Software
 
-- **Node.js** (>= 22.x)
+- **Node.js** (>= 20.x)
 - **npm**
 - **React Native CLI**
 - **Git**
@@ -65,7 +65,7 @@ Make sure an emulator or device is running:
 npm run android
 ```
 
-#### To run on Android
+#### To run on iOS
 
 ```bash
 npm run ios
