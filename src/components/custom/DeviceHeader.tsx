@@ -9,7 +9,7 @@ interface DeviceHeaderProps {
 }
 
 const DeviceHeader: React.FC<DeviceHeaderProps> = ({
-  deviceName = 'BrainChip-AKD1000-A7F3',
+  deviceName = 'Unknown Device',
   showConnectionStatus = false,
 }) => {
   const theme = useTheme();

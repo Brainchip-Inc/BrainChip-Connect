@@ -1,12 +1,10 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import BrainChipTheme from '../../app/theme/theme';
-
 interface PermissionCardProps {
   title: string;
   subtitle: string;
-  Icon: any;
+  Icon: React.FC;
   required?: boolean;
 }
 
@@ -24,8 +22,8 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
         styles.card,
         {
           backgroundColor: theme.colors.surface,
-          shadowColor: theme.colors.shadow,
-          borderRadius: 1,
+          shadowColor: '#000',
+          borderRadius: 0,
           borderWidth: 1,
           borderColor: theme.colors.outline,
         },
@@ -74,7 +72,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     padding: 10,
-    borderRadius: 1,
+    borderRadius: 0,
   },
   iconContainer: {
     width: 44,
