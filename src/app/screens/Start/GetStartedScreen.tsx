@@ -1,95 +1,205 @@
 import React from 'react';
-import { ScrollView, Dimensions, View, Image } from 'react-native';
+import {
+  View,
+  Image,
+  StyleSheet,
+  useWindowDimensions,
+  ScrollView,
+} from 'react-native';
 import { Text, Button } from 'react-native-paper';
-import CardComponent from '../../../components/common/CardComponent';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Custom SVGs
-const { width } = Dimensions.get('window');
+import BLE from '../../assets/images/00_Start/BLE.svg';
+import AIAppControl from '../../assets/images/00_Start/AIAppControl.svg';
+import OTA from '../../assets/images/00_Start/OTA.svg';
+import SensorData from '../../assets/images/00_Start/SensorData.svg';
+import { RootParamList } from '../../../../App';
 
-const cardData = [
+const FEATURES = [
   {
     title: 'Bluetooth Low Energy',
     subtitle: 'Wireless connectivity optimized for minimal power consumption',
-    Icon: '../assets/images/00_Start/BLE.svg',
+    Icon: BLE,
   },
   {
     title: 'AI Application Control',
     subtitle: 'Deploy and manage neuromorphic models on device',
-    Icon: '../assets/images/00_Start/BLE.svg',
+    Icon: AIAppControl,
   },
   {
     title: 'Real-time Sensor Data',
     subtitle: 'Stream and visualize sensor readings with low latency',
-    Icon: '../assets/images/00_Start/BLE.svg',
+    Icon: SensorData,
   },
   {
     title: 'Over-the-Air Updates',
     subtitle: 'Seamless firmware updates without physical access',
-    Icon: '../assets/images/00_Start/BLE.svg',
+    Icon: OTA,
   },
 ];
 
 const GetStartedScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
+  const { width } = useWindowDimensions();
+
+  const isTablet = width >= 768;
+  const maxWidth = isTablet ? 600 : 382;
+
   return (
-    <ScrollView
-      contentContainerStyle={{
-        padding: 20,
-        paddingBottom: 40,
-        alignItems: 'center',
-      }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Logo */}
-      <Image
-        source={require('../assets/images/00_Start/Logo.png')}
-        resizeMode="contain" // keeps aspect ratio
-      />
-      <Image
-        source={require('../assets/images/00_Start/AIAppControl.svg')}
-        resizeMode="contain" // keeps aspect ratio
-      />
-      {/* Description */}
-      <Text
-        style={{
-          textAlign: 'center',
-          fontSize: width * 0.038,
-          lineHeight: width * 0.055,
-          marginBottom: 30,
+    <View style={{ flex: 1, backgroundColor: '#F8F8F9' }}>
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 24,
+          paddingVertical: 32,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        Edge AI IoT device management with BLE connectivity, OTA updates, and
-        live sensor monitoring
-      </Text>
-
-      {/* Cards */}
-      <View style={{ width: '100%' }}>
-        {cardData.map((card, index) => (
-          <CardComponent
-            key={index}
-            title={card.title}
-            subtitle={card.subtitle}
-            Icon={card.Icon}
+        {/* CENTERED CONTENT COLUMN */}
+        <View style={{ width: '100%', maxWidth }}>
+          {/* LOGO */}
+          <Image
+            source={require('../../assets/images/00_Start/Logo.png')}
+            resizeMode="contain"
+            style={styles.logo}
           />
-        ))}
-      </View>
 
-      {/* Get Started Button */}
-      <Button
-        mode="contained"
-        style={{
-          marginTop: 20,
-          width: '100%',
-          paddingVertical: 10,
-          borderRadius: 8,
-        }}
-        onPress={() => {
-          console.log('Get Started pressed');
-        }}
-      >
-        Get Started
-      </Button>
-    </ScrollView>
+          {/* TEXT */}
+          <View style={styles.textBlock}>
+            <Text style={styles.title}>Edge AI IoT device management</Text>
+            <Text style={styles.description}>
+              with BLE connectivity, OTA updates, and live sensor monitoring
+            </Text>
+          </View>
+
+          {/* CARDS */}
+          <View style={styles.cardList}>
+            {FEATURES.map((item, index) => {
+              const Icon = item.Icon;
+              return (
+                <View key={index} style={styles.card}>
+                  <View style={styles.iconBox}>
+                    <Icon />
+                  </View>
+
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* BUTTON */}
+          <View style={styles.buttonWrap}>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('Permissions')}
+              contentStyle={{ height: 56 }}
+              style={styles.button}
+              labelStyle={styles.buttonLabel}
+            >
+              Get Started
+            </Button>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 export default GetStartedScreen;
+
+const styles = StyleSheet.create({
+  logo: {
+    width: 229,
+    height: 80,
+    alignSelf: 'center',
+  },
+
+  textBlock: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+
+  title: {
+    fontFamily: 'Inter',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 26,
+    textAlign: 'center',
+    color: '#000',
+  },
+
+  description: {
+    fontFamily: 'Inter',
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 26,
+    textAlign: 'center',
+    color: '#000',
+    width: 275,
+    marginTop: 4,
+  },
+
+  cardList: {
+    marginTop: 32,
+    gap: 12,
+  },
+
+  card: {
+    flexDirection: 'row',
+    paddingTop: 16,
+    paddingLeft: 12,
+    paddingRight: 16,
+    height: 102,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+
+  iconBox: {
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+
+  cardText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  cardTitle: {
+    fontFamily: 'Sora-SemiBold',
+    fontSize: 16,
+    lineHeight: 26,
+    color: '#000',
+  },
+
+  cardSubtitle: {
+    fontFamily: 'Inter',
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#000',
+  },
+
+  buttonWrap: {
+    marginTop: 32,
+  },
+
+  button: {
+    borderRadius: 0,
+    backgroundColor: '#0061ED',
+  },
+
+  buttonLabel: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+});
