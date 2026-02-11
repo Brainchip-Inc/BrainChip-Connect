@@ -122,3 +122,5 @@ ios/*.dSYM
 .env.development
 .env.test
 
+# docs folder
+docs/local/*
