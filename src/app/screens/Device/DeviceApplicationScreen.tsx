@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { View, ScrollView, useWindowDimensions } from 'react-native';
+import { View, ScrollView, useWindowDimensions, Alert } from 'react-native';
 import {
   Text,
   Button,
   useTheme,
-  ProgressBar,
   Divider,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Cpu, Zap } from 'lucide-react-native';
+import { useRoute, RouteProp } from '@react-navigation/native';
+import { RootParamList } from '../../../../App';
+import { useBleStore } from '../../store/useBleStore';
 import DeviceHeader from '../../../components/custom/DeviceHeader';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
+
+type DeviceApplicationsRouteProp = RouteProp<RootParamList, 'DeviceApplications'>;
 
 interface AppItem {
   id: string;
@@ -47,9 +51,6 @@ const APPS: AppItem[] = [
     name: 'Vision Lite',
     description: 'Lightweight image classification for object detection',
     size: '256 kB',
-    // active: true,
-    // latestDetection: 'Person',
-    // confidence: 91,
   },
 ];
 
@@ -57,21 +58,54 @@ const DeviceApplicationsScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const route = useRoute<DeviceApplicationsRouteProp>();
+  const { connectedDevice } = useBleStore();
+
+  const deviceName = route.params?.deviceName ?? connectedDevice?.name ?? 'Unknown Device';
 
   const spacing = width < 375 ? 12 : 16;
   const horizontalPadding = width < 375 ? 16 : 20;
   const maxWidth = width >= 768 ? 640 : width;
 
-  const [apps] = useState<AppItem[]>(APPS);
+  const [apps, setApps] = useState<AppItem[]>(APPS);
   const [activeRoute, setActiveRoute] = useState<
     'Home' | 'Notifications' | 'Settings' | 'Profile'
   >('Notifications');
+
+  const handleDeploy = (app: AppItem) => {
+    setApps(prev =>
+      prev.map(a =>
+        a.id === app.id
+          ? { ...a, active: true, latestDetection: 'Waiting...', confidence: 0 }
+          : { ...a, active: false, latestDetection: undefined, confidence: undefined },
+      ),
+    );
+    Alert.alert('Deploying', `${app.name} is being deployed to the device.`);
+  };
+
+  const handleStop = (app: AppItem) => {
+    setApps(prev =>
+      prev.map(a =>
+        a.id === app.id
+          ? { ...a, active: false, latestDetection: undefined, confidence: undefined }
+          : a,
+      ),
+    );
+    Alert.alert('Stopped', `${app.name} has been stopped.`);
+  };
+
+  const handleMoreInfo = (app: AppItem) => {
+    Alert.alert(
+      app.name,
+      `${app.description}\n\nModel size: ${app.size}`,
+    );
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       {/* Header Component */}
       <DeviceHeader
-        deviceName="BrainChip-AKD1000-A7F3"
+        deviceName={deviceName}
         showConnectionStatus={true}
       />
       <ScrollView
@@ -220,12 +254,20 @@ const DeviceApplicationsScreen: React.FC = () => {
                   marginTop: spacing,
                 }}
               >
-                <Button mode="outlined" style={{ flex: 1 }}>
+                <Button
+                  mode="outlined"
+                  style={{ flex: 1 }}
+                  onPress={() => handleMoreInfo(app)}
+                >
                   More Information
                 </Button>
 
                 {!app.active ? (
-                  <Button mode="contained" style={{ flex: 1 }}>
+                  <Button
+                    mode="contained"
+                    style={{ flex: 1 }}
+                    onPress={() => handleDeploy(app)}
+                  >
                     Deploy Application
                   </Button>
                 ) : (
@@ -233,6 +275,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                     mode="contained"
                     buttonColor={theme.colors.error}
                     style={{ flex: 1 }}
+                    onPress={() => handleStop(app)}
                   >
                     Stop Application
                   </Button>
@@ -244,6 +287,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                   mode="contained"
                   style={{ marginTop: spacing }}
                   icon={() => <Zap size={16} color="#fff" />}
+                  onPress={() => Alert.alert('Live Data', `Viewing live sensor data for ${app.name}. (Not yet implemented)`)}
                 >
                   View Live Sensor Data
                 </Button>
@@ -267,30 +311,12 @@ const DeviceApplicationsScreen: React.FC = () => {
               padding: spacing,
             }}
           >
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginBottom: 6,
-              }}
-            >
-              <Text variant="bodySmall">Battery</Text>
-              <Text variant="bodySmall" style={{ fontWeight: '600' }}>
-                87%
-              </Text>
-            </View>
-
-            <ProgressBar
-              progress={0.87}
-              color={theme.colors.secondary}
-              style={{ height: 6, marginBottom: 6 }}
-            />
-
             <Text
               variant="bodySmall"
               style={{ color: theme.colors.onSurfaceVariant }}
             >
-              Power Mode: Balanced · 342 minutes left
+              Battery and power information will be available once device
+              reporting is configured.
             </Text>
           </View>
         </View>
@@ -302,7 +328,7 @@ const DeviceApplicationsScreen: React.FC = () => {
           setActiveRoute(route);
           console.log('Navigated to:', route);
         }}
-        // notificationCount={3}
+        notificationCount={0}
       />
     </View>
   );
