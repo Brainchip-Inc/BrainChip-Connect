@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, useWindowDimensions, Alert } from 'react-native';
 import { Text, useTheme, ProgressBar } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
+import { useBleStore } from '../../store/useBleStore';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
@@ -25,9 +26,13 @@ const DeviceConnectingScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
 
   const { deviceId, deviceName, rssi } = route.params;
+  const { setConnectedDevice, setConnectionState } = useBleStore();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
+
+  const stepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef(true);
 
   const isSmallDevice = width < 375;
   const isMediumDevice = width >= 375 && width < 768;
@@ -42,50 +47,72 @@ const DeviceConnectingScreen: React.FC = () => {
   const maxWidth = isLargeDevice ? 600 : width;
 
   useEffect(() => {
+    isMountedRef.current = true;
     let stepIndex = 0;
-    let progressValue = 0;
     const totalSteps = ConnectionSteps.length;
 
     const connectDevice = async () => {
       try {
-        // Start connection process
-        const connection = BleService.connectDevice(deviceId);
+        setConnectionState('connecting');
 
-        // Simulate connection steps with progress
-        const stepInterval = setInterval(() => {
+        // Start connection process
+        const connectionPromise = BleService.connectDevice(deviceId);
+
+        // Animate connection steps with progress
+        stepIntervalRef.current = setInterval(() => {
+          if (!isMountedRef.current) return;
           if (stepIndex < totalSteps) {
             setCurrentStep(stepIndex);
-            progressValue = (stepIndex + 1) / totalSteps;
-            setProgress(progressValue);
+            setProgress((stepIndex + 1) / totalSteps);
             stepIndex++;
           } else {
-            clearInterval(stepInterval);
+            if (stepIntervalRef.current) {
+              clearInterval(stepIntervalRef.current);
+              stepIntervalRef.current = null;
+            }
           }
         }, 1800);
 
         // Wait for actual connection
-        await connection;
+        await connectionPromise;
+
+        // Clean up interval
+        if (stepIntervalRef.current) {
+          clearInterval(stepIntervalRef.current);
+          stepIntervalRef.current = null;
+        }
+
+        if (!isMountedRef.current) return;
 
         // All steps completed
-        setTimeout(() => {
-          setCurrentStep(totalSteps);
-          setProgress(1);
+        setCurrentStep(totalSteps);
+        setProgress(1);
+        setConnectedDevice({ id: deviceId, name: deviceName, rssi });
+        setConnectionState('connected');
 
-          // Navigate to Device Details
-          setTimeout(() => {
-            // navigation.replace('DeviceDetails', {
-            //   deviceId,
-            //   deviceName,
-            //   rssi,
-            // });
-            navigation.replace('DeviceApplications');
-          }, 500);
+        // Navigate to Device Applications after brief delay
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          navigation.replace('DeviceApplications', {
+            deviceId,
+            deviceName,
+            rssi,
+          });
         }, 500);
-      } catch (error: any) {
-        console.error('Connection error:', error);
+      } catch (error: unknown) {
+        // Clean up interval on error
+        if (stepIntervalRef.current) {
+          clearInterval(stepIntervalRef.current);
+          stepIntervalRef.current = null;
+        }
+
+        if (!isMountedRef.current) return;
+
+        setConnectionState('error');
+        const message = error instanceof Error ? error.message : 'Failed to connect to the device. Please try again.';
         Alert.alert(
           'Connection Failed',
-          error.message || 'Failed to connect to the device. Please try again.',
+          message,
           [
             {
               text: 'OK',
@@ -97,7 +124,15 @@ const DeviceConnectingScreen: React.FC = () => {
     };
 
     connectDevice();
-  }, []);
+
+    return () => {
+      isMountedRef.current = false;
+      if (stepIntervalRef.current) {
+        clearInterval(stepIntervalRef.current);
+        stepIntervalRef.current = null;
+      }
+    };
+  }, [deviceId, deviceName, rssi, navigation, setConnectedDevice, setConnectionState]);
 
   return (
     <View
@@ -181,7 +216,6 @@ const DeviceConnectingScreen: React.FC = () => {
           {ConnectionSteps.map((step, index) => {
             const isCompleted = index < currentStep;
             const isCurrent = index === currentStep;
-            const isPending = index > currentStep;
 
             return (
               <View
