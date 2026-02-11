@@ -64,21 +64,21 @@ export const BrainChipTheme = {
     displayLarge: {
       fontFamily: 'Sora-Bold',
       fontSize: 24,
-      fontWeight: '700',
+      fontWeight: '700' as const,
       lineHeight: 31.2, // 24 * 1.3
       letterSpacing: -0.48, // -0.02em
     },
     displayMedium: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 20,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 26, // 20 * 1.3
       letterSpacing: -0.2, // -0.01em
     },
     displaySmall: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 16,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 20.8, // 16 * 1.3
       letterSpacing: 0,
     },
@@ -87,7 +87,7 @@ export const BrainChipTheme = {
     headlineLarge: {
       fontFamily: 'Sora-Bold',
       fontSize: 24,
-      fontWeight: '700',
+      fontWeight: '700' as const,
       lineHeight: 31.2,
       letterSpacing: -0.48,
     },
@@ -95,7 +95,7 @@ export const BrainChipTheme = {
     headlineMedium: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 20,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 26,
       letterSpacing: -0.2,
     },
@@ -103,7 +103,7 @@ export const BrainChipTheme = {
     headlineSmall: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 16,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 20.8,
       letterSpacing: 0,
     },
@@ -112,21 +112,21 @@ export const BrainChipTheme = {
     titleLarge: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 18.2,
       letterSpacing: 0,
     },
     titleMedium: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 18.2,
       letterSpacing: 0,
     },
     titleSmall: {
       fontFamily: 'Sora-SemiBold',
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 18.2,
       letterSpacing: 0,
     },
@@ -136,7 +136,7 @@ export const BrainChipTheme = {
     bodyLarge: {
       fontFamily: 'Inter-Medium',
       fontSize: 14,
-      fontWeight: '500',
+      fontWeight: '500' as const,
       lineHeight: 22.4, // 14 * 1.6
       letterSpacing: 0,
     },
@@ -144,7 +144,7 @@ export const BrainChipTheme = {
     bodyMedium: {
       fontFamily: 'Inter-Regular',
       fontSize: 13,
-      fontWeight: '400',
+      fontWeight: '400' as const,
       lineHeight: 20.8, // 13 * 1.6
       letterSpacing: 0,
     },
@@ -152,7 +152,7 @@ export const BrainChipTheme = {
     bodySmall: {
       fontFamily: 'Inter-Regular',
       fontSize: 12,
-      fontWeight: '400',
+      fontWeight: '400' as const,
       lineHeight: 18, // 12 * 1.5
       letterSpacing: 0,
     },
@@ -161,21 +161,21 @@ export const BrainChipTheme = {
     labelLarge: {
       fontFamily: 'Inter-SemiBold',
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 20,
       letterSpacing: 0,
     },
     labelMedium: {
       fontFamily: 'Inter-SemiBold',
       fontSize: 13,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       lineHeight: 18,
       letterSpacing: 0,
     },
     labelSmall: {
       fontFamily: 'Inter-Regular',
       fontSize: 11,
-      fontWeight: '400',
+      fontWeight: '400' as const,
       lineHeight: 16.5, // 11 * 1.5
       letterSpacing: 0,
     },
@@ -188,7 +188,7 @@ export const Typography = {
   h1: {
     fontFamily: 'Sora-Bold',
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     lineHeight: 31.2,
     letterSpacing: -0.48,
     color: '#000000',
@@ -196,7 +196,7 @@ export const Typography = {
   h2: {
     fontFamily: 'Sora-SemiBold',
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     lineHeight: 26,
     letterSpacing: -0.2,
     color: '#000000',
@@ -204,7 +204,7 @@ export const Typography = {
   h3: {
     fontFamily: 'Sora-SemiBold',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     lineHeight: 20.8,
     letterSpacing: 0,
     color: '#000000',
@@ -212,7 +212,7 @@ export const Typography = {
   h4: {
     fontFamily: 'Sora-SemiBold',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     lineHeight: 18.2,
     letterSpacing: 0,
     color: '#000000',
@@ -222,28 +222,28 @@ export const Typography = {
   bodyLarge: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '500' as const,
     lineHeight: 22.4,
     color: '#000000',
   },
   body: {
     fontFamily: 'Inter-Regular',
     fontSize: 13,
-    fontWeight: '400',
+    fontWeight: '400' as const,
     lineHeight: 20.8,
     color: '#000000',
   },
   bodySmall: {
     fontFamily: 'Inter-Regular',
     fontSize: 12,
-    fontWeight: '400',
+    fontWeight: '400' as const,
     lineHeight: 18,
     color: '#000000',
   },
   caption: {
     fontFamily: 'Inter-Regular',
     fontSize: 11,
-    fontWeight: '400',
+    fontWeight: '400' as const,
     lineHeight: 16.5,
     color: '#000000',
   },
@@ -252,7 +252,7 @@ export const Typography = {
   buttonLabel: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '600' as const,
     color: '#000000',
   },
 };
