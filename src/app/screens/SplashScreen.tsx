@@ -1,37 +1,83 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions, Image } from 'react-native';
-import { Text, ActivityIndicator } from 'react-native-paper';
-import { SvgXml } from 'react-native-svg';
+import { View, StyleSheet, Image } from 'react-native';
+import { Text, ActivityIndicator, useTheme } from 'react-native-paper';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootParamList } from '../../../App';
+import BleService from '../../services/ble/bleManager';
+import { getAcceptanceState } from '../store/acceptanceStorage';
+import { Colors } from '../theme/theme';
 
 interface SplashScreenProps {
-  navigation: any;
+  navigation: NativeStackNavigationProp<RootParamList>;
 }
 
-const { width } = Dimensions.get('window');
-
 const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('GetStarted'); // Automatically navigate
-    }, 1500);
+  const theme = useTheme();
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveStartupRoute = async () => {
+      const { privacyAccepted, termsAccepted } = await getAcceptanceState();
+
+      if (!isMounted) return;
+
+      if (!privacyAccepted || !termsAccepted) {
+        navigation.replace('GetStarted');
+        return;
+      }
+
+      const [permissions, isBluetoothEnabled] = await Promise.all([
+        BleService.checkAllPermissions(),
+        BleService.isBluetoothEnabled(),
+      ]);
+
+      if (!isMounted) return;
+
+      if (permissions.bluetooth && permissions.location && isBluetoothEnabled) {
+        navigation.replace('DeviceDiscovery');
+        return;
+      }
+
+      navigation.replace('Permissions');
+    };
+
+    resolveStartupRoute().catch(() => {
+      if (isMounted) {
+        navigation.replace('GetStarted');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigation]);
 
   return (
     <View style={styles.container}>
-      <Image
-        source={require('../../../assets/images/00_Start/Logo.png')}
-        resizeMode="contain" // keeps aspect ratio
-      />
+      {/* Logo with shadow */}
+      <View style={styles.logoContainer}>
+        <Image
+          source={require('../assets/images/00_Start/Logo.png')}
+          resizeMode="contain"
+          style={styles.logo}
+        />
+      </View>
 
-      <Text style={styles.title}>Akida Mobile Connect</Text>
+      {/* App Title */}
+      <Text style={[styles.title, { color: theme.colors.primary }]}>
+        Akida Mobile Connect
+      </Text>
+
+      {/* Subtitle */}
       <Text style={styles.subtitle}>Initializing Edge AI</Text>
+
+      {/* Loader */}
       <ActivityIndicator
         animating
         size="large"
-        color="#0061ED"
-        style={{ marginTop: 20 }}
+        color={Colors.primary}
+        style={styles.loader}
       />
     </View>
   );
@@ -40,19 +86,49 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F8F9',
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 20,
+  },
+  logoContainer: {
+    width: 180,
+    height: 180,
+    marginBottom: 32,
+    borderRadius: 90,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logo: {
+    width: 140,
+    height: 140,
   },
   title: {
-    fontSize: width * 0.06,
+    fontFamily: 'Sora-Bold',
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: 8,
+    lineHeight: 36,
+    textAlign: 'center',
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: width * 0.04,
-    color: 'gray',
+    fontFamily: 'Inter-Regular',
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+    color: 'rgba(0, 0, 0, 0.5)',
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  loader: {
+    marginTop: 10,
   },
 });
 

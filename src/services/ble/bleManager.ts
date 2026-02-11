@@ -1,120 +1,401 @@
-import { BleManager } from 'react-native-ble-plx';
+import { BleManager, Device, State, Subscription } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
+
+const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
 class BleService {
   private bleManager: BleManager;
+  private stateSubscription: Subscription | null = null;
+
+  // TODO: Replace with actual BrainChip device UUIDs from device documentation
+  private SERVICE_UUID: string | null = null;
+  private CHARACTERISTIC_UUID: string | null = null;
 
   constructor() {
     this.bleManager = new BleManager();
   }
 
-  // Check if Bluetooth is enabled
+  /**
+   * Configure the service/characteristic UUIDs for device communication.
+   * Must be called before getDeviceData().
+   */
+  setUUIDs = (serviceUUID: string, characteristicUUID: string) => {
+    this.SERVICE_UUID = serviceUUID;
+    this.CHARACTERISTIC_UUID = characteristicUUID;
+  };
+
+  /**
+   * Check if Bluetooth is currently powered on.
+   */
   isBluetoothEnabled = async (): Promise<boolean> => {
     try {
       const state = await this.bleManager.state();
-      console.log('Bluetooth state:', state); // Debugging log
-      return state === 'PoweredOn'; // Bluetooth is powered on
-    } catch (error) {
-      console.error('Error checking Bluetooth state', error);
+      return state === State.PoweredOn;
+    } catch {
       return false;
     }
   };
 
-  // Request Bluetooth permissions for Android (Android 12+)
-  requestBluetoothPermission = async (): Promise<boolean> => {
+  /**
+   * Subscribe to Bluetooth adapter state changes (powered on/off, unauthorized, etc.)
+   * Returns an unsubscribe function.
+   */
+  onBluetoothStateChange = (callback: (state: State) => void): (() => void) => {
+    this.stateSubscription = this.bleManager.onStateChange((newState) => {
+      callback(newState);
+    }, true);
+
+    return () => {
+      this.stateSubscription?.remove();
+      this.stateSubscription = null;
+    };
+  };
+
+  /**
+   * Check current permission state without prompting the user.
+   */
+  checkAllPermissions = async (): Promise<{
+    bluetooth: boolean;
+    location: boolean;
+    notifications: boolean;
+  }> => {
     if (Platform.OS === 'android') {
-      const bluetoothScanPermission = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-        {
-          title: 'Bluetooth Scan Permission',
-          message: 'This app needs permission to scan for Bluetooth devices.',
-          buttonPositive: 'OK',
-        },
-      );
+      try {
+        const androidVersion = Platform.Version;
 
-      const bluetoothConnectPermission = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        {
-          title: 'Bluetooth Connect Permission',
-          message: 'This app needs permission to connect to Bluetooth devices.',
-          buttonPositive: 'OK',
-        },
-      );
+        const bluetoothGranted =
+          androidVersion >= 31
+            ? (await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+              )) &&
+              (await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+              ))
+            : true;
 
-      const locationPermission = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: 'Location Permission',
-          message: 'This app needs location permission to scan for devices.',
-          buttonPositive: 'OK',
-        },
-      );
+        const locationGranted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
 
-      return (
-        bluetoothScanPermission === PermissionsAndroid.RESULTS.GRANTED &&
-        bluetoothConnectPermission === PermissionsAndroid.RESULTS.GRANTED &&
-        locationPermission === PermissionsAndroid.RESULTS.GRANTED
-      );
+        const notificationsGranted =
+          androidVersion >= 33
+            ? await PermissionsAndroid.check(
+                PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+              )
+            : true;
+
+        return {
+          bluetooth: bluetoothGranted,
+          location: locationGranted,
+          notifications: notificationsGranted,
+        };
+      } catch {
+        return {
+          bluetooth: false,
+          location: false,
+          notifications: false,
+        };
+      }
     }
-    return true; // For iOS, permission is handled through Info.plist
+
+    // For iOS, permissions are handled through Info.plist.
+    return {
+      bluetooth: true,
+      location: true,
+      notifications: true,
+    };
   };
 
-  // Scan for devices
-  scanDevices = (onDeviceFound: (device: any) => void) => {
-    return new Promise<void>((resolve, reject) => {
-      console.log('Starting device scan...');
-      //   let scanTimeout = setTimeout(() => {
-      //     this.stopScan(); // Stop scanning after 10 seconds
-      //     console.log('Scan stopped due to timeout');
-      //     resolve(); // Resolve the promise
-      //   }, 10000); // 10 seconds timeout
+  /**
+   * Request all required permissions (Bluetooth, Location, Notifications).
+   */
+  requestAllPermissions = async (): Promise<{
+    bluetooth: boolean;
+    location: boolean;
+    notifications: boolean;
+  }> => {
+    if (Platform.OS === 'android') {
+      try {
+        const androidVersion = Platform.Version;
 
-      this.bleManager.startDeviceScan(
-        [],
-        { allowDuplicates: false },
-        (error, device) => {
-          if (error) {
-            console.error('Error while scanning:', error); // Log error
-            // clearTimeout(scanTimeout); // Clear timeout if error happens
-            reject(error);
-            return;
-          }
+        let bluetoothGranted = false;
+        let locationGranted = false;
+        let notificationsGranted = false;
 
-          if (device) {
-            console.log('Device found:', device.name, device.id); // Log found device
-            onDeviceFound(device); // Callback to handle each discovered device
-          }
-        },
-      );
-    });
+        // Request Bluetooth permissions (Android 12+ / API 31+)
+        if (androidVersion >= 31) {
+          const bluetoothScanPermission = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            {
+              title: 'Bluetooth Scan Permission',
+              message:
+                'This app needs permission to scan for Bluetooth devices.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Deny',
+            },
+          );
+
+          const bluetoothConnectPermission = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+            {
+              title: 'Bluetooth Connect Permission',
+              message:
+                'This app needs permission to connect to Bluetooth devices.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Deny',
+            },
+          );
+
+          bluetoothGranted =
+            bluetoothScanPermission === PermissionsAndroid.RESULTS.GRANTED &&
+            bluetoothConnectPermission === PermissionsAndroid.RESULTS.GRANTED;
+        } else {
+          bluetoothGranted = true;
+        }
+
+        // Location permission is required for BLE scanning on all Android versions
+        const locationPermission = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message:
+              'This app needs location permission to scan for Bluetooth devices.',
+            buttonPositive: 'Allow',
+            buttonNegative: 'Deny',
+          },
+        );
+        locationGranted =
+          locationPermission === PermissionsAndroid.RESULTS.GRANTED;
+
+        // Notification permission (Android 13+ / API 33+)
+        if (androidVersion >= 33) {
+          const notificationPermission = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            {
+              title: 'Notification Permission',
+              message:
+                'This app needs permission to send you notifications about device status.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Deny',
+            },
+          );
+          notificationsGranted =
+            notificationPermission === PermissionsAndroid.RESULTS.GRANTED;
+        } else {
+          notificationsGranted = true;
+        }
+
+        return {
+          bluetooth: bluetoothGranted,
+          location: locationGranted,
+          notifications: notificationsGranted,
+        };
+      } catch {
+        return {
+          bluetooth: false,
+          location: false,
+          notifications: false,
+        };
+      }
+    }
+
+    // For iOS, permissions are handled through Info.plist
+    return {
+      bluetooth: true,
+      location: true,
+      notifications: true,
+    };
   };
 
-  // Stop scanning for devices
+  /**
+   * Scan for BLE devices with an automatic timeout.
+   * The callback fires for each device found.
+   * Returns a cleanup function to stop the scan early.
+   */
+  scanDevices = (
+    onDeviceFound: (device: Device) => void,
+    serviceUUIDs: string[] | null = null,
+    timeoutMs: number = DEFAULT_SCAN_TIMEOUT_MS,
+  ): (() => void) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    this.bleManager.startDeviceScan(
+      serviceUUIDs,
+      { allowDuplicates: false },
+      (error, device) => {
+        if (error) {
+          this.stopScan();
+          return;
+        }
+
+        if (device) {
+          onDeviceFound(device);
+        }
+      },
+    );
+
+    // Auto-stop after timeout
+    timeoutId = setTimeout(() => {
+      this.stopScan();
+    }, timeoutMs);
+
+    // Return cleanup function
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      this.stopScan();
+    };
+  };
+
+  /**
+   * Stop the current device scan.
+   */
   stopScan = () => {
     this.bleManager.stopDeviceScan();
-    console.log('Scan stopped');
   };
 
-  // Connect to a device
-  connectDevice = async (deviceId: string) => {
+  /**
+   * Connect to a BLE device and discover its services/characteristics.
+   */
+  connectDevice = async (deviceId: string): Promise<Device> => {
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
       await device.discoverAllServicesAndCharacteristics();
-      console.log('Device connected:', device.name);
       return device;
-    } catch (error: any) {
-      throw new Error(`Failed to connect to device: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to connect to device: ${message}`);
     }
   };
 
-  // Disconnect from a device
+  /**
+   * Disconnect from a BLE device.
+   */
   disconnectDevice = async (deviceId: string) => {
     try {
-      const device = await this.bleManager.devices([deviceId]);
-      device[0]?.cancelConnection();
-    } catch (error: any) {
-      throw new Error(`Failed to disconnect from device: ${error.message}`);
+      await this.bleManager.cancelDeviceConnection(deviceId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to disconnect from device: ${message}`);
     }
+  };
+
+  /**
+   * Check if a specific device is currently connected.
+   */
+  isDeviceConnected = async (deviceId: string): Promise<boolean> => {
+    try {
+      return await this.bleManager.isDeviceConnected(deviceId);
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * Get a list of currently connected devices (filtered by service UUIDs if provided).
+   */
+  getConnectedDevices = async (serviceUUIDs: string[] = []): Promise<Device[]> => {
+    try {
+      return await this.bleManager.connectedDevices(serviceUUIDs);
+    } catch {
+      return [];
+    }
+  };
+
+  /**
+   * Read data from a BLE characteristic.
+   * Requires setUUIDs() to be called first.
+   */
+  getDeviceData = async (deviceId: string): Promise<unknown> => {
+    if (!this.SERVICE_UUID || !this.CHARACTERISTIC_UUID) {
+      throw new Error(
+        'Service/Characteristic UUIDs not configured. Call setUUIDs() first.',
+      );
+    }
+
+    try {
+      const devices = await this.bleManager.devices([deviceId]);
+      const device = devices[0];
+
+      if (!device) {
+        throw new Error('Device not found');
+      }
+
+      await device.discoverAllServicesAndCharacteristics();
+
+      const characteristic = await device.readCharacteristicForService(
+        this.SERVICE_UUID,
+        this.CHARACTERISTIC_UUID,
+      );
+
+      if (!characteristic?.value) {
+        throw new Error('No data received from device');
+      }
+
+      const decoded = Buffer.from(characteristic.value, 'base64').toString(
+        'utf-8',
+      );
+
+      try {
+        return JSON.parse(decoded);
+      } catch {
+        return { raw: decoded };
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to read device data';
+      throw new Error(message);
+    }
+  };
+
+  /**
+   * Discover all services and characteristics on a connected device.
+   * Useful when UUIDs are not known ahead of time.
+   */
+  discoverServicesAndCharacteristics = async (deviceId: string) => {
+    const devices = await this.bleManager.devices([deviceId]);
+    const connectedDevice = devices[0];
+
+    if (!connectedDevice) {
+      throw new Error('Device not found');
+    }
+
+    await connectedDevice.discoverAllServicesAndCharacteristics();
+    const services = await connectedDevice.services();
+
+    const result: {
+      serviceUUID: string;
+      characteristics: {
+        uuid: string;
+        isReadable: boolean;
+        isWritable: boolean;
+        isNotifiable: boolean;
+      }[];
+    }[] = [];
+
+    for (const service of services) {
+      const characteristics = await service.characteristics();
+      result.push({
+        serviceUUID: service.uuid,
+        characteristics: characteristics.map(c => ({
+          uuid: c.uuid,
+          isReadable: c.isReadable,
+          isWritable: c.isWritableWithResponse || c.isWritableWithoutResponse,
+          isNotifiable: c.isNotifiable,
+        })),
+      });
+    }
+
+    return result;
+  };
+
+  /**
+   * Clean up BLE manager resources. Call when the app is shutting down.
+   */
+  destroy = () => {
+    this.stateSubscription?.remove();
+    this.stateSubscription = null;
+    this.bleManager.destroy();
   };
 }
 

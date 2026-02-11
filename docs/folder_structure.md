@@ -1,31 +1,13 @@
-# Project Spark – Mobile Application
+## 📱 Spark Phone App
 
-This repository contains the **companion mobile application** for **Project Spark**, providing configuration, monitoring, and OTA management for Project Spark devices.
+### Table of Contents
 
-The application enables:
+- [Folder Structure](#folder-structure)
+- [Libraries / Dependencies](#libraries--dependencies)
 
-- BLE communication with Project Spark hardware
-- Device provisioning and configuration
-- Application selection and OTA updates
-- Sensor data visualization
-- Device health and status monitoring
-
----
-
-## Supported Platforms
-
-- **Android**
-- **iOS**
-
-The application is designed using a **single shared codebase** to support both platforms.
-
----
-
-## Repository Structure
+### Folder Structure
 
 ```text
-Folder Structure
-
 ├── app/
 │   ├── navigation/        # React Navigation stacks/tabs
 │   ├── screens/           # Home, DeviceList, UseCase, OTA, Settings
