@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -14,12 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import { Device } from 'react-native-ble-plx';
-
-interface BLEDevice {
-  id: string;
-  name: string | null;
-  rssi: number | null;
-}
+import { useBleStore, BLEDevice } from '../../store/useBleStore';
 
 const SCAN_TIMEOUT = 10000;
 
@@ -29,12 +24,17 @@ const DeviceDiscoveryScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
+  const {
+    discoveredDevices: devices,
+    addDiscoveredDevice,
+    clearDiscoveredDevices,
+  } = useBleStore();
+
   const [scanning, setScanning] = useState(false);
-  const [devices, setDevices] = useState<BLEDevice[]>([]);
   const [scanTimeRemaining, setScanTimeRemaining] = useState(0);
 
-  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const scanTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const scanCleanupRef = useRef<(() => void) | null>(null);
+  const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isSmallDevice = width < 375;
   const spacing = isSmallDevice ? 12 : 16;
@@ -51,22 +51,23 @@ const DeviceDiscoveryScreen: React.FC = () => {
     return theme.colors.error;
   };
 
-  const clearTimers = () => {
-    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-    if (scanTimerRef.current) clearInterval(scanTimerRef.current);
-  };
-
-  const stopScanning = () => {
-    BleService.stopScan();
+  const stopScanning = useCallback(() => {
+    if (scanCleanupRef.current) {
+      scanCleanupRef.current();
+      scanCleanupRef.current = null;
+    }
+    if (scanTimerRef.current) {
+      clearInterval(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
     setScanning(false);
     setScanTimeRemaining(0);
-    clearTimers();
-  };
+  }, []);
 
-  const startScanning = async () => {
-    clearTimers();
+  const startScanning = useCallback(async () => {
+    stopScanning();
     setScanning(true);
-    setDevices([]);
+    clearDiscoveredDevices();
     setScanTimeRemaining(SCAN_TIMEOUT / 1000);
 
     try {
@@ -80,32 +81,38 @@ const DeviceDiscoveryScreen: React.FC = () => {
         return;
       }
 
-      const discoveredDevices: BLEDevice[] = [];
-
       scanTimerRef.current = setInterval(() => {
-        setScanTimeRemaining(prev => (prev > 0 ? prev - 1 : 0));
+        setScanTimeRemaining(prev => {
+          if (prev <= 1) {
+            stopScanning();
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
 
-      await BleService.scanDevices((device: Device) => {
-        if (device.name && !discoveredDevices.find(d => d.id === device.id)) {
-          const newDevice: BLEDevice = {
-            id: device.id,
-            name: device.name,
-            rssi: device.rssi,
-          };
-          discoveredDevices.push(newDevice);
-          setDevices([...discoveredDevices]);
-        }
-      });
-
-      scanTimeoutRef.current = setTimeout(stopScanning, SCAN_TIMEOUT);
+      // scanDevices now returns a cleanup function (no longer a Promise)
+      scanCleanupRef.current = BleService.scanDevices(
+        (device: Device) => {
+          if (device.name) {
+            addDiscoveredDevice({
+              id: device.id,
+              name: device.name,
+              rssi: device.rssi,
+            });
+          }
+        },
+        null,
+        SCAN_TIMEOUT,
+      );
     } catch (error) {
       Alert.alert('Scan Error', 'Failed to scan for devices.');
       stopScanning();
     }
-  };
+  }, [stopScanning, clearDiscoveredDevices, addDiscoveredDevice]);
 
   const handleDevicePress = (device: BLEDevice) => {
+    stopScanning();
     navigation.navigate('DevicePreview', {
       deviceId: device.id,
       deviceName: device.name || 'Unknown Device',
@@ -116,7 +123,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
   useEffect(() => {
     startScanning();
     return () => stopScanning();
-  }, []);
+  }, [startScanning, stopScanning]);
 
   return (
     <View
