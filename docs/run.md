@@ -1,72 +1,172 @@
-# React Native Application
+# Spark Mobile App - Setup and Run Guide
 
 ## Overview
 
-This project is a React Native mobile application.  
-This document explains how to **set up**, **run**, and **build** the application for Android and iOS.
+This guide is for a new developer setting up and running the app locally for the first time.
 
----
+- iOS steps are listed first.
+- Android steps are listed after iOS.
 
-## Requirements
+## Prerequisites
 
-Before starting, make sure you have the following installed:
+Install these first:
 
-### Required Software
+- Git
+- Node.js `>= 20` (Node 20 LTS recommended)
+- npm
+- Ruby + Bundler
+- Watchman (recommended for React Native)
 
-- **Node.js** (>= 20.x)
-- **npm**
-- **React Native CLI**
-- **Git**
+Verify:
 
-### Android Development
+```bash
+node -v
+npm -v
+ruby -v
+bundle -v
+```
 
-- Android Studio
-- Android SDK
-- Android Emulator or physical device
-- Java (JDK 17 or later)
-
-### iOS Development (macOS only)
-
-- macOS
-- Xcode (latest version)
-- CocoaPods
-
----
-
-## Installation
-
-### 1. Clone the Repository
+## Clone and Install Dependencies
 
 ```bash
 git clone <repository-url>
-cd <project-name>
+cd spark-phone
+git checkout <branch-name>
 npm install
 ```
 
-### 2. iOS Pods Installation (iOS only)
+## iOS (First)
+
+### 1. Install Xcode Requirements (macOS only)
+
+- Install Xcode from App Store.
+- Open Xcode once and accept the license.
+- Install Command Line Tools:
+
+```bash
+xcode-select --install
+```
+
+### 2. Install iOS Native Dependencies
+
+From repo root:
 
 ```bash
 cd ios
-pod install
+bundle install
+bundle exec pod install
 cd ..
 ```
 
-### 3. Running the application
+Note:
+- You may see a React Native deprecation notice about calling `pod install` directly.
+- This is informational and does not block setup.
+- Continue using `bundle exec pod install` for local native dependency install.
+
+### 3. Start Metro
+
+From repo root:
 
 ```bash
 npm start
 ```
 
-Make sure an emulator or device is running:
+Keep this terminal open.
 
-#### To run on Android
+If you get `EADDRINUSE: address already in use :::8081`, free the port:
+
+```bash
+lsof -nP -iTCP:8081 -sTCP:LISTEN
+kill <pid>
+```
+
+Then run `npm start` again.
+
+### 4. Run iOS on Simulator
+
+In a second terminal:
+
+```bash
+npm run ios
+```
+
+### 5. Run iOS on Physical iPhone
+
+For real device builds, Xcode must be opened for signing setup.
+
+```bash
+open ios/SparkMobApp.xcworkspace
+```
+
+In Xcode:
+
+1. Select project `SparkMobApp` in the navigator.
+2. Select target `SparkMobApp` -> `Signing & Capabilities`.
+3. Turn on `Automatically manage signing`.
+4. Choose your Apple Developer `Team`.
+5. If needed, set a unique bundle identifier (for example `com.<name>.sparkmobapp`).
+6. Connect your iPhone, select it as run destination, then click Run.
+
+Device notes:
+
+- Enable `Developer Mode` on iPhone when prompted.
+- Trust the developer certificate/profile if prompted.
+
+## Android
+
+### 1. Install Android Tooling
+
+- Android Studio
+- Android SDK
+- Android SDK Platform-Tools (`adb`)
+- JDK 17+
+
+Set `ANDROID_HOME` and ensure `adb` is in your PATH.
+
+### 2. Start Emulator or Connect Device
+
+- Start an Android emulator from Android Studio, or
+- Connect a physical Android device with USB debugging enabled.
+
+Verify:
+
+```bash
+adb devices
+```
+
+### 3. Run Android App
+
+With Metro already running:
 
 ```bash
 npm run android
 ```
 
-#### To run on iOS
+If Metro is not running, start it first with `npm start`.
+
+## Optional Cleanup of Generated Files
+
+This repo includes a helper script:
 
 ```bash
-npm run ios
+bash scripts/clean_generated_files.sh
+bash scripts/clean_generated_files.sh --apply
 ```
+
+Use `--apply` to delete known generated files (safe to regenerate later).
+
+## Troubleshooting
+
+- iOS signing error:
+  `Signing for "SparkMobApp" requires a development team`
+  Fix in Xcode `Signing & Capabilities` by selecting your team.
+
+- Metro port conflict:
+  `EADDRINUSE :::8081`
+  Kill the existing process on port `8081` and restart Metro.
+
+- iOS build issues after dependency changes:
+  Re-run:
+  ```bash
+  cd ios && bundle exec pod install && cd ..
+  ```
