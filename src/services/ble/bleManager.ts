@@ -1,5 +1,9 @@
 import { BleManager, Device, State, Subscription } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
+import { parseBleMessage } from './bleParser';
+import { buildCommand } from './buildCommand';
+import { BleCommand } from './bleCommands';
+import { BleData } from '../../types/bleData';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -7,22 +11,36 @@ class BleService {
   private bleManager: BleManager;
   private stateSubscription: Subscription | null = null;
 
-  // TODO: Replace with actual BrainChip device UUIDs from device documentation
-  private SERVICE_UUID: string | null = null;
-  private CHARACTERISTIC_UUID: string | null = null;
+  /* -------------------------------------------------------------------------- */
+  /*                              BLE UUID CONFIG                               */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Primary BLE Service UUID (BrainChip device UUIDs)
+   * This service acts as the communication channel between
+   * the mobile app and the embedded device.
+   */
+  private serviceUUID: string = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+
+  /**
+   * RX Characteristic UUID (Write)
+   * Phone App ➜ Device
+   *
+   * Used to send commands/data FROM the mobile app TO the device.
+   */
+  private rxUUID: string = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+
+  /**
+   * TX Characteristic UUID (Notify)
+   * Device ➜ Phone App
+   *
+   * Used to receive notifications/data FROM the device TO the app.
+   */
+  private txUUID: string = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
   constructor() {
     this.bleManager = new BleManager();
   }
-
-  /**
-   * Configure the service/characteristic UUIDs for device communication.
-   * Must be called before getDeviceData().
-   */
-  setUUIDs = (serviceUUID: string, characteristicUUID: string) => {
-    this.SERVICE_UUID = serviceUUID;
-    this.CHARACTERISTIC_UUID = characteristicUUID;
-  };
 
   /**
    * Check if Bluetooth is currently powered on.
@@ -41,7 +59,7 @@ class BleService {
    * Returns an unsubscribe function.
    */
   onBluetoothStateChange = (callback: (state: State) => void): (() => void) => {
-    this.stateSubscription = this.bleManager.onStateChange((newState) => {
+    this.stateSubscription = this.bleManager.onStateChange(newState => {
       callback(newState);
     }, true);
 
@@ -295,7 +313,9 @@ class BleService {
   /**
    * Get a list of currently connected devices (filtered by service UUIDs if provided).
    */
-  getConnectedDevices = async (serviceUUIDs: string[] = []): Promise<Device[]> => {
+  getConnectedDevices = async (
+    serviceUUIDs: string[] = [],
+  ): Promise<Device[]> => {
     try {
       return await this.bleManager.connectedDevices(serviceUUIDs);
     } catch {
@@ -308,7 +328,7 @@ class BleService {
    * Requires setUUIDs() to be called first.
    */
   getDeviceData = async (deviceId: string): Promise<unknown> => {
-    if (!this.SERVICE_UUID || !this.CHARACTERISTIC_UUID) {
+    if (!this.serviceUUID || !this.txUUID || !this.rxUUID) {
       throw new Error(
         'Service/Characteristic UUIDs not configured. Call setUUIDs() first.',
       );
@@ -325,8 +345,8 @@ class BleService {
       await device.discoverAllServicesAndCharacteristics();
 
       const characteristic = await device.readCharacteristicForService(
-        this.SERVICE_UUID,
-        this.CHARACTERISTIC_UUID,
+        this.serviceUUID,
+        this.txUUID,
       );
 
       if (!characteristic?.value) {
@@ -343,7 +363,8 @@ class BleService {
         return { raw: decoded };
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to read device data';
+      const message =
+        error instanceof Error ? error.message : 'Failed to read device data';
       throw new Error(message);
     }
   };
@@ -387,6 +408,63 @@ class BleService {
     }
 
     return result;
+  };
+
+  // Sending command from phone app to device
+  // Sending a string command directly as UTF-8 bytes
+  sendCommand = async (deviceId: string, command: BleCommand) => {
+    try {
+      const updatedCommand = buildCommand(command);
+      // Convert the string into a buffer with UTF-8 encoding
+      const bufferCommand = Buffer.from(updatedCommand, 'utf-8');
+
+      // Write the buffer to the BLE characteristic
+      await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+        deviceId,
+        this.serviceUUID,
+        this.rxUUID,
+        bufferCommand.toString('base64'),
+      );
+
+      console.log('Command sent successfully.');
+    } catch (error) {
+      console.error('Error sending command:', error);
+    }
+  };
+
+  // Receiving data from the device
+  subscribeToNotifications = async (
+    deviceId: string,
+    onData: (data: BleData) => void,
+  ): Promise<Subscription> => {
+    const subscription = this.bleManager.monitorCharacteristicForDevice(
+      deviceId,
+      this.serviceUUID,
+      this.txUUID,
+      (error, characteristic) => {
+        if (error) {
+          console.error('Notification error:', error);
+          return;
+        }
+
+        if (!characteristic?.value) return;
+
+        // Decode Base64 to string
+        const decoded = Buffer.from(characteristic.value, 'base64').toString(
+          'utf-8',
+        );
+
+        // Parse BLE message
+        const parsed = parseBleMessage(decoded) as BleData;
+
+        // Pass parsed data to callback
+        onData(parsed);
+      },
+    );
+
+    return {
+      remove: () => subscription.remove(),
+    };
   };
 
   /**

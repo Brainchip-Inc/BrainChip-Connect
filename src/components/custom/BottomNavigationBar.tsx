@@ -1,33 +1,36 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Bell, Settings, User } from 'lucide-react-native';
+import { RouteName, ROUTES } from '../../types/routes';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootParamList } from '../../../App';
+import { useNavigation } from '@react-navigation/native';
 
 interface BottomNavigationProps {
-  activeRoute?: 'Home' | 'Notifications' | 'Settings' | 'Profile';
-  onNavigate?: (
-    route: 'Home' | 'Notifications' | 'Settings' | 'Profile',
-  ) => void;
+  activeRoute?: RouteName;
+  onNavigate?: (route: RouteName) => void;
   notificationCount?: number;
 }
 
 const BottomNavigationBar: React.FC<BottomNavigationProps> = ({
-  activeRoute = 'Home',
+  activeRoute = ROUTES.HOME,
   onNavigate,
   notificationCount = 0,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
 
   const tabs = [
-    { name: 'Home', icon: Home, label: 'Home' },
-    { name: 'Notifications', icon: Bell, label: 'Notifications' },
-    { name: 'Settings', icon: Settings, label: 'Settings' },
-    { name: 'Profile', icon: User, label: 'Profile' },
+    { name: ROUTES.HOME, icon: Home, label: 'Home' },
+    { name: ROUTES.NOTIFICATIONS, icon: Bell, label: 'Notifications' },
+    { name: ROUTES.SETTINGS, icon: Settings, label: 'Settings' },
+    { name: ROUTES.PROFILE, icon: User, label: 'Profile' },
   ] as const;
 
-  const handlePress = (route: (typeof tabs)[number]['name']) => {
+  const handlePress = (route: RouteName) => {
     onNavigate?.(route);
   };
 
@@ -45,7 +48,8 @@ const BottomNavigationBar: React.FC<BottomNavigationProps> = ({
       {tabs.map(tab => {
         const isActive = activeRoute === tab.name;
         const Icon = tab.icon;
-        const showBadge = tab.name === 'Notifications' && notificationCount > 0;
+        const showBadge =
+          tab.name === ROUTES.NOTIFICATIONS && notificationCount > 0;
 
         return (
           <TouchableOpacity
@@ -96,6 +100,8 @@ const BottomNavigationBar: React.FC<BottomNavigationProps> = ({
   );
 };
 
+export default BottomNavigationBar;
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
@@ -123,7 +129,7 @@ const styles = StyleSheet.create({
     right: -8,
     minWidth: 18,
     height: 18,
-    borderRadius: 0,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
@@ -134,5 +140,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-export default BottomNavigationBar;
