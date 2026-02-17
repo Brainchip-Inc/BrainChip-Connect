@@ -278,6 +278,7 @@ export const Colors = {
   background: '#F8F8F9',
   black: '#000000',
   white: '#FFFFFF',
+  lightWhite: '#FDEDED',
 
   // Text with opacity variations
   text: {

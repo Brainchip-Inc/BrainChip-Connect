@@ -69,7 +69,7 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
     case BleCommand.BATTERY:
       return {
         type: 'BATTERY',
-        data: `${data}%`,
+        data: `${data}`,
       };
 
     case BleCommand.DEVICE_INFO: {
