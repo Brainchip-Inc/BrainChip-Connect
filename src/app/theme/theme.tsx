@@ -280,6 +280,7 @@ export const Colors = {
   white: '#FFFFFF',
   lightWhite: '#FDEDED',
   verylightWhite: '#FFF5F5',
+  lightGrey: '#555555',
 
   // Text with opacity variations
   text: {
