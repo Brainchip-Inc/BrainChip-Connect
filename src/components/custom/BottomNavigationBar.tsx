@@ -7,6 +7,7 @@ import { RouteName, ROUTES } from '../../types/routes';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../App';
 import { useNavigation } from '@react-navigation/native';
+import { useBleStore } from '../../app/store/useBleStore';
 
 interface BottomNavigationProps {
   activeRoute?: RouteName;
@@ -22,6 +23,7 @@ const BottomNavigationBar: React.FC<BottomNavigationProps> = ({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
+  const { connectedDevice } = useBleStore();
 
   const tabs = [
     { name: ROUTES.HOME, icon: Home, label: 'Home' },
@@ -31,6 +33,24 @@ const BottomNavigationBar: React.FC<BottomNavigationProps> = ({
   ] as const;
 
   const handlePress = (route: RouteName) => {
+    switch (route) {
+      case 'Settings':
+        navigation.navigate('Settings');
+        break;
+      case 'Notifications':
+        navigation.navigate('Notifications');
+        break;
+      case 'Profile':
+        navigation.navigate('Eventhistory'); // Temporary, need to replace in future with profile
+        break;
+      case 'Home':
+        navigation.navigate('DeviceApplications', {
+          deviceId: connectedDevice?.id ?? '',
+          deviceName: connectedDevice?.name ?? 'Unknown Device',
+          rssi: connectedDevice?.rssi ?? null,
+        });
+        break;
+    }
     onNavigate?.(route);
   };
 

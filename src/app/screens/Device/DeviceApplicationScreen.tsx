@@ -1,26 +1,26 @@
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { Cpu, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  ScrollView,
-  useWindowDimensions,
   Alert,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
+  View,
 } from 'react-native';
-import { Text, Button, useTheme, ProgressBar } from 'react-native-paper';
+import { Button, ProgressBar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Cpu, Zap } from 'lucide-react-native';
-import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootParamList } from '../../../../App';
-import { useBleStore } from '../../store/useBleStore';
-import DeviceHeader from '../../../components/custom/DeviceHeader';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
-import { RouteName, ROUTES } from '../../../types/routes';
+import DeviceHeader from '../../../components/custom/DeviceHeader';
+import { DeviceInfo } from '../../../services/ble/bleParser';
+import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
-import BleService from '../../../services/ble/bleManager';
-import { BleCommand } from '../../../services/ble/bleCommands';
+import { RouteName, ROUTES } from '../../../types/routes';
 import { Subscription } from 'react-native-ble-plx';
 import { BleData } from '../../../types/bleData';
-import { DeviceInfo } from '../../../services/ble/bleParser';
+import { BleCommand } from '../../../services/ble/bleCommands';
+import BleService from '../../../services/ble/bleManager';
 
 type DeviceApplicationsRouteProp = RouteProp<
   RootParamList,
@@ -114,11 +114,6 @@ const DeviceApplicationsScreen: React.FC = () => {
   const [batteryLoading, setBatteryLoading] = useState(true);
   const fullBatteryMins = 1440; // 24hrs
 
-  // Temporary: Added for testing DEVICE_INFO command. Will remove in future.
-  const [devInfo, setDevInfo] = useState<DeviceInfo>();
-  const [devInfoError, setDevInfoError] = useState<string | null>(null);
-  const [devInfoLoading, setDevInfoLoading] = useState(true);
-
   // will use it for future , to send the ble command to device to activate the application
   const handleDeploy = (app: AppItem) => {
     setApps(prev =>
@@ -162,10 +157,6 @@ const DeviceApplicationsScreen: React.FC = () => {
         setBatteryLoading(true);
         setBatteryError(null);
 
-        // Temporary: Added for testing DEVICE_INFO command. Will remove in future.
-        setDevInfoLoading(true);
-        setDevInfoError(null);
-
         subscription = await BleService.subscribeToNotifications(
           deviceId,
           (data: BleData) => {
@@ -177,20 +168,10 @@ const DeviceApplicationsScreen: React.FC = () => {
               setBatteryLoading(false);
               setBatteryError(null);
             }
-
-            // Temporary: Added for testing DEVICE_INFO command. Will remove in future.
-            if (data.type === 'DEVICE_INFO') {
-              setDevInfo(data.data as DeviceInfo);
-              setDevInfoLoading(false);
-              setDevInfoError(null);
-            }
           },
         );
 
         await BleService.sendCommand(deviceId, BleCommand.BATTERY);
-
-        // Temporary: Added for testing DEVICE_INFO command. Will remove in future.
-        await BleService.sendCommand(deviceId, BleCommand.DEVICE_INFO);
       } catch (error) {
         console.error('BLE setup error:', error);
         setBatteryError('Unable to fetch battery info');
@@ -451,7 +432,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                   <Button
                     mode="contained"
                     style={{ marginTop: spacing }}
-                    icon={() => <Zap size={16} color="#fff" />}
+                    icon={() => <Zap size={16} color={Colors.white} />}
                     onPress={() =>
                       Alert.alert(
                         'Live Data',
@@ -471,7 +452,10 @@ const DeviceApplicationsScreen: React.FC = () => {
             <View
               style={[
                 styles.statusCard,
-                { borderColor: theme.colors.error, backgroundColor: '#FDEDED' },
+                {
+                  borderColor: theme.colors.error,
+                  backgroundColor: `${Colors.lightWhite}`,
+                },
               ]}
             >
               <Text style={{ color: theme.colors.error }}>
@@ -498,7 +482,7 @@ const DeviceApplicationsScreen: React.FC = () => {
 
               <ProgressBar
                 progress={Number(batteryLevel) / 100}
-                color="#0BD6A5"
+                color={Colors.success}
                 style={styles.progress}
               />
 
@@ -508,63 +492,6 @@ const DeviceApplicationsScreen: React.FC = () => {
                   {Math.round((Number(batteryLevel) / 100) * fullBatteryMins)}{' '}
                   minutes left
                 </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {/* Temporary: Added for testing DEVICE_INFO command. Will remove in future.*/}
-          {/* Device Info */}
-          <Text variant="titleMedium" style={{ marginTop: 24 }}>
-            Device Information
-          </Text>
-
-          {devInfoError ? (
-            <View
-              style={[
-                styles.statusCard,
-                { borderColor: theme.colors.error, backgroundColor: '#FDEDED' },
-              ]}
-            >
-              <Text style={{ color: theme.colors.error }}>
-                ⚠ {devInfoError}. Please check your device connection.
-              </Text>
-            </View>
-          ) : devInfoLoading ? (
-            <View
-              style={[
-                styles.statusCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                Loading device information…
-              </Text>
-            </View>
-          ) : devInfo ? (
-            <View style={styles.statusCard}>
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Vendor</Text>
-                <Text style={styles.statusSub}>{devInfo.vendor}</Text>
-              </View>
-
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Model</Text>
-                <Text style={styles.statusSub}>{devInfo.model}</Text>
-              </View>
-
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Firmware</Text>
-                <Text style={styles.statusSub}>{devInfo.firmware}</Text>
-              </View>
-
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Hardware</Text>
-                <Text style={styles.statusSub}>{devInfo.hardware}</Text>
-              </View>
-
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Protocol</Text>
-                <Text style={styles.statusSub}>{devInfo.protocol || '-'}</Text>
               </View>
             </View>
           ) : null}
@@ -639,8 +566,8 @@ const styles = StyleSheet.create({
   statusCard: {
     padding: 17,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: `${Colors.border.light}`,
+    backgroundColor: `${Colors.white}`,
   },
 
   statusRow: {
@@ -653,14 +580,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora',
     fontSize: 15,
     fontWeight: '700',
-    color: '#000',
+    color: `${Colors.black}`,
   },
 
   statusValue: {
     fontFamily: 'Inter',
     fontSize: 15,
     fontWeight: '700',
-    color: '#000',
+    color: `${Colors.black}`,
   },
 
   statusFooter: {
@@ -670,7 +597,7 @@ const styles = StyleSheet.create({
 
   statusSub: {
     fontSize: 12,
-    color: '#000',
+    color: `${Colors.black}`,
     fontWeight: 400,
   },
 });
