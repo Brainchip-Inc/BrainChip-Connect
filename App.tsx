@@ -21,8 +21,6 @@ import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplication
 import { Base64 } from 'react-native-ble-plx';
 import NotificationsScreen from './src/app/screens/NotificationsScreen';
 import EventHistoryScreen from './src/app/screens/EventHistoryScreen';
-import FirmwareUpdateScreen from './src/app/screens/FirmwareUpdateScreen';
-import AIModelUpdateScreen from './src/app/screens/AIModelUpdateScreen';
 
 export type RootParamList = {
   Splash: undefined;
@@ -109,14 +107,6 @@ const App = () => {
             <Stack.Screen
               name="DeviceApplications"
               component={DeviceApplicationsScreen}
-            />
-            <Stack.Screen
-              name="AIModelUpdate"
-              component={AIModelUpdateScreen}
-            />
-            <Stack.Screen
-              name="FirmwareUpdate"
-              component={FirmwareUpdateScreen}
             />
             <Stack.Screen name="Eventhistory" component={EventHistoryScreen} />
             <Stack.Screen
