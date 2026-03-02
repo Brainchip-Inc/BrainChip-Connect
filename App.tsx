@@ -1,28 +1,32 @@
-import React from 'react';
-import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import React from 'react';
+import { StatusBar } from 'react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import SplashScreen from './src/app/screens/SplashScreen';
-import GetStartedScreen from './src/app/screens/Start/GetStartedScreen';
-import HomeScreen from './src/app/screens/HomeScreen';
-import SettingsScreen from './src/app/screens/SettingsScreen';
-import BrainChipTheme from './src/app/theme/theme';
-import PermissionsScreen from './src/app/screens/Start/PermissionScreen';
-import PrivacyPolicyScreen from './src/app/screens/Start/PrivacyPolicyScreen';
-import TermsAndConditionsScreen from './src/app/screens/Start/TermsAndConditionsScreen';
-import DevicePreviewScreen from './src/app/screens/Device/DevicePreviewScreen';
+import { Base64 } from 'react-native-ble-plx';
+import AboutScreen from './src/app/screens/AboutScreen';
+import AccountPrivacyPolicyScreen from './src/app/screens/AccountPrivacyPolicyScreen';
+import AccountTermsAndConditionsScreen from './src/app/screens/AccountTermsAndConditionsScreen';
+import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplicationScreen';
 import DeviceConnectingScreen from './src/app/screens/Device/DeviceConnectingScreen';
 import DeviceDetailsScreen from './src/app/screens/Device/DeviceDetailsScreen';
 import DeviceDiscoveryScreen from './src/app/screens/Device/DeviceDiscoveryScreen';
-import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplicationScreen';
-import { Base64 } from 'react-native-ble-plx';
-import NotificationsScreen from './src/app/screens/NotificationsScreen';
+import DevicePreviewScreen from './src/app/screens/Device/DevicePreviewScreen';
 import EventHistoryScreen from './src/app/screens/EventHistoryScreen';
-import { AppType } from './src/app/store/useLiveSensorStore';
+import HomeScreen from './src/app/screens/HomeScreen';
 import LiveSensorDataScreen from './src/app/screens/LiveSensorDataScreen';
+import NotificationsScreen from './src/app/screens/NotificationsScreen';
+import SettingsScreen from './src/app/screens/SettingsScreen';
+import SplashScreen from './src/app/screens/SplashScreen';
+import GetStartedScreen from './src/app/screens/Start/GetStartedScreen';
+import PermissionsScreen from './src/app/screens/Start/PermissionScreen';
+import PrivacyPolicyScreen from './src/app/screens/Start/PrivacyPolicyScreen';
+import TermsAndConditionsScreen from './src/app/screens/Start/TermsAndConditionsScreen';
+import UserProfileScreen from './src/app/screens/UserProfileScreen';
+import { AppType } from './src/app/store/useLiveSensorStore';
+import BrainChipTheme from './src/app/theme/theme';
 
 export type RootParamList = {
   Splash: undefined;
@@ -67,6 +71,10 @@ export type RootParamList = {
     appType: AppType;
     title: string;
   };
+  UserProfile: undefined;
+  Aboutapp: undefined;
+  AccountPrivacyPolicy: undefined;
+  AccountTermsAndConditions: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootParamList>();
@@ -122,6 +130,16 @@ const App = () => {
             <Stack.Screen
               name="LiveSensorData"
               component={LiveSensorDataScreen}
+            />
+            <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+            <Stack.Screen name="Aboutapp" component={AboutScreen} />
+            <Stack.Screen
+              name="AccountPrivacyPolicy"
+              component={AccountPrivacyPolicyScreen}
+            />
+            <Stack.Screen
+              name="AccountTermsAndConditions"
+              component={AccountTermsAndConditionsScreen}
             />
           </Stack.Navigator>
         </NavigationContainer>
