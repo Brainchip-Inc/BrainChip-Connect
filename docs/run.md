@@ -33,6 +33,7 @@ git clone <repository-url>
 cd spark-phone
 git checkout <branch-name>
 npm install
+cp .env.template .env
 ```
 
 ## iOS (First)
@@ -59,6 +60,7 @@ cd ..
 ```
 
 Note:
+
 - You may see a React Native deprecation notice about calling `pod install` directly.
 - This is informational and does not block setup.
 - Continue using `bundle exec pod install` for local native dependency install.
