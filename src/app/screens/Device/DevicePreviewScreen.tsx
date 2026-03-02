@@ -34,12 +34,6 @@ const DevicePreviewScreen: React.FC = () => {
     };
 
     const deviceType = manufacturerInfo.slice(5, 12);
-    console.log('deviceType', deviceType);
-    console.log(
-      'firmwareVersion:',
-      `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
-    );
-    console.log('bleVersion', `${bleVersion.major}.${bleVersion.minor}`);
     return {
       deviceType: deviceType,
       firmwareVersion: `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
@@ -47,7 +41,6 @@ const DevicePreviewScreen: React.FC = () => {
     };
   };
 
-  console.log('deviceInfo', deviceInfo);
   const parsedDeviceInfo = deviceInfo
     ? parseManufacturerData(deviceInfo)
     : {

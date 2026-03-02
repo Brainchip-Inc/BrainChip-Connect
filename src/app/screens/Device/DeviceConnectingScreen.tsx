@@ -9,6 +9,8 @@ import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
+import { useDeviceAuthStore } from '../../store/useDeviceAuthStore';
+import { useBleCommandStore } from '../../store/useBleCommandStore';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
@@ -46,6 +48,9 @@ const DeviceConnectingScreen: React.FC = () => {
     ? 20
     : Math.min(width * 0.1, 80);
   const maxWidth = isLargeDevice ? 600 : width;
+  const authenticateDevice = useDeviceAuthStore(
+    state => state.authenticateDevice,
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -56,8 +61,23 @@ const DeviceConnectingScreen: React.FC = () => {
       try {
         setConnectionState('connecting');
 
+        // ?? Authenticate with server
+        await authenticateDevice(deviceId, 'DEV_SECRET');
+
         // Start connection process
-        const connectionPromise = BleService.connectDevice(deviceId);
+        const connectionPromise = BleService.connectDevice(deviceId, () => {
+          Alert.alert(
+            'Device Disconnected',
+            'The device connection was lost.',
+            [
+              {
+                text: 'OK',
+                onPress: () => navigation.replace('DeviceDiscovery'),
+              },
+            ],
+            { cancelable: false },
+          );
+        });
 
         // Animate connection steps with progress
         stepIntervalRef.current = setInterval(() => {
@@ -96,7 +116,9 @@ const DeviceConnectingScreen: React.FC = () => {
         });
         setConnectionState('connected');
 
-        // Navigate to Device Applications after brief delay
+        useBleCommandStore.getState().startNotifications(deviceId);
+
+        // Navigate to Device Applications
         setTimeout(() => {
           if (!isMountedRef.current) return;
           navigation.replace('DeviceApplications', {

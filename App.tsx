@@ -21,6 +21,8 @@ import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplication
 import { Base64 } from 'react-native-ble-plx';
 import NotificationsScreen from './src/app/screens/NotificationsScreen';
 import EventHistoryScreen from './src/app/screens/EventHistoryScreen';
+import { AppType } from './src/app/store/useLiveSensorStore';
+import LiveSensorDataScreen from './src/app/screens/LiveSensorDataScreen';
 
 export type RootParamList = {
   Splash: undefined;
@@ -61,6 +63,10 @@ export type RootParamList = {
   Eventhistory: undefined;
   FirmwareUpdate: undefined;
   AIModelUpdate: undefined;
+  LiveSensorData: {
+    appType: AppType;
+    title: string;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootParamList>();
@@ -112,6 +118,10 @@ const App = () => {
             <Stack.Screen
               name="Notifications"
               component={NotificationsScreen}
+            />
+            <Stack.Screen
+              name="LiveSensorData"
+              component={LiveSensorDataScreen}
             />
           </Stack.Navigator>
         </NavigationContainer>
