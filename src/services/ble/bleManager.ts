@@ -38,6 +38,10 @@ class BleService {
    */
   private txUUID: string = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
+  private readonly CHUNK_SIZE = 247;
+  private negotiatedMTU = 23;
+  private disconnectSubscriptions: Map<string, Subscription> = new Map();
+
   constructor() {
     this.bleManager = new BleManager();
   }
@@ -276,10 +280,21 @@ class BleService {
   /**
    * Connect to a BLE device and discover its services/characteristics.
    */
-  connectDevice = async (deviceId: string): Promise<Device> => {
+  connectDevice = async (
+    deviceId: string,
+    onDisconnected?: () => void,
+  ): Promise<Device> => {
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
+      const updatedDevice = await device.requestMTU(this.CHUNK_SIZE);
+
+      this.negotiatedMTU = updatedDevice.mtu ?? 23;
       await device.discoverAllServicesAndCharacteristics();
+
+      if (onDisconnected) {
+        this.listenForDisconnection(deviceId, onDisconnected);
+      }
+
       return device;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -367,6 +382,29 @@ class BleService {
         error instanceof Error ? error.message : 'Failed to read device data';
       throw new Error(message);
     }
+  };
+
+  /**
+   * Listen for device disconnection.
+   *
+   */
+  listenForDisconnection = (deviceId: string, onDisconnected: () => void) => {
+    const subscription = this.bleManager.onDeviceDisconnected(
+      deviceId,
+      (error, device) => {
+        if (error) {
+          return;
+        }
+
+        // Cleanup subscription
+        this.disconnectSubscriptions.get(deviceId)?.remove();
+        this.disconnectSubscriptions.delete(deviceId);
+
+        onDisconnected();
+      },
+    );
+
+    this.disconnectSubscriptions.set(deviceId, subscription);
   };
 
   /**
