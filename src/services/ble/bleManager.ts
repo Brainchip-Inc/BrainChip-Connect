@@ -7,6 +7,7 @@ import { BleCommand } from './bleCommands';
 import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
 import bleConnectionHelper from '../../app/utils/bleConnectionHelper';
+import CRC32 from 'crc-32';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -251,6 +252,34 @@ class BleService {
         if (error) {
           this.stopScan();
           return;
+        }
+
+        // Skip processing if the device is null or invalid
+        if (!device || !device.id) {
+          return;
+        }
+
+        // Skip devices that have no name or serviceUUIDs
+        if (!device.name || !device.serviceUUIDs) {
+          return;
+        }
+
+        // **Important**: Here we filter the devices explicitly
+        if (serviceUUIDs && serviceUUIDs.length > 0) {
+          // Ensure device.serviceUUIDs is not null or undefined
+          if (device.serviceUUIDs && device.serviceUUIDs.length > 0) {
+            // Check if the device has one of the provided serviceUUIDs
+            const deviceHasServiceUUID = device.serviceUUIDs.some(serviceUUID =>
+              serviceUUIDs.includes(serviceUUID),
+            );
+
+            // If the device does not have any matching serviceUUIDs, skip it
+            if (!deviceHasServiceUUID) {
+              return;
+            }
+          } else {
+            return; // Skip device if it doesn't advertise any serviceUUIDs
+          }
         }
 
         if (device) {
@@ -1015,6 +1044,198 @@ class BleService {
       console.error('[FOTA ERROR]', error);
       throw new Error(error?.message || 'FOTA failed');
     }
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                         MODEL TRANSFER UUID CONFIG                          */
+  /* -------------------------------------------------------------------------- */
+
+  private modelServiceUUID = 'f000aa00-0451-4000-b000-000000000000';
+  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000';
+  private ackUUID = 'f000aa02-0451-4000-b000-000000000000';
+  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000';
+  private fileSizeUUID = 'f000aa04-0451-4000-b000-000000000000';
+  private appUUID = 'f000aa05-0451-4000-b000-000000000000';
+  private crcUUID = 'f000aa06-0451-4000-b000-000000000000';
+
+  private readonly ACK_FLASH_ERASE_DONE = 0xee;
+  private readonly ACK_FLASH_WRITE_DONE = 0xcc;
+  private readonly BUFFER_SIZE = 102236;
+
+  //Model OTA Updation
+
+  private ackResolver: (() => void) | null = null;
+
+  private computeCRC32 = async (filePath: string): Promise<number> => {
+    const base64 = await RNFS.readFile(filePath, 'base64');
+    const buffer = Buffer.from(base64, 'base64');
+
+    // Initial CRC value matches Python
+    let crc = 0xffffffff;
+
+    // Update CRC in chunks
+    crc = CRC32.buf(buffer, crc);
+
+    // Final XOR to match Python
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+
+  private detectAppIndex = (filePath: string): number => {
+    const name = filePath.toLowerCase();
+
+    if (name.includes('mnist')) return 0;
+    if (name.includes('kws')) return 1;
+
+    throw new Error("Filename must contain 'mnist' or 'kws'");
+  };
+
+  // private waitForAck = (timeoutMs = 5000): Promise<void> => {
+  //   return new Promise((resolve, reject) => {
+  //     this.ackResolver = resolve;
+  //     setTimeout(() => reject(new Error('ACK timeout')), timeoutMs);
+  //   });
+  // };
+  private waitForAck = (timeoutMs = 5000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      this.ackResolver = resolve;
+
+      const timeout = setTimeout(() => {
+        this.ackResolver = null;
+        reject(new Error('ACK timeout'));
+      }, timeoutMs);
+    });
+  };
+
+  subscribeToModelAck = (deviceId: string, callback: (ack: number) => void) => {
+    return this.bleManager.monitorCharacteristicForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      this.ackUUID,
+      (error, characteristic) => {
+        if (error) {
+          // console.error('[ACK] Monitor error:', error);
+          return;
+        }
+
+        if (!characteristic?.value) return;
+
+        const ack = Buffer.from(characteristic.value, 'base64')[0];
+
+        // console.log('[ACK]', ack);
+
+        if (ack === this.ACK_FLASH_ERASE_DONE) {
+          // console.log('ACK_FLASH_ERASE_DONE');
+          callback(ack);
+        }
+
+        if (ack === this.ACK_FLASH_WRITE_DONE) {
+          // console.log('ACK_FLASH_WRITE_DONE');
+          callback(ack);
+          this.ackResolver?.();
+          this.ackResolver = null;
+        }
+      },
+    );
+  };
+
+  sendModelFile = async (
+    deviceId: string,
+    filePath: string,
+    writeToSram = false,
+    onProgress?: (percent: number) => void,
+  ) => {
+    try {
+      const stat = await RNFS.stat(filePath);
+      const fileSize = stat.size;
+
+      const appIndex = this.detectAppIndex(filePath);
+
+      // console.log('Selected APP:', appIndex === 0 ? 'MNIST' : 'KWS');
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.appUUID,
+        Buffer.from([appIndex]).toString('base64'),
+      );
+
+      const sizeBuf = Buffer.alloc(4);
+      sizeBuf.writeUInt32LE(fileSize);
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.fileSizeUUID,
+        sizeBuf.toString('base64'),
+      );
+
+      const crc32 = await this.computeCRC32(filePath);
+      // console.log('crc32', crc32);
+      const crcBuf = Buffer.alloc(4);
+      crcBuf.writeUInt32LE(crc32);
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.crcUUID,
+        crcBuf.toString('base64'),
+      );
+
+      // console.log(`CRC32 sent: 0x${crc32.toString(16)}`);
+
+      const base64 = await RNFS.readFile(filePath, 'base64');
+      const fileBuffer = Buffer.from(base64, 'base64');
+
+      let sent = 0;
+      let sinceLastAck = 0;
+      const ackLimit = writeToSram ? this.BUFFER_SIZE : fileSize;
+      // console.log('ackLimit', ackLimit);
+
+      while (sent < fileBuffer.length) {
+        const connected = await this.isDeviceConnected(deviceId);
+        if (!connected) {
+          throw new Error('Device disconnected during transfer');
+        }
+        const payloadSize = this.negotiatedMTU - 3;
+        // console.log('payloadSize', payloadSize);
+        const chunk = fileBuffer.slice(sent, sent + payloadSize);
+        // console.log('chunk', chunk);
+        await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+          deviceId,
+          this.modelServiceUUID,
+          this.fileTransferUUID,
+          chunk.toString('base64'),
+        );
+
+        sent += chunk.length;
+        sinceLastAck += chunk.length;
+
+        onProgress?.((sent / fileSize) * 100);
+
+        // console.log('ackLimit', ackLimit, 'sinceLastAck', sinceLastAck);
+        if (sinceLastAck >= ackLimit) {
+          // console.log('Waiting for ACK...');
+          await this.waitForAck();
+          sinceLastAck = 0;
+        }
+
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      // console.log('Model transfer complete');
+    } catch (error) {
+      // console.error('Model transfer failed:', error);
+      Alert.alert('Transfer Failed', String(error));
+      throw error;
+    }
+  };
+
+  public getAckFlashErase() {
+    return this.ACK_FLASH_ERASE_DONE;
+  }
+
+  public getAckFlashWrite() {
+    return this.ACK_FLASH_WRITE_DONE;
   }
 }
 

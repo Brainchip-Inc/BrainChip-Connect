@@ -29,6 +29,7 @@ import { AppType } from './src/app/store/useLiveSensorStore';
 import BrainChipTheme from './src/app/theme/theme';
 import FirmwareUpdateScreen from './src/app/screens/FirmwareUpdateScreen';
 import bleConnectionHelper from './src/app/utils/bleConnectionHelper';
+import AIModelUpdateScreen from './src/app/screens/AIModelUpdateScreen';
 
 export type RootParamList = {
   Splash: undefined;
@@ -152,6 +153,10 @@ const App = () => {
             <Stack.Screen
               name="FirmwareUpdate"
               component={FirmwareUpdateScreen}
+            />
+            <Stack.Screen
+              name="AIModelUpdate"
+              component={AIModelUpdateScreen}
             />
           </Stack.Navigator>
         </NavigationContainer>
