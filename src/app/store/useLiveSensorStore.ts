@@ -53,7 +53,7 @@ export const useLiveSensorStore = create<SensorState>((set, get) => ({
 
   stopStreaming: type => {
     set({ isStreaming: false });
-    useBleCommandStore.getState().startStreaming(type);
+    useBleCommandStore.getState().stopStreaming(type);
   },
 
   simulateData: () => {

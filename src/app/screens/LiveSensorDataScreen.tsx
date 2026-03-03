@@ -108,7 +108,6 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
   };
 
   const {
-    isStreaming,
     startStreaming,
     stopStreaming,
     simulateData,
@@ -116,10 +115,12 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
     detectedWord,
     anomalyScore,
     systemStatus,
-    micWave,
     accel,
     gyro,
   } = useLiveSensorStore();
+
+  const isStreaming = useLiveSensorStore(s => s.isStreaming);
+  const micWave = useLiveSensorStore(s => s.micWave);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -137,16 +138,6 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
 
   // ─── Model Output Card ──────────────────────────────────────────────────────
   const renderModelOutput = () => {
-    if (!isStreaming) {
-      return (
-        <View style={styles.outputCard}>
-          <Text style={styles.placeholderCenter}>
-            Start streaming to see model output
-          </Text>
-        </View>
-      );
-    }
-
     if (appType === 'keyword') {
       return (
         <View
@@ -197,6 +188,9 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
     if (appType === 'anomaly' || appType === 'imu') {
       return (
         <View style={[styles.outputCard, styles.anomalyActive]}>
+          <Text style={styles.placeholderCenter}>
+            Start streaming to see model output
+          </Text>
           <Text style={styles.labelMuted}>System Status</Text>
 
           <View style={styles.keywordRow}>
@@ -219,6 +213,9 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
     if (appType === 'vision') {
       return (
         <View style={[styles.outputCard, styles.keywordActive]}>
+          <Text style={styles.placeholderCenter}>
+            Start streaming to see model output
+          </Text>
           <View style={styles.visionPreview}>
             <Box size={40} color={Colors.primary} />
             <Text style={styles.labelMuted}>Live Camera Feed</Text>
@@ -702,7 +699,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
     textAlign: 'center',
     fontStyle: 'italic',
-    paddingVertical: 20,
+    paddingVertical: 10,
   },
 
   keywordRow: {

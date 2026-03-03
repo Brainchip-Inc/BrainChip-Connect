@@ -21,7 +21,9 @@ const CONTENT_WIDTH = 382;
 const NotificationsScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
+  const [activeRoute, setActiveRoute] = useState<RouteName>(
+    ROUTES.NOTIFICATIONS,
+  );
   const { connectedDevice } = useBleStore();
   const notificationsData = useNotificationsStore(state => state.notifications);
 
