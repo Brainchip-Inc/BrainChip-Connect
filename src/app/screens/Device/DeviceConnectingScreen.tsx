@@ -62,7 +62,8 @@ const DeviceConnectingScreen: React.FC = () => {
         setConnectionState('connecting');
 
         // ?? Authenticate with server
-        await authenticateDevice(deviceId, 'DEV_SECRET');
+        const secretkey = process.env.SECRETKEY;
+        await authenticateDevice(deviceId, secretkey!);
 
         // Start connection process
         const connectionPromise = BleService.connectDevice(deviceId, () => {
