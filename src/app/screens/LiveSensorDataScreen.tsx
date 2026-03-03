@@ -402,7 +402,10 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
           {renderSensors()}
 
           {/* Event History — same card style as SettingRow */}
-          <TouchableOpacity style={styles.eventHistoryCard}>
+          <TouchableOpacity
+            style={styles.eventHistoryCard}
+            onPress={() => navigation.navigate('Eventhistory')}
+          >
             <View style={styles.cardRow}>
               <History size={20} />
               <Text style={styles.cardTitle}>Event History</Text>
