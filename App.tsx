@@ -28,8 +28,8 @@ import UserProfileScreen from './src/app/screens/UserProfileScreen';
 import { AppType } from './src/app/store/useLiveSensorStore';
 import BrainChipTheme from './src/app/theme/theme';
 import FirmwareUpdateScreen from './src/app/screens/FirmwareUpdateScreen';
-import bleConnectionHelper from './src/app/utils/bleConnectionHelper';
 import AIModelUpdateScreen from './src/app/screens/AIModelUpdateScreen';
+import BleConnectionHelper from './src/app/utils/BleConnectionHelper';
 
 export type RootParamList = {
   Splash: undefined;
@@ -91,7 +91,7 @@ const App = () => {
         <NavigationContainer
           ref={navigationRef}
           onReady={() => {
-            bleConnectionHelper.setNavigationRef(navigationRef.current);
+            BleConnectionHelper.setNavigationRef(navigationRef.current);
           }}
         >
           <Stack.Navigator

@@ -6,7 +6,7 @@ import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
 import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
-import bleConnectionHelper from '../../app/utils/bleConnectionHelper';
+import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import CRC32 from 'crc-32';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
@@ -323,10 +323,10 @@ class BleService {
       this.negotiatedMTU = updatedDevice.mtu ?? 23;
       await device.discoverAllServicesAndCharacteristics();
 
-      bleConnectionHelper.setConnectedDevice(deviceId);
+      BleConnectionHelper.setConnectedDevice(deviceId);
 
       this.listenForDisconnection(deviceId, () => {
-        bleConnectionHelper.handleDisconnect(deviceId);
+        BleConnectionHelper.handleDisconnect(deviceId);
       });
 
       return device;
@@ -341,7 +341,7 @@ class BleService {
    */
   disconnectDevice = async (deviceId: string) => {
     try {
-      bleConnectionHelper.markManualDisconnect();
+      BleConnectionHelper.markManualDisconnect();
       await this.bleManager.cancelDeviceConnection(deviceId);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
