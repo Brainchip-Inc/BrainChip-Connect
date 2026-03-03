@@ -43,7 +43,7 @@ interface AppItem {
   power: string;
 }
 
-const APPS: AppItem[] = [
+const APPS_List: AppItem[] = [
   {
     id: 'keyword',
     name: 'Keyword Spotting',
@@ -114,7 +114,7 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const deviceId = route.params?.deviceId ?? connectedDevice?.id ?? null;
 
-  const [apps, setApps] = useState<AppItem[]>(APPS);
+  // const [apps, setApps] = useState<AppItem[]>(APPS);
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.HOME);
   const [infoAppId, setInfoAppId] = useState<string | null>(null);
 
@@ -124,6 +124,8 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const [showNotification, setShowNotification] = useState(false);
   const { muteStatus, updateMuteStatus } = useNotificationsStore();
+
+  const activeApp = useBleCommandStore(state => state.activeApp);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -144,25 +146,25 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
 
     try {
-      setApps(prev =>
-        prev.map(a =>
-          a.id === app.id
-            ? {
-                ...a,
-                active: true,
-                latestDetection: 'Waiting...',
-                confidence: 0,
-              }
-            : {
-                ...a,
-                active: false,
-                latestDetection: latestDetection,
-                confidence: confidence,
-              },
-        ),
-      );
+      // setApps(prev =>
+      //   prev.map(a =>
+      //     a.id === app.id
+      //       ? {
+      //           ...a,
+      //           active: true,
+      //           latestDetection: 'Waiting...',
+      //           confidence: 0,
+      //         }
+      //       : {
+      //           ...a,
+      //           active: false,
+      //           latestDetection: latestDetection,
+      //           confidence: confidence,
+      //         },
+      //   ),
+      // );
 
-      deployApp(app.id);
+      await deployApp(app.id);
       Alert.alert('Deploying', `${app.name} is being deployed.`);
     } catch (error) {
       console.error('Deploy error:', error);
@@ -177,18 +179,18 @@ const DeviceApplicationsScreen: React.FC = () => {
       await stopApp(app.id); // Stop app using the store method
       Alert.alert('Stopped', `${app.name} has been stopped.`);
 
-      setApps(prev =>
-        prev.map(a =>
-          a.id === app.id
-            ? {
-                ...a,
-                active: false,
-                latestDetection: undefined,
-                confidence: undefined,
-              }
-            : a,
-        ),
-      );
+      // setApps(prev =>
+      //   prev.map(a =>
+      //     a.id === app.id
+      //       ? {
+      //           ...a,
+      //           active: false,
+      //           latestDetection: undefined,
+      //           confidence: undefined,
+      //         }
+      //       : a,
+      //   ),
+      // );
     } catch (error) {
       console.error('Stop error:', error);
     }
@@ -211,7 +213,7 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   useEffect(() => {
     if (!muteStatus) {
-      const appActive = apps.find(a => a.active);
+      const appActive = APPS_List.find(a => a.active);
       if (appActive) {
         if (latestDetection && confidence !== undefined) {
           setShowNotification(true);
@@ -273,8 +275,9 @@ const DeviceApplicationsScreen: React.FC = () => {
             </Text>
           </View>
           {/* Application Cards */}
-          {apps.map(app => {
-            const isActive = app.active;
+          {APPS_List.map(app => {
+            // const isActive = app.active;
+            const isActive = activeApp === app.id;
             const isInfoVisible = infoAppId === app.id;
 
             return (
@@ -529,7 +532,7 @@ const DeviceApplicationsScreen: React.FC = () => {
       {showNotification && (
         <View style={styles.notificationOverlay}>
           <NotificationCard
-            title={apps.find(a => a.active)?.name ?? 'Application'}
+            title={APPS_List.find(a => a.active)?.name ?? 'Application'}
             description={`"${latestDetection}"`}
             confidence={confidence ?? 0}
             onSeeMore={() => {
