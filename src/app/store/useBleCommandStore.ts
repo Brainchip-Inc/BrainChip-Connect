@@ -4,6 +4,11 @@ import BleService from '../../services/ble/bleManager';
 import { BleCommand } from '../../services/ble/bleCommands';
 import { BleData } from '../../types/bleData';
 import { BLEDevice } from './useBleStore';
+import { useEventsStore } from './useEventStore';
+
+let streamBuffer: number[] = [];
+let lastFlush = 0;
+const FLUSH_INTERVAL = 100; // 100ms = 10fps
 
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
@@ -99,23 +104,56 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               });
               break;
 
-            case 'DEPLOY':
+            case 'DEPLOYSTART':
               set({
                 latestDetection: String(data.data),
                 confidence: Number((Math.random() * 100).toFixed(2)),
                 receivedAt: new Date(),
               });
+              const detection = String(data.data);
+              const conf = Number((Math.random() * 100).toFixed(2));
+
+              set({
+                latestDetection: detection,
+                confidence: conf,
+                receivedAt: new Date(),
+              });
+
+              useEventsStore.getState().addEvent({
+                appId: get().activeApp ?? 'unknown',
+                title: detection,
+                timestamp: Date.now(),
+                confidence: conf,
+                status: conf < 80 ? 'warn' : 'ok',
+              });
               break;
 
-            case 'STREAM':
+            case 'STREAMSTART':
               // Step 3: Convert the raw audio string to a single RMS value
               const rmsValue = Number(data.data);
 
               // Step 4: Update the micWave state with the RMS value (Store it as an array of RMS values)
-              set(prevState => ({
-                micWave: [...prevState.micWave, rmsValue].slice(-20), // Keep only the latest 20 values
-              }));
+              streamBuffer.push(rmsValue);
 
+              const now = Date.now();
+
+              if (now - lastFlush > FLUSH_INTERVAL) {
+                lastFlush = now;
+
+                const valuesToAdd = [...streamBuffer];
+                streamBuffer = [];
+
+                set(prevState => ({
+                  micWave: [...prevState.micWave, ...valuesToAdd].slice(-30),
+                }));
+              }
+              break;
+
+            case 'DEPLOYSTOP':
+              console.log('stop ack', data.data);
+              break;
+            case 'STREAMSTOP':
+              console.log('stop ack', data.data);
               break;
 
             default:

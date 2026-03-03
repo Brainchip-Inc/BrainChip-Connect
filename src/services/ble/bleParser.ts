@@ -14,8 +14,10 @@ export type ParsedResponse =
   | { type: 'BATTERY'; data: string }
   | { type: 'DEVICE_INFO'; data: DeviceInfo }
   | { type: 'RAW'; cmd: BleCommand; data: string }
-  | { type: 'DEPLOY'; data: string }
-  | { type: 'STREAM'; data: string };
+  | { type: 'DEPLOYSTART'; data: string }
+  | { type: 'STREAMSTART'; data: string }
+  | { type: 'DEPLOYSTOP'; data: string }
+  | { type: 'STREAMSTOP'; data: string };
 
 // Multi-frame buffer (keyed by command enum)
 const multiFrameBuffer: Record<number, string[]> = {};
@@ -90,13 +92,25 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
     }
     case BleCommand.DEPLOYSTART:
       return {
-        type: 'DEPLOY',
+        type: 'DEPLOYSTART',
         data: `${data}`,
       };
 
     case BleCommand.STREAMSTART:
       return {
-        type: 'STREAM',
+        type: 'STREAMSTART',
+        data: `${data}`,
+      };
+
+    case BleCommand.DEPLOYSTOP:
+      return {
+        type: 'DEPLOYSTOP',
+        data: `${data}`,
+      };
+
+    case BleCommand.STREAMSTOP:
+      return {
+        type: 'STREAMSTOP',
         data: `${data}`,
       };
 
