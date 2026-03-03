@@ -27,6 +27,8 @@ import TermsAndConditionsScreen from './src/app/screens/Start/TermsAndConditions
 import UserProfileScreen from './src/app/screens/UserProfileScreen';
 import { AppType } from './src/app/store/useLiveSensorStore';
 import BrainChipTheme from './src/app/theme/theme';
+import FirmwareUpdateScreen from './src/app/screens/FirmwareUpdateScreen';
+import bleConnectionHelper from './src/app/utils/bleConnectionHelper';
 
 export type RootParamList = {
   Splash: undefined;
@@ -78,13 +80,19 @@ export type RootParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootParamList>();
+const navigationRef = React.createRef<any>();
 
 const App = () => {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={BrainChipTheme}>
         <StatusBar barStyle="dark-content" />
-        <NavigationContainer>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={() => {
+            bleConnectionHelper.setNavigationRef(navigationRef.current);
+          }}
+        >
           <Stack.Navigator
             initialRouteName="Splash"
             screenOptions={{ headerShown: false }}
@@ -140,6 +148,10 @@ const App = () => {
             <Stack.Screen
               name="AccountTermsAndConditions"
               component={AccountTermsAndConditionsScreen}
+            />
+            <Stack.Screen
+              name="FirmwareUpdate"
+              component={FirmwareUpdateScreen}
             />
           </Stack.Navigator>
         </NavigationContainer>
