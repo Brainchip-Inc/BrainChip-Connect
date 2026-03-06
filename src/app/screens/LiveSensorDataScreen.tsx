@@ -1,10 +1,16 @@
-import { useRoute } from '@react-navigation/native';
+import {
+  NavigationProp,
+  useNavigation,
+  useRoute,
+} from '@react-navigation/native';
 import {
   Accessibility,
   Activity,
   Box,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  EyeClosed,
   History,
   Mic,
   Play,
@@ -19,16 +25,18 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ProgressBar, Text, useTheme } from 'react-native-paper';
+import { ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
+import BleService from '../../services/ble/bleManager';
+import { RouteName, ROUTES } from '../../types/routes';
 import { useBleStore } from '../store/useBleStore';
 import { AppType, useLiveSensorStore } from '../store/useLiveSensorStore';
 import { Colors } from '../theme/theme';
-import { RouteName, ROUTES } from '../../types/routes';
-import { useBleCommandStore } from '../store/useBleCommandStore';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootParamList } from '../../../App';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 48 - 32; // margins + card padding
@@ -48,6 +56,13 @@ const SectionHeader = ({
   </View>
 );
 
+const InfoRow = ({ label, value }: { label: string; value: string }) => (
+  <View style={styles.infoRow}>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={styles.infoValue}>{value}</Text>
+  </View>
+);
+
 // ─── Line Chart ───────────────────────────────────────────────────────────────
 const LineChart = ({
   datasets,
@@ -58,7 +73,7 @@ const LineChart = ({
     const len = data.length;
     if (len < 2) return '';
 
-    const max = 2000;
+    const max = 5000;
     const min = 0;
     const range = max - min || 1; // avoid divide by zero
 
@@ -93,12 +108,14 @@ const LineChart = ({
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
-const LiveSensorDataScreen = ({ navigation }: any) => {
+const LiveSensorDataScreen = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const { connectedDevice } = useBleStore();
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
+  const deviceId = connectedDevice?.id ?? 'Unknown';
 
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.HOME);
 
@@ -121,6 +138,8 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
 
   const isStreaming = useLiveSensorStore(s => s.isStreaming);
   const micWave = useLiveSensorStore(s => s.micWave);
+  const [showDeviceInfo, setShowDeviceInfo] = useState(false);
+  const [edgeLearningMode, setEdgeLearningMode] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -134,6 +153,38 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
     if (appType === 'keyword') return <Mic size={20} />;
     if (appType === 'vision') return <Box size={20} />;
     return <Activity size={20} />;
+  };
+
+  useEffect(() => {
+    const sub = BleService.subscribeToEdgeLearningAck(deviceId, ack => {
+      if (ack === BleService.getAckEdgeMode()) {
+        Alert.alert(
+          'Activated',
+          'Edge Learning Mode is activated successfully',
+        );
+      }
+    });
+
+    return () => sub.remove();
+  }, [deviceId]);
+
+  const sendEdgeCmd = async (value: number) => {
+    try {
+      console.log('Sending EDGE command:', value);
+
+      await BleService.sendEdgeCommand(deviceId, value);
+    } catch (err) {
+      console.log('Edge command error', err);
+
+      Alert.alert('Command Failed', 'Unable to send command to the device.');
+    }
+    Alert.alert('Command Send', 'Command Send successfully');
+  };
+
+  const handleMode = () => {
+    const newMode = !edgeLearningMode;
+    sendEdgeCmd(0); // Switch to inference or edge learning mode
+    setEdgeLearningMode(newMode);
   };
 
   // ─── Model Output Card ──────────────────────────────────────────────────────
@@ -363,6 +414,110 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
     return null;
   };
 
+  const renderDeviceInfo = () => {
+    return (
+      <>
+        <View style={styles.deviceHeaderRow}>
+          <SectionHeader icon={<Box size={20} />} title="Device Control" />
+
+          <TouchableOpacity onPress={() => setShowDeviceInfo(!showDeviceInfo)}>
+            {!showDeviceInfo && <EyeClosed size={20} color={Colors.primary} />}
+            {showDeviceInfo && <Eye size={20} color={Colors.primary} />}
+          </TouchableOpacity>
+        </View>
+        {showDeviceInfo && (
+          <>
+            {/* Inference Meta Information */}
+            {/* <View style={styles.chartCard}>
+              <Text style={styles.sectionSubTitle}>
+                Inference Meta Information
+              </Text>
+              <InfoRow label="Model Name" value="Keyword Spotting" />
+              <InfoRow label="Model Version" value="1.0.0" />
+              <InfoRow label="Inference Time" value="12 ms" />
+            </View> */}
+
+            {/* Akida Core Information */}
+            {/* <View style={styles.chartCard}>
+              <Text style={styles.sectionSubTitle}>Akida Core Information</Text>
+              <InfoRow label="Akida Version" value="2.0" />
+              <InfoRow label="Neurons" value="1024" />
+              <InfoRow label="Clusters" value="4" />
+            </View> */}
+
+            {/* Prediction Information */}
+            {/* <View style={styles.chartCard}>
+              <Text style={styles.sectionSubTitle}>Prediction Information</Text>
+              <InfoRow label="Last Prediction" value={detectedWord ?? 'None'} />
+              <InfoRow
+                label="Confidence"
+                value={`${keywordConfidence ?? 0}%`}
+              />
+            </View> */}
+
+            {/* Board Metrics */}
+            {/* <View style={styles.chartCard}>
+              <Text style={styles.sectionSubTitle}>Board Metrics</Text>
+              <InfoRow label="Temperature" value="36°C" />
+              <InfoRow label="Voltage" value="3.3V" />
+              <InfoRow label="Power" value="120 mW" />
+            </View> */}
+
+            {/* MCU Information */}
+            {/* <View style={styles.chartCard}>
+              <Text style={styles.sectionSubTitle}>MCU Information</Text>
+              <InfoRow label="MCU" value="STM32" />
+              <InfoRow label="Flash" value="512 KB" />
+              <InfoRow label="RAM" value="128 KB" />
+            </View> */}
+
+            <View style={styles.chartCard}>
+              <View style={styles.edgeLearningRow}>
+                <Text style={styles.modeText}>Inference Mode</Text>
+
+                <Switch
+                  value={edgeLearningMode}
+                  onValueChange={handleMode}
+                  trackColor={{ false: '#ccc', true: Colors.primary }}
+                  thumbColor="#fff"
+                />
+
+                <Text style={styles.modeText}>Edge Learning Mode</Text>
+              </View>
+
+              {edgeLearningMode && (
+                <View style={styles.trainingButtons}>
+                  <TouchableOpacity
+                    style={styles.trainingBtn}
+                    onPress={() => sendEdgeCmd(1)}
+                  >
+                    <Text style={styles.trainingBtnText}>Start Learning</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.trainingBtn}
+                    onPress={() => sendEdgeCmd(3)}
+                  >
+                    <Text style={styles.trainingBtnText}>Next Class</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.trainingBtn,
+                      { backgroundColor: Colors.error },
+                    ]}
+                    onPress={() => sendEdgeCmd(2)}
+                  >
+                    <Text style={styles.trainingBtnText}>Delete Class</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </>
+    );
+  };
+
   // ─── Streaming indicator dot (same as SettingsScreen green dot pattern) ─────
   const StreamingDot = () =>
     isStreaming ? <View style={styles.streamingDot} /> : null;
@@ -400,6 +555,8 @@ const LiveSensorDataScreen = ({ navigation }: any) => {
 
           {/* Sensor charts */}
           {renderSensors()}
+
+          {renderDeviceInfo()}
 
           {/* Event History — same card style as SettingRow */}
           <TouchableOpacity
@@ -733,5 +890,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+
+  infoLabel: {
+    fontFamily: 'Inter',
+    fontSize: 13,
+    opacity: 0.6,
+  },
+
+  infoValue: {
+    fontFamily: 'Sora',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  sectionSubTitle: {
+    fontFamily: 'Sora',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  deviceHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+
+  edgeLearningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 10,
+  },
+
+  modeText: {
+    fontSize: 14,
+    flex: 1,
+    textAlign: 'center',
+  },
+
+  trainingButtons: {
+    marginTop: 12,
+    gap: 10,
+  },
+
+  trainingBtn: {
+    height: 44,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  trainingBtnText: {
+    color: Colors.white,
+    fontFamily: 'Sora',
+    fontWeight: '700',
   },
 });

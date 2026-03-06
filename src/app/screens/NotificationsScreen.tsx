@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { Card, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, BellOff, ChevronLeft } from 'lucide-react-native';
 import DeviceHeader from '../../components/custom/DeviceHeader';
@@ -15,6 +15,7 @@ import { RouteName, ROUTES } from '../../types/routes';
 import { useBleStore } from '../store/useBleStore';
 import { useNotificationsStore } from '../store/useNotificationStore';
 import { Colors } from '../theme/theme';
+import { useEventsStore } from '../store/useEventStore';
 
 const CONTENT_WIDTH = 382;
 
@@ -25,7 +26,8 @@ const NotificationsScreen = ({ navigation }: any) => {
     ROUTES.NOTIFICATIONS,
   );
   const { connectedDevice } = useBleStore();
-  const notificationsData = useNotificationsStore(state => state.notifications);
+  // const notificationsData = useNotificationsStore(state => state.notifications);
+  const eventsData = useEventsStore(state => state.events);
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
   const { muteStatus, updateMuteStatus } = useNotificationsStore();
@@ -44,6 +46,31 @@ const NotificationsScreen = ({ navigation }: any) => {
   const handleMoreDetails = () => {
     Alert.alert('This feature will be implemented later.');
   };
+
+  const formatTimeAgo = (timestamp: number) => {
+    const diff = Date.now() - timestamp;
+    const mins = Math.floor(diff / 60000);
+
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    return new Date(timestamp).toLocaleDateString();
+  };
+
+  const notificationsData = eventsData
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map(section => ({
+      date: section.date,
+      items: section.items
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(item => ({
+          ...item,
+          time: formatTimeAgo(item.timestamp),
+        })),
+    }));
 
   return (
     <View style={[styles.root, { backgroundColor: `${Colors.background}` }]}>
@@ -88,28 +115,67 @@ const NotificationsScreen = ({ navigation }: any) => {
 
         {/* CONTENT */}
         <View style={styles.container}>
+          {notificationsData.length === 0 && (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                margin: 20,
+              }}
+            >
+              <Card
+                style={{
+                  width: '80%',
+                  padding: 16,
+                  backgroundColor: Colors.background,
+                }}
+              >
+                <Card.Content
+                  style={{ alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      opacity: 0.6,
+                      textAlign: 'center',
+                    }}
+                  >
+                    No notifications received for today.
+                  </Text>
+                </Card.Content>
+              </Card>
+            </View>
+          )}
           {notificationsData.map(section => (
             <View key={section.date} style={styles.section}>
               <Text style={styles.date}>{section.date}</Text>
 
-              {section.items.map((n, i) => (
+              {section.items.map((item, i) => (
                 <View key={i} style={styles.card}>
                   <View style={styles.cardInner}>
                     <Bell size={20} color={Colors.primary} />
 
                     <View style={styles.cardContent}>
+                      {/* Row 1: App + time */}
                       <View style={styles.cardHeader}>
-                        <Text style={styles.cardTitle}>{n.title}</Text>
-                        <Text style={styles.time}>{n.time}</Text>
+                        <Text style={styles.cardTitle}>{item.appId}</Text>
+
+                        <Text style={styles.time}>{item.time}</Text>
                       </View>
 
-                      <Text style={styles.message}>{n.msg}</Text>
+                      {/* Row 2: Message */}
+                      <Text style={styles.message}>{item.title}</Text>
 
+                      {/* Row 3 */}
                       <View style={styles.footer}>
                         <Text style={styles.conf}>
                           Confidence:{' '}
-                          <Text style={styles.confValue}>{n.conf}</Text>
+                          <Text style={styles.confValue}>
+                            {item.confidence}%
+                          </Text>
                         </Text>
+
                         <Text style={styles.link} onPress={handleMoreDetails}>
                           See more details →
                         </Text>
