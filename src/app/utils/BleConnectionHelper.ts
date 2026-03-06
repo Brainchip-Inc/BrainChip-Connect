@@ -5,6 +5,11 @@ class BleConnectionHelper {
   private navigationRef: NavigationContainerRef<any> | null = null;
   private currentDeviceId: string | null = null;
   private isManualDisconnect = false;
+  private isFotaRunning = false;
+
+  private disconnectHandled = false;
+
+  private isExpectedReboot = false;
 
   /* ---------------------------------- */
   /* Navigation                         */
@@ -21,6 +26,8 @@ class BleConnectionHelper {
   setConnectedDevice(deviceId: string) {
     this.currentDeviceId = deviceId;
     this.isManualDisconnect = false;
+    this.disconnectHandled = false;
+    this.isExpectedReboot = false;
   }
 
   clearDevice() {
@@ -31,6 +38,26 @@ class BleConnectionHelper {
     this.isManualDisconnect = true;
   }
 
+  setFotaRunning(running: boolean) {
+    this.isFotaRunning = running;
+  }
+
+  isFotaActive() {
+    return this.isFotaRunning;
+  }
+
+  setExpectedReboot(value: boolean) {
+    this.isExpectedReboot = value;
+  }
+
+  isRebootExpected() {
+    return this.isExpectedReboot;
+  }
+
+  setDisconnecthandled(value: boolean) {
+    this.disconnectHandled = value;
+  }
+
   /* ---------------------------------- */
   /* Global Disconnect Handler          */
   /* ---------------------------------- */
@@ -38,36 +65,40 @@ class BleConnectionHelper {
   handleDisconnect = (deviceId: string) => {
     console.log('[BLE] Disconnected:', deviceId);
 
-    // Ignore manual disconnect
     if (this.isManualDisconnect) {
-      console.log('[BLE] Manual disconnect — no navigation');
+      console.log('[BLE] Manual disconnect');
       this.clearDevice();
       return;
     }
 
+    if (this.isExpectedReboot) {
+      console.log('[BLE] Ignoring reboot disconnect');
+    }
+
+    console.log('[BLE] Disconnected:', deviceId);
+
     this.clearDevice();
 
-    // Delay to allow BLE stack cleanup
-    setTimeout(() => {
-      if (!this.navigationRef?.isReady()) return;
+    if (!this.navigationRef || !this.navigationRef.isReady()) return;
 
-      Alert.alert(
-        'Device Disconnected',
-        'Device disconnected or signal lost.',
-        [
-          {
-            text: 'Reconnect',
-            onPress: () => {
-              this.navigationRef?.reset({
-                index: 0,
-                routes: [{ name: 'DeviceDiscovery' }],
-              });
-            },
+    Alert.alert(
+      'Device Disconnected',
+      'The device connection was lost or the device restarted. Please reconnect to continue.',
+      [
+        {
+          text: 'Reconnect',
+          onPress: () => {
+            this.disconnectHandled = false;
+
+            this.navigationRef?.reset({
+              index: 0,
+              routes: [{ name: 'DeviceDiscovery' }],
+            });
           },
-        ],
-        { cancelable: false },
-      );
-    }, 400);
+        },
+      ],
+      { cancelable: false },
+    );
   };
 }
 

@@ -1,19 +1,20 @@
 import { decode, Encoder } from 'cbor-x';
-import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import CRC32 from 'crc-32';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { BleManager, Device, State, Subscription } from 'react-native-ble-plx';
 import RNFS from 'react-native-fs';
+import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
 import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
-import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
-import CRC32 from 'crc-32';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
 class BleService {
   private bleManager: BleManager;
   private stateSubscription: Subscription | null = null;
+  private disconnectSubscription: Subscription | null = null;
 
   /* -------------------------------------------------------------------------- */
   /*                              BLE UUID CONFIG                               */
@@ -44,7 +45,7 @@ class BleService {
 
   private readonly CHUNK_SIZE = 247;
   private negotiatedMTU = 23;
-  private disconnectSubscriptions: Map<string, Subscription> = new Map();
+  private monitorSubscriptions: Subscription[] = [];
 
   constructor() {
     this.bleManager = new BleManager();
@@ -341,6 +342,7 @@ class BleService {
    */
   disconnectDevice = async (deviceId: string) => {
     try {
+      this.cleanupMonitors();
       BleConnectionHelper.markManualDisconnect();
       await this.bleManager.cancelDeviceConnection(deviceId);
     } catch (error: unknown) {
@@ -424,22 +426,35 @@ class BleService {
    *
    */
   listenForDisconnection = (deviceId: string, onDisconnected: () => void) => {
-    const subscription = this.bleManager.onDeviceDisconnected(
+    this.disconnectSubscription = this.bleManager.onDeviceDisconnected(
       deviceId,
       (error, device) => {
-        if (error) {
+        // console.log('[BLE] Device disconnected');
+
+        this.cleanupMonitors();
+
+        // 🔥 ignore reboot disconnect (FOTA or model update)
+        if (BleConnectionHelper.isRebootExpected()) {
+          // console.log('[BLE] Expected reboot — ignoring');
+          BleConnectionHelper.setExpectedReboot(false);
           return;
         }
 
-        // Cleanup subscription
-        this.disconnectSubscriptions.get(deviceId)?.remove();
-        this.disconnectSubscriptions.delete(deviceId);
+        BleConnectionHelper.setDisconnecthandled(true);
 
         onDisconnected();
       },
     );
 
-    this.disconnectSubscriptions.set(deviceId, subscription);
+    return this.disconnectSubscription;
+  };
+
+  stopDisconnectListener = () => {
+    try {
+      this.disconnectSubscription?.remove();
+    } catch {}
+
+    this.disconnectSubscription = null;
   };
 
   /**
@@ -489,8 +504,7 @@ class BleService {
     try {
       const connected = await this.isDeviceConnected(deviceId);
       if (!connected) {
-        Alert.alert('Device Disconnected');
-        return;
+        throw new Error('Device disconnected');
       }
       const updatedCommand = buildCommand(command);
       // Convert the string into a buffer with UTF-8 encoding
@@ -505,8 +519,9 @@ class BleService {
       );
 
       // console.log('Command sent successfully.');
-    } catch (error) {
+    } catch (error: any) {
       // console.error('Error sending command:', error);
+      throw new Error(error?.message || 'Failed to send command');
     }
   };
 
@@ -521,7 +536,17 @@ class BleService {
       this.txUUID,
       (error, characteristic) => {
         if (error) {
-          // console.error('Notification error:', error);
+          const msg = error?.message ?? '';
+          // console.log('[BLE] monitor error:', msg);
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
           return;
         }
 
@@ -540,22 +565,33 @@ class BleService {
       },
     );
 
-    return {
-      remove: () => subscription.remove(),
-    };
+    this.monitorSubscriptions.push(subscription);
+
+    return subscription;
   };
 
   /**
    * Clean up BLE manager resources. Call when the app is shutting down.
    */
   destroy = () => {
+    this.cleanupMonitors();
     this.stateSubscription?.remove();
     this.stateSubscription = null;
     this.bleManager.destroy();
   };
 
+  private cleanupMonitors() {
+    this.monitorSubscriptions.forEach(sub => {
+      try {
+        sub.remove();
+      } catch {}
+    });
+
+    this.monitorSubscriptions = [];
+  }
+
   /* ===================================================================
-   * MCUboot SMP FOTA
+   * MCUboot SMP FOTA — FIXED
    *
    * =================================================================== */
 
@@ -567,11 +603,12 @@ class BleService {
   private fotaRejecter: ((err: Error) => void) | null = null;
   private smpBuffer: Buffer | null = null;
   private smpExpectedLength = 0; // renamed — avoids clash with model transfer
+  private pendingFotaResponse: any | null = null;
 
   /* ── Subscribe to FOTA notifications ── */
 
   subscribeToFotaNotifications = (deviceId: string): Subscription => {
-    return this.bleManager.monitorCharacteristicForDevice(
+    const fotasubscrption = this.bleManager.monitorCharacteristicForDevice(
       deviceId,
       this.fotaServiceUUID,
       this.fotaCharUUID,
@@ -579,29 +616,45 @@ class BleService {
         if (error) {
           const msg = String(error?.message ?? '');
 
-          // 🔥 Always ignore disconnect during reboot
+          // console.log('[FOTA] monitor error:', msg);
+
           if (
             msg.includes('disconnected') ||
             msg.includes('GATT') ||
-            msg.includes('Device is not connected') ||
-            msg.includes('Operation was cancelled')
+            msg.includes('Operation was cancelled') ||
+            msg.includes('Device is not connected')
           ) {
-            console.log('[FOTA] Disconnect during reboot (expected)');
+            // console.log('[FOTA] Device reboot disconnect (expected)');
             return;
           }
+
           if (this.fotaRejecter) {
             const rej = this.fotaRejecter;
             this.fotaResolver = null;
             this.fotaRejecter = null;
-            rej(new Error(error.message));
+            rej(new Error(msg));
           }
+
           return;
         }
 
         if (!characteristic?.value) return;
 
+        // if device disconnected, ignore
+        if (!deviceId) {
+          // console.log('[FOTA] device already cleared');
+          return;
+        }
+
         const chunk = Buffer.from(characteristic.value, 'base64');
         if (chunk.length < 1) return;
+
+        // console.log(
+        //   '[FOTA] ← notification',
+        //   chunk.length,
+        //   'bytes:',
+        //   chunk.toString('hex'),
+        // );
 
         /* ── Reassembly ──
          * First packet: contains 8-byte SMP header
@@ -611,7 +664,7 @@ class BleService {
          */
         if (!this.smpBuffer) {
           if (chunk.length < 8) {
-            console.log('[FOTA] fragment too short, dropping');
+            // console.log('[FOTA] fragment too short, dropping');
             return;
           }
           const payloadLen = chunk.readUInt16BE(2);
@@ -622,9 +675,9 @@ class BleService {
         }
 
         if (this.smpBuffer.length < this.smpExpectedLength) {
-          console.log(
-            `[FOTA] reassembling ${this.smpBuffer.length}/${this.smpExpectedLength}`,
-          );
+          // console.log(
+          //   `[FOTA] reassembling ${this.smpBuffer.length}/${this.smpExpectedLength}`,
+          // );
           return;
         }
 
@@ -638,6 +691,11 @@ class BleService {
         const group = fullFrame.readUInt16BE(4);
         const seq = fullFrame[6];
         const cmd = fullFrame[7];
+        // console.log(
+        //   `[FOTA] ← op=0x${op.toString(
+        //     16,
+        //   )} group=${group} seq=${seq} cmd=${cmd}`,
+        // );
 
         const payloadBytes = fullFrame.slice(8);
         let decoded: any = {};
@@ -645,13 +703,15 @@ class BleService {
         if (payloadBytes.length > 0) {
           try {
             decoded = decode(payloadBytes);
+            // console.log('[FOTA] decoded:', JSON.stringify(decoded));
           } catch (e) {
-            console.log(
-              '[FOTA] CBOR decode failed:',
-              e,
-              '| raw:',
-              payloadBytes.toString('hex'),
-            );
+            // console.log(
+            //   '[FOTA] CBOR decode failed:',
+            //   e,
+            //   '| raw:',
+            //   payloadBytes.toString('hex'),
+            // );
+            return;
           }
         }
 
@@ -660,15 +720,28 @@ class BleService {
           this.fotaResolver = null;
           this.fotaRejecter = null;
           resolve(decoded);
+        } else {
+          // resolver not ready yet → store response
+          this.pendingFotaResponse = decoded;
         }
       },
     );
+    this.monitorSubscriptions.push(fotasubscrption);
+    return fotasubscrption;
   };
 
   /* ── Wait for one FOTA response ── */
 
   private waitForFotaResponse(timeoutMs = 15000): Promise<any> {
     return new Promise((resolve, reject) => {
+      // if response already arrived
+      if (this.pendingFotaResponse) {
+        const data = this.pendingFotaResponse;
+        this.pendingFotaResponse = null;
+        resolve(data);
+        return;
+      }
+
       const timer = setTimeout(() => {
         this.fotaResolver = null;
         this.fotaRejecter = null;
@@ -679,6 +752,7 @@ class BleService {
         clearTimeout(timer);
         resolve(data);
       };
+
       this.fotaRejecter = (err: Error) => {
         clearTimeout(timer);
         reject(err);
@@ -736,7 +810,8 @@ class BleService {
 
   /* ── Core send + wait ──
    *
-   * build smp packet
+   * ✅ FIX 1 (race condition): responsePromise is created BEFORE
+   * writeCharacteristic so we never miss a fast notification.
    */
   private async sendSmp(
     deviceId: string,
@@ -764,6 +839,14 @@ class BleService {
     // const payload = Buffer.from(encode(cborBody));
     const packet = this.buildSmpPacket(op, group, command, payload, version);
 
+    // console.log(
+    //   `[FOTA] → op=${op} grp=${group} cmd=${command} seq=${
+    //     this.fotaSeq - 1
+    //   } len=${payload.length}`,
+    // );
+    // console.log('[FOTA] → hex:', packet.toString('hex'));
+
+    // ✅ FIX 1: set up promise BEFORE writing characteristic
     const responsePromise = this.waitForFotaResponse(timeoutMs);
 
     await this.bleManager.writeCharacteristicWithResponseForDevice(
@@ -798,7 +881,9 @@ class BleService {
     header.writeUInt8(0x06, 7); // cmd = 6
 
     const packet = Buffer.concat([header, Buffer.from([0xa0])]); // 0xA0 = empty CBOR map
+    // console.log('[FOTA] → SMP params (v0):', packet.toString('hex'));
 
+    // ✅ FIX 1: promise before write
     const responsePromise = this.waitForFotaResponse(5000);
 
     await this.bleManager.writeCharacteristicWithoutResponseForDevice(
@@ -809,6 +894,7 @@ class BleService {
     );
 
     const response = await responsePromise;
+    // console.log('[FOTA] SMP params:', response);
     return {
       bufSize: response?.buf_size ?? 256,
       bufCount: response?.buf_count ?? 4,
@@ -840,20 +926,40 @@ class BleService {
    * ✅ op=2 (WriteReq) — upload is a WRITE not a READ
    * ✅ CBOR key order: { data, len (first only), off }
    * ✅ Uint8Array for data field — encodes as CBOR byte string
+   * ✅ No MTU re-negotiation — uses already negotiated MTU
    */
   async sendFirmwareFile(
     deviceId: string,
     filePath: string,
     onProgress?: (percent: number) => void,
   ): Promise<void> {
-    const firstChunkDataMax = 400;
-    const chunkDataMax = 450;
+    // ✅ FIX 3: use already-negotiated MTU, never re-negotiate here
+    // const mtu = Math.max(this.negotiatedMTU, 64);
+    // // Max data per chunk = MTU - 3 (ATT) - 8 (SMP header) - CBOR overhead
+    // const firstChunkDataMax = 400; // first has extra 'len' field
+    // const chunkDataMax = 450;
+
+    const mtu = Math.max(this.negotiatedMTU, 64);
+
+    // ATT payload
+    const attPayload = mtu - 3;
+
+    // SMP header
+    const smpHeader = 8;
+
+    // CBOR overhead safety
+    const cborSafety = 20;
+
+    const chunkDataMax = attPayload - smpHeader - cborSafety;
+    const firstChunkDataMax = chunkDataMax - 10;
 
     const fileBuffer = Buffer.from(
       await RNFS.readFile(filePath, 'base64'),
       'base64',
     );
     const totalSize = fileBuffer.length;
+
+    // console.log(`[FOTA] firmware ${totalSize} bytes, MTU=${mtu}`);
 
     let offset = 0;
     const t0 = Date.now();
@@ -893,6 +999,9 @@ class BleService {
       if (typeof nextOffset === 'number' && nextOffset > offset) {
         offset = nextOffset;
       } else {
+        // console.log(
+        //   '[FOTA] WARN: no valid off in response, advancing manually',
+        // );
         offset += slice.length;
       }
 
@@ -900,9 +1009,16 @@ class BleService {
 
       const elapsed = (Date.now() - t0) / 1000;
       const speed = elapsed > 0 ? (offset / 1024 / elapsed).toFixed(1) : '?';
+      // console.log(
+      //   `[FOTA] ${offset}/${totalSize} (${((offset / totalSize) * 100).toFixed(
+      //     1,
+      //   )}%) ${speed} kB/s`,
+      // );
 
-      await new Promise(r => setTimeout(r, 10));
+      await new Promise(r => setTimeout(r, 5));
     }
+
+    // console.log(`[FOTA] upload done in ${Date.now() - t0}ms`);
   }
 
   /* ── Step 6: Confirm new image ── */
@@ -919,10 +1035,6 @@ class BleService {
    */
 
   async resetDevice(deviceId: string): Promise<void> {
-    // Reset reassembly
-    this.smpBuffer = null;
-    this.smpExpectedLength = 0;
-
     const payload = Buffer.from(
       new Encoder({
         useRecords: false,
@@ -933,21 +1045,19 @@ class BleService {
 
     const packet = this.buildSmpPacket(2, 0, 5, payload, 1);
 
-    // 🔥 IMPORTANT: create response promise BEFORE write
-    const responsePromise = this.waitForFotaResponse(5000);
-
-    await this.bleManager.writeCharacteristicWithResponseForDevice(
-      deviceId,
-      this.fotaServiceUUID,
-      this.fotaCharUUID,
-      packet.toString('base64'),
-    );
+    // console.log('[FOTA] → RESET hex:', packet.toString('hex'));
 
     try {
-      const response = await responsePromise;
-      console.log('[FOTA] Reset ACK:', response);
+      // ✅ USE WITH RESPONSE (like nRF Connect)
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.fotaServiceUUID,
+        this.fotaCharUUID,
+        packet.toString('base64'),
+      );
     } catch (e) {
-      console.log('[FOTA] No reset ACK (device rebooted too fast)');
+      // console.log('[FOTA] reset write error (may disconnect):', e);
+      // throw new Error('[FOTA] reset write error (may disconnect):');
     }
   }
 
@@ -967,13 +1077,16 @@ class BleService {
 
   private async requestFotaMtu(deviceId: string): Promise<number> {
     try {
+      // console.log('[FOTA] Requesting MTU 498...');
       const device = await this.bleManager.requestMTUForDevice(deviceId, 498);
 
       const mtu = device.mtu ?? 23;
+      // console.log(`[FOTA] Negotiated MTU: ${mtu}`);
 
       this.negotiatedMTU = mtu;
       return mtu;
     } catch (e) {
+      // console.log('[FOTA] MTU request failed, using default');
       this.negotiatedMTU = 247; // safe fallback
       return this.negotiatedMTU;
     }
@@ -986,9 +1099,14 @@ class BleService {
     onLog?: (msg: string) => void,
   ): Promise<void> {
     const log = (msg: string) => {
-      console.log('[FOTA]', msg);
+      // console.log('[FOTA]', msg);
       onLog?.(msg);
     };
+
+    // this.stopDisconnectListener();
+    this.cleanupMonitors();
+
+    BleConnectionHelper.setFotaRunning(true);
 
     // 1️⃣ Request high MTU FIRST
     await this.requestFotaMtu(deviceId);
@@ -1001,48 +1119,71 @@ class BleService {
 
     try {
       // 2. SMP params — v0 handshake, MUST be before anything else
+      log('Querying SMP params...');
       const params = await this.querySmpParams(deviceId);
+      log(`buf_size=${params.bufSize} buf_count=${params.bufCount}`);
 
       // 3. Bootloader info
+      log('Querying bootloader...');
       const bootloader = await this.queryBootloaderInfo(deviceId);
+      log(`Bootloader: ${bootloader}`);
 
       // 4. Boot mode
+      log('Querying boot mode...');
       const mode = await this.queryBootMode(deviceId);
+      log(`Boot mode: ${mode}`);
 
       // 5. List images
+      log('Listing images...');
       const imageList = await this.sendImageList(deviceId);
+      log(`Images: ${JSON.stringify(imageList)}`);
 
       // 6. Upload firmware
+      log('Uploading firmware...');
       await this.sendFirmwareFile(deviceId, filePath, onProgress);
+      log('Upload complete');
 
       // 7. Get updated image list for slot 1 hash
+      log('Getting updated image list...');
       const updatedList = await this.sendImageList(deviceId);
       const slot1 = updatedList?.images?.find((img: any) => img.slot === 1);
       if (!slot1?.hash) throw new Error('Slot 1 not found after upload');
 
       const hashBase64 = Buffer.from(slot1.hash).toString('base64');
+      log(`Confirming hash: ${hashBase64}`);
 
       // 8. Confirm
       await this.confirmFirmware(deviceId, hashBase64);
+      log('Image confirmed');
 
       // 9. Reset
+      log('Resetting device...');
+
+      BleConnectionHelper.setExpectedReboot(true);
       await this.resetDevice(deviceId);
+      log('Reset command sent');
 
-      // Give device time to start reboot
-      await new Promise(r => setTimeout(r, 400));
+      try {
+        sub.remove();
+      } catch {}
 
-      sub.remove();
+      // allow device reboot
+      await new Promise(r => setTimeout(r, 2000));
 
+      log('FOTA SUCCESS ✅');
+
+      return;
+    } catch (error: any) {
+      console.error('[FOTA ERROR]', error);
+      return;
+    } finally {
       this.fotaResolver = null;
       this.fotaRejecter = null;
       this.smpBuffer = null;
       this.smpExpectedLength = 0;
-
-      console.log('[FOTA] Reset complete — device rebooting');
-      return;
-    } catch (error: any) {
-      console.error('[FOTA ERROR]', error);
-      throw new Error(error?.message || 'FOTA failed');
+      BleConnectionHelper.setExpectedReboot(false);
+      BleConnectionHelper.setFotaRunning(false);
+      // console.log('[FOTA] cleanup done');
     }
   }
 
@@ -1057,10 +1198,14 @@ class BleService {
   private fileSizeUUID = 'f000aa04-0451-4000-b000-000000000000';
   private appUUID = 'f000aa05-0451-4000-b000-000000000000';
   private crcUUID = 'f000aa06-0451-4000-b000-000000000000';
+  private edgeCommandServiceUUID = 'f000bb11-0111-9000-c000-000000000000';
+  private edgeCharUUID = 'f000bb10-0111-9000-c000-000000000000';
+  private edgeAckUUID = 'f000bb12-0111-9000-c000-000000000000';
 
   private readonly ACK_FLASH_ERASE_DONE = 0xee;
   private readonly ACK_FLASH_WRITE_DONE = 0xcc;
   private readonly BUFFER_SIZE = 102236;
+  private readonly ACK_EDGE_COMMAND = 0xa7;
 
   //Model OTA Updation
 
@@ -1097,23 +1242,37 @@ class BleService {
   // };
   private waitForAck = (timeoutMs = 5000): Promise<void> => {
     return new Promise((resolve, reject) => {
-      this.ackResolver = resolve;
-
       const timeout = setTimeout(() => {
         this.ackResolver = null;
         reject(new Error('ACK timeout'));
       }, timeoutMs);
+
+      this.ackResolver = () => {
+        clearTimeout(timeout);
+        this.ackResolver = null;
+        resolve();
+      };
     });
   };
 
   subscribeToModelAck = (deviceId: string, callback: (ack: number) => void) => {
-    return this.bleManager.monitorCharacteristicForDevice(
+    const modelsubscription = this.bleManager.monitorCharacteristicForDevice(
       deviceId,
       this.modelServiceUUID,
       this.ackUUID,
       (error, characteristic) => {
         if (error) {
-          // console.error('[ACK] Monitor error:', error);
+          const msg = error?.message ?? '';
+          // console.log('[MODEL ACK] monitor error:', msg);
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
           return;
         }
 
@@ -1136,6 +1295,9 @@ class BleService {
         }
       },
     );
+
+    this.monitorSubscriptions.push(modelsubscription);
+    return modelsubscription;
   };
 
   sendModelFile = async (
@@ -1219,13 +1381,16 @@ class BleService {
           sinceLastAck = 0;
         }
 
-        await new Promise(r => setTimeout(r, 100));
-      }
+        if (sent % (payloadSize * 10) === 0) {
+          await new Promise(r => setTimeout(r, 0));
+        }
 
+        await new Promise(r => setTimeout(r, 30));
+      }
+      this.cleanupMonitors();
       // console.log('Model transfer complete');
     } catch (error) {
       // console.error('Model transfer failed:', error);
-      Alert.alert('Transfer Failed', String(error));
       throw error;
     }
   };
@@ -1236,6 +1401,100 @@ class BleService {
 
   public getAckFlashWrite() {
     return this.ACK_FLASH_WRITE_DONE;
+  }
+
+  public getAckEdgeMode() {
+    return this.ACK_EDGE_COMMAND;
+  }
+
+  /* ===============================
+   Send Edge Command (0/1/2/3)
+   =============================== */
+
+  private edgeAckResolver: (() => void) | null = null;
+
+  private waitForEdgeAck = (timeoutMs = 10000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      this.edgeAckResolver = resolve;
+
+      const timeout = setTimeout(() => {
+        this.edgeAckResolver = null;
+        reject(new Error('Edge ACK timeout'));
+      }, timeoutMs);
+    });
+  };
+
+  subscribeToEdgeLearningAck = (
+    deviceId: string,
+    callback: (ack: number) => void,
+  ) => {
+    const edgeSubscription = this.bleManager.monitorCharacteristicForDevice(
+      deviceId,
+      this.edgeCommandServiceUUID,
+      this.edgeAckUUID,
+      (error, characteristic) => {
+        if (error) {
+          const msg = error?.message ?? '';
+          // console.log('[EDGE ACK] monitor error:', msg);
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
+          return;
+        }
+
+        if (!characteristic?.value) return;
+
+        const ack = Buffer.from(characteristic.value, 'base64')[0];
+
+        if (ack === this.ACK_EDGE_COMMAND) {
+          // console.log('ACK_FLASH_WRITE_DONE');
+          callback(ack);
+          this.edgeAckResolver?.();
+          this.edgeAckResolver = null;
+        }
+      },
+    );
+    this.monitorSubscriptions.push(edgeSubscription);
+    return edgeSubscription;
+  };
+
+  async sendEdgeCommand(deviceId: string, value: number) {
+    try {
+      const connected = await this.isDeviceConnected(deviceId);
+
+      if (!connected) {
+        throw new Error('Device disconnected');
+      }
+
+      const buffer = Buffer.from([value]);
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.edgeCommandServiceUUID,
+        this.edgeCharUUID,
+        buffer.toString('base64'),
+      );
+
+      // console.log('[EDGE] Command sent:', value);
+
+      // wait only for learning command
+      if (value === 1) {
+        // console.log('[EDGE] Waiting for learning ACK...');
+        await this.waitForEdgeAck();
+        // console.log('[EDGE] Learning completed');
+      }
+    } catch (error: any) {
+      // console.log('[EDGE] Command failed:', error?.message || error);
+
+      // propagate error to UI
+      throw new Error(error?.message || 'Failed to send edge command');
+    }
   }
 }
 

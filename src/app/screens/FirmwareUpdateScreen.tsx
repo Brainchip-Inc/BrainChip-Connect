@@ -82,9 +82,16 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         authtoken,
         build.filename,
       );
+      console.log('🚀 ~ downloadFile ~ filePath:', filePath);
       if (!filePath) throw new Error('Download failed');
 
-      // 2. Stop UART notifications before starting FOTA
+      const connected = await bleService.isDeviceConnected(deviceId);
+
+      if (!connected) {
+        Alert.alert('Device disconnected');
+        return;
+      }
+
       useBleCommandStore.getState().stopNotifications();
 
       // 3. Run full FOTA — handles subscribe, SMP params, upload, confirm, reset
@@ -95,14 +102,19 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         msg => console.log('[FOTA]', msg), // optional log callback
       );
 
-      Alert.alert('Success', 'Firmware updated successfully 🎉');
+      Alert.alert('Success', 'Firmware updated successfully');
 
       // 4. Done
       setInstalledBuild(build);
-      setInstallingId(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[downloadFile] error:', error);
+      Alert.alert(
+        'Firmware Update Failed',
+        error?.message ?? 'The firmware update did not complete.',
+      );
+    } finally {
       setInstallingId(null);
+      setProgress(0);
     }
   };
 
