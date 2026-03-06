@@ -61,10 +61,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   subscription: null,
 
   // ✅ DEVICE SESSION START
-  startDeviceSession: async (device: any) => {
+  startDeviceSession: async (device: BLEDevice) => {
     set({ connectedDevice: device });
 
-    await get().startNotifications(device.deviceId);
+    await get().startNotifications(device.id);
 
     // Automatically request battery on connect
     await get().requestBattery();
@@ -94,6 +94,8 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
         deviceId,
         (data: BleData) => {
           if (!data) return;
+          const device = get().connectedDevice;
+          if (!device) return;
 
           switch (data.type) {
             case 'BATTERY':
@@ -105,11 +107,6 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               break;
 
             case 'DEPLOYSTART':
-              set({
-                latestDetection: String(data.data),
-                confidence: Number((Math.random() * 100).toFixed(2)),
-                receivedAt: new Date(),
-              });
               const detection = String(data.data);
               const conf = Number((Math.random() * 100).toFixed(2));
 
@@ -171,8 +168,13 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   // ✅ Stop subscription
   stopNotifications: () => {
     const sub = get().subscription;
+
     if (sub) {
-      sub.remove();
+      try {
+        sub.remove();
+      } catch (e) {
+        console.log('Subscription already removed');
+      }
     }
     set({ subscription: null });
   },
@@ -234,6 +236,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   startStreaming: async (appId: string) => {
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
+
+    streamBuffer = [];
+    lastFlush = 0;
 
     await BleService.sendCommand(
       deviceId,

@@ -40,6 +40,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   }, [token]);
 
   const startUpdate = async (model: AIModel) => {
+    if (screen === 'updating') return;
     if (!connectedDevice?.id) {
       Alert.alert('No device connected');
       return;
@@ -77,7 +78,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
       // Start model file transfer
       await BleService.sendModelFile(deviceId, filePath, false, percent => {
-        setProgress(percent);
+        setProgress(Math.min(percent, 100));
       });
 
       // ✅ Only if sendModelFile succeeds and ACKs are received
@@ -92,11 +93,12 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
       setScreen('list');
     } finally {
       // Clean up the ACK subscription
-      if (ackSub) {
-        ackSub.remove();
-        ackSub = null;
-        // console.log('ACK subscription removed');
+      try {
+        ackSub?.remove();
+      } catch (e) {
+        console.log('ACK sub already removed');
       }
+      ackSub = null;
     }
   };
 

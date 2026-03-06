@@ -43,6 +43,8 @@ const DeviceDiscoveryScreen: React.FC = () => {
   const maxWidth = width >= 768 ? 600 : width;
 
   const hasDevices = devices.length > 0;
+  const privacyAccepted = useBleStore(state => state.privacyAccepted);
+  const termsAccepted = useBleStore(state => state.termsAccepted);
 
   const getSignalColor = (rssi: number | null) => {
     if (!rssi) return theme.colors.outline;
@@ -285,14 +287,15 @@ const DeviceDiscoveryScreen: React.FC = () => {
                 Scan again
               </Button>
 
-              {/* BACK */}
-              <Button
-                mode="outlined"
-                onPress={() => navigation.goBack()}
-                style={{ marginTop: spacing }}
-              >
-                Back
-              </Button>
+              {privacyAccepted && termsAccepted ? (
+                <Button
+                  mode="outlined"
+                  onPress={() => navigation.goBack()}
+                  style={{ marginTop: spacing }}
+                >
+                  Back
+                </Button>
+              ) : null}
             </>
           )}
 

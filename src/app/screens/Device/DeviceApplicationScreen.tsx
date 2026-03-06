@@ -146,26 +146,8 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
 
     try {
-      // setApps(prev =>
-      //   prev.map(a =>
-      //     a.id === app.id
-      //       ? {
-      //           ...a,
-      //           active: true,
-      //           latestDetection: 'Waiting...',
-      //           confidence: 0,
-      //         }
-      //       : {
-      //           ...a,
-      //           active: false,
-      //           latestDetection: latestDetection,
-      //           confidence: confidence,
-      //         },
-      //   ),
-      // );
-
       await deployApp(app.id);
-      Alert.alert('Deploying', `${app.name} is being deployed.`);
+      // Alert.alert('Deploying', `${app.name} is being deployed.`);
     } catch (error) {
       console.error('Deploy error:', error);
       Alert.alert('Error', 'Failed to deploy application');
@@ -177,29 +159,16 @@ const DeviceApplicationsScreen: React.FC = () => {
 
     try {
       await stopApp(app.id); // Stop app using the store method
-      Alert.alert('Stopped', `${app.name} has been stopped.`);
-
-      // setApps(prev =>
-      //   prev.map(a =>
-      //     a.id === app.id
-      //       ? {
-      //           ...a,
-      //           active: false,
-      //           latestDetection: undefined,
-      //           confidence: undefined,
-      //         }
-      //       : a,
-      //   ),
-      // );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Stop error:', error);
+      Alert.alert('Error', 'Failed to stop application');
     }
   };
 
   const navigateToLiveSensor = (app: AppItem) => {
     navigation.navigate('LiveSensorData', {
       appType: app.id,
-      title: app.id,
+      title: app.name,
     });
   };
 
