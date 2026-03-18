@@ -208,29 +208,21 @@ const LiveSensorDataScreen = () => {
 
           <View style={styles.keywordRow}>
             <Text style={styles.keywordText}>
-              {isStreaming ? `"${detectedWord}"` : 'Waiting...'}
+              {detectedWord ? `"${detectedWord}"` : 'Waiting...'}
             </Text>
             <Text style={styles.keywordPercent}>
-              {isStreaming && keywordConfidence
-                ? keywordConfidence.toFixed(1)
-                : '0.0'}
-              %
+              {keywordConfidence ? keywordConfidence.toFixed(1) : '0.0'}%
             </Text>
           </View>
 
           <Text style={styles.labelMuted}>Confidence Score</Text>
           <ProgressBar
-            progress={
-              isStreaming && keywordConfidence ? keywordConfidence / 100 : 0
-            }
+            progress={keywordConfidence ? keywordConfidence / 100 : 0}
             color={Colors.success}
             style={styles.progress}
           />
           <Text style={styles.confidenceText}>
-            {isStreaming && keywordConfidence
-              ? keywordConfidence.toFixed(1)
-              : '0.0'}
-            %
+            {keywordConfidence ? keywordConfidence.toFixed(1) : '0.0'}%
           </Text>
         </View>
       );

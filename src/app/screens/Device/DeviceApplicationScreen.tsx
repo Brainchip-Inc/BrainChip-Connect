@@ -21,6 +21,7 @@ import { RootParamList } from '../../../../App';
 import { useBleStore } from '../../store/useBleStore';
 import NotificationCard from '../../../components/custom/NotificationCard';
 import { useNotificationsStore } from '../../store/useNotificationStore';
+import { AppsList } from '../../../services/ble/bleParser';
 
 type DeviceApplicationsRouteProp = RouteProp<
   RootParamList,
@@ -126,6 +127,7 @@ const DeviceApplicationsScreen: React.FC = () => {
   const { muteStatus, updateMuteStatus } = useNotificationsStore();
 
   const activeApp = useBleCommandStore(state => state.activeApp);
+  const appList = useBleCommandStore(state => state.appsList);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -139,7 +141,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     };
   }, [deviceId, connectedDevice]);
 
-  const handleDeploy = async (app: AppItem) => {
+  const handleDeploy = async (app: AppItem | AppsList) => {
     if (!deviceId) {
       Alert.alert('Error', 'Device not connected');
       return;
@@ -154,7 +156,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
   };
 
-  const handleStop = async (app: AppItem) => {
+  const handleStop = async (app: AppItem | AppsList) => {
     if (!deviceId) return;
 
     try {
@@ -165,7 +167,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
   };
 
-  const navigateToLiveSensor = (app: AppItem) => {
+  const navigateToLiveSensor = (app: AppItem | AppsList) => {
     navigation.navigate('LiveSensorData', {
       appType: app.id,
       title: app.name,
@@ -306,6 +308,211 @@ const DeviceApplicationsScreen: React.FC = () => {
                           ['Model Size', app.size],
                           ['Akida Nodes', app.nodes],
                           ['Power Consumption', app.power],
+                        ].map(([label, value]) => (
+                          <View key={label} style={styles.infoRow}>
+                            <Text
+                              style={[
+                                styles.bullet,
+                                { color: theme.colors.primary },
+                              ]}
+                            >
+                              ✱
+                            </Text>
+                            <Text
+                              style={[
+                                styles.infoText,
+                                { color: theme.colors.onSurface },
+                              ]}
+                            >
+                              <Text style={styles.label}>{label}:</Text> {value}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text
+                        style={{
+                          ...styles.sizeText,
+                          color: theme.colors.onSurfaceVariant,
+                        }}
+                      >
+                        ◦ Size: {app.size}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Active Block */}
+                {isActive && (
+                  <View
+                    style={[
+                      styles.activeBlock,
+                      {
+                        borderColor: theme.colors.primary,
+                        backgroundColor: 'rgba(0,97,237,0.05)',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.activeLabel,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      Latest Detection
+                    </Text>
+                    <View style={styles.activeRow}>
+                      <Text
+                        style={[
+                          styles.activeValue,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        {latestDetection || 'Waiting...'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.activePercent,
+                          { color: theme.colors.secondary },
+                        ]}
+                      >
+                        {confidence ?? 0}%
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={[styles.actionRow, { marginTop: spacing }]}>
+                  {/* Toggle Info Button */}
+                  <Button
+                    mode="outlined"
+                    style={{ flex: 1, borderColor: theme.colors.primary }}
+                    onPress={() => setInfoAppId(isInfoVisible ? null : app.id)}
+                  >
+                    <Text
+                      variant="labelSmall"
+                      style={{
+                        color: theme.colors.primary,
+                      }}
+                    >
+                      {isInfoVisible ? 'Less Information' : 'More Information'}
+                    </Text>
+                  </Button>
+
+                  {/* Deploy / Stop Button */}
+                  {!isActive ? (
+                    <Button
+                      mode="contained"
+                      style={{ flex: 1 }}
+                      onPress={() => handleDeploy(app)}
+                    >
+                      <Text
+                        variant="labelSmall"
+                        style={{
+                          color: theme.colors.surface,
+                        }}
+                      >
+                        Deploy Application
+                      </Text>
+                    </Button>
+                  ) : (
+                    <Button
+                      mode="contained"
+                      buttonColor={theme.colors.error}
+                      style={{ flex: 1 }}
+                      onPress={() => handleStop(app)}
+                    >
+                      <Text
+                        variant="labelSmall"
+                        style={{
+                          color: theme.colors.surface,
+                        }}
+                      >
+                        Stop Application
+                      </Text>
+                    </Button>
+                  )}
+                </View>
+
+                {isActive && (
+                  <Button
+                    mode="contained"
+                    style={{ marginTop: spacing }}
+                    icon={() => <Zap size={16} color={Colors.white} />}
+                    onPress={() => navigateToLiveSensor(app)}
+                  >
+                    View Live Sensor Data
+                  </Button>
+                )}
+              </View>
+            );
+          })}
+
+          {appList.map(app => {
+            // const isActive = app.active;
+            const isActive = activeApp === app.id;
+            const isInfoVisible = infoAppId === app.id;
+
+            return (
+              <View
+                key={app.id}
+                style={[
+                  styles.appCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: isActive
+                      ? theme.colors.primary
+                      : Colors.border.light,
+                  },
+                ]}
+              >
+                {/* Header */}
+                <View style={styles.appHeader}>
+                  <View
+                    style={[
+                      styles.iconBox,
+                      { borderColor: theme.colors.outline },
+                    ]}
+                  >
+                    <Cpu size={18} color={theme.colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.titleRow}>
+                      <Text variant="titleMedium">{app.name}</Text>
+                      <Text
+                        style={[
+                          styles.activeBadge,
+                          {
+                            color: isActive
+                              ? theme.colors.secondary
+                              : theme.colors.error,
+                          },
+                        ]}
+                      >
+                        {isActive ? '● Active' : '● Inactive'}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        ...styles.appDesc,
+                        color: theme.colors.onSurfaceVariant,
+                      }}
+                    >
+                      {app.description}
+                    </Text>
+
+                    {isInfoVisible ? (
+                      <View style={styles.infoBlock}>
+                        {[
+                          ['Processor', app.processor],
+                          ['Model Name', app.modelName],
+                          ['Model Version', app.modelVersion],
+                          ['Model Size', app.modelSize],
+                          ['Input Shape', app.inputShape],
+                          ['No of Classes', app.noOfClasses],
+                          ['Akida Nodes', app.nodes],
+                          ['Power Consumption', app.powerConsumption],
                         ].map(([label, value]) => (
                           <View key={label} style={styles.infoRow}>
                             <Text

@@ -5,10 +5,20 @@ import { BleCommand } from '../../services/ble/bleCommands';
 import { BleData } from '../../types/bleData';
 import { BLEDevice } from './useBleStore';
 import { useEventsStore } from './useEventStore';
+import BleConnectionHelper from '../utils/BleConnectionHelper';
+import { AppsList } from '../../services/ble/bleParser';
+import { AppType } from './useLiveSensorStore';
 
 let streamBuffer: number[] = [];
 let lastFlush = 0;
 const FLUSH_INTERVAL = 100; // 100ms = 10fps
+
+const appTypeMapping: Record<string, AppType> = {
+  keyword: 'keyword',
+  anomaly: 'anomaly',
+  imu: 'imu',
+  vision: 'vision',
+};
 
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
@@ -26,6 +36,8 @@ interface BleCommandState {
 
   subscription: Subscription | null;
 
+  appsList: AppsList[];
+
   // 🔹 Session lifecycle
   startDeviceSession: (device: any) => Promise<void>;
   endDeviceSession: () => void;
@@ -38,6 +50,12 @@ interface BleCommandState {
   requestBattery: () => Promise<void>;
   deployApp: (appId: string) => Promise<void>;
   stopApp: (appId: string) => Promise<void>;
+  // Device Reset
+  requestDeviceReset: () => Promise<boolean>;
+  resetLoading: boolean;
+  resetError: string | null;
+  setResetLoading: (enabled: boolean) => void;
+  setResetError: (error: string) => void;
 
   // 🔹 Streaming
   startStreaming: (appId: string) => Promise<void>;
@@ -59,6 +77,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   micWave: [],
 
   subscription: null,
+
+  resetLoading: false,
+  resetError: null,
+
+  appsList: [],
 
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
@@ -107,8 +130,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               break;
 
             case 'DEPLOYSTART':
-              const detection = String(data.data);
-              const conf = Number((Math.random() * 100).toFixed(2));
+              const detectionData = String(data.data).split(',');
+              const detection = detectionData[0];
+              const conf = detectionData[1]
+                ? Number(detectionData[1])
+                : Number((Math.random() * 100).toFixed(2));
 
               set({
                 latestDetection: detection,
@@ -152,6 +178,62 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
             case 'STREAMSTOP':
               console.log('stop ack', data.data);
               break;
+            case 'APPS':
+              console.log('apps', data.data);
+              const rcvdData = String(data.data);
+              const parsedData = rcvdData.split(',');
+
+              const appKeyword = parsedData[0].split(' ')[0].toLowerCase();
+
+              const appType = appTypeMapping[appKeyword] || 'keyword';
+
+              const appsData: AppsList = {
+                id: appType,
+                name: parsedData[0],
+                description: parsedData[1],
+                size: parsedData[2],
+                processor: parsedData[3],
+                modelName: parsedData[4],
+                modelVersion: parsedData[5],
+                modelSize: parsedData[6],
+                inputShape: parsedData[7],
+                noOfClasses: parsedData[8],
+                nodes: parsedData[9],
+                powerConsumption: parsedData[10],
+              };
+
+              // Check if the app with the same id or name already exists in the appsList
+              const existingAppIndex = get().appsList.findIndex(
+                app => app.id === appsData.id || app.name === appsData.name,
+              );
+
+              if (existingAppIndex !== -1) {
+                // If the app exists, check if any other key has changed
+                const existingApp = get().appsList[existingAppIndex];
+
+                // Compare properties and update if changed
+                const isChanged = Object.keys(appsData).some(
+                  key =>
+                    existingApp[key as keyof AppsList] !==
+                    appsData[key as keyof AppsList],
+                );
+
+                if (isChanged) {
+                  // Update the app at the same index
+                  set(state => {
+                    const updatedAppsList = [...state.appsList];
+                    updatedAppsList[existingAppIndex] = appsData;
+                    return { appsList: updatedAppsList };
+                  });
+                }
+              } else {
+                // If the app doesn't exist, add it to the list
+                set(state => ({
+                  appsList: [...state.appsList, appsData],
+                }));
+              }
+
+              break;
 
             default:
               break;
@@ -188,6 +270,8 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
     try {
       await BleService.sendCommand(deviceId, BleCommand.BATTERY);
+      await BleService.sendCommand(deviceId, BleCommand.APPS);
+      // buildResponse 0,0,132,2:Keyword Spotting,Voice-activated wake word detection using microphone input,128 kb,ADK1500,DS-CNN-KWS,v1.0.0,65 Kb,Input shape,31
     } catch (error) {
       set({
         batteryError: 'Battery request failed',
@@ -264,6 +348,29 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       micWave: [],
     });
   },
+  requestDeviceReset: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) {
+      return false;
+    }
+
+    set({ resetLoading: true, resetError: null });
+
+    try {
+      await BleService.sendCommand(deviceId, BleCommand.RESET);
+      set({ resetLoading: false, resetError: null });
+      BleConnectionHelper.setExpectedReboot(true);
+      return true;
+    } catch (error) {
+      set({
+        resetError: 'Device reset request failed',
+        resetLoading: false,
+      });
+      return false;
+    }
+  },
+  setResetLoading: loading => set({ resetLoading: loading }),
+  setResetError: error => set({ resetError: error }),
 }));
 
 /**

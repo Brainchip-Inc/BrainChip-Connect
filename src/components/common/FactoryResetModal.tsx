@@ -1,17 +1,51 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+} from 'react-native';
 import { Text, Button, Portal, Modal } from 'react-native-paper';
 import { AlertTriangle, X } from 'lucide-react-native';
 import { Colors } from '../../app/theme/theme';
+import { useBleCommandStore } from '../../app/store/useBleCommandStore';
 
 const { width, height } = Dimensions.get('window');
 
 const FactoryResetModal = ({ visible, onCancel, onConfirm }: any) => {
+  const { resetError, requestDeviceReset, setResetError } =
+    useBleCommandStore();
+
+  // Track the state for reset
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleDeviceReset = async () => {
+    // Start the reset process
+    setIsResetting(true); // Show loader when the reset starts
+    try {
+      const status = await requestDeviceReset();
+      if (status) {
+        onConfirm();
+        setResetError('');
+      } // Callback after successful reset
+    } catch (error) {
+      console.error('Reset failed:', error);
+    } finally {
+      setIsResetting(false); // Hide loader once reset is done (either success or error)
+    }
+  };
+
+  const handleDismiss = () => {
+    onCancel();
+    setResetError(''); // Reset error state when closing the modal
+  };
+
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={onCancel}
+        onDismiss={handleDismiss}
         contentContainerStyle={styles.modalContainer}
         dismissable
       >
@@ -29,7 +63,7 @@ const FactoryResetModal = ({ visible, onCancel, onConfirm }: any) => {
               <Text style={styles.title}>Factory Reset?</Text>
             </View>
 
-            <TouchableOpacity onPress={onCancel} style={styles.closeBtn}>
+            <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn}>
               <X size={18} />
             </TouchableOpacity>
           </View>
@@ -46,18 +80,34 @@ const FactoryResetModal = ({ visible, onCancel, onConfirm }: any) => {
 
           {/* ACTIONS */}
           <View style={styles.actions}>
-            <Button mode="outlined" onPress={onCancel} style={styles.cancelBtn}>
+            <Button
+              mode="outlined"
+              onPress={handleDismiss}
+              style={styles.cancelBtn}
+              disabled={isResetting} // Disable Cancel button while resetting
+            >
               Cancel
             </Button>
 
             <Button
               mode="contained"
-              onPress={onConfirm}
+              onPress={handleDeviceReset}
               style={styles.resetBtn}
+              disabled={isResetting} // Disable Reset button while resetting
             >
-              Reset Device
+              {isResetting ? (
+                <ActivityIndicator size="small" color={Colors.white} /> // Show loader while resetting
+              ) : (
+                'Reset Device'
+              )}
             </Button>
           </View>
+
+          {/* Show error message if there's any reset error */}
+          {resetError &&
+            !isResetting && ( // Only show error if reset is not ongoing
+              <Text style={styles.errorText}>{resetError}</Text>
+            )}
         </View>
       </Modal>
     </Portal>
@@ -160,5 +210,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: `${Colors.error}`,
     marginLeft: 8,
+  },
+
+  errorText: {
+    fontFamily: 'Inter',
+    fontSize: 14,
+    fontWeight: '600',
+    color: `${Colors.error}`,
+    marginTop: 12,
+    textAlign: 'center',
   },
 });
