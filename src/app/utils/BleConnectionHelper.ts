@@ -73,6 +73,7 @@ class BleConnectionHelper {
 
     if (this.isExpectedReboot) {
       console.log('[BLE] Ignoring reboot disconnect');
+      this.showRebootAlert();
     }
 
     console.log('[BLE] Disconnected:', deviceId);
@@ -90,6 +91,33 @@ class BleConnectionHelper {
           onPress: () => {
             this.disconnectHandled = false;
 
+            this.navigationRef?.reset({
+              index: 0,
+              routes: [{ name: 'DeviceDiscovery' }],
+            });
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  };
+  /* ---------------------------------- */
+  /* Reboot Alert for Expected Reboot  */
+  /* ---------------------------------- */
+  private showRebootAlert = () => {
+    if (!this.navigationRef || !this.navigationRef.isReady()) return;
+    this.clearDevice();
+
+    Alert.alert(
+      'Device Restarting',
+      'The device is restarting. Please select again to continue.',
+      [
+        {
+          text: 'Reconnect',
+          onPress: () => {
+            this.disconnectHandled = false;
+            this.isExpectedReboot = false;
+            // Redirect to the device discovery or the same screen after reboot
             this.navigationRef?.reset({
               index: 0,
               routes: [{ name: 'DeviceDiscovery' }],

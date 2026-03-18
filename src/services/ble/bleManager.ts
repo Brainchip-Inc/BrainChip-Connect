@@ -433,13 +433,6 @@ class BleService {
 
         this.cleanupMonitors();
 
-        // 🔥 ignore reboot disconnect (FOTA or model update)
-        if (BleConnectionHelper.isRebootExpected()) {
-          // console.log('[BLE] Expected reboot — ignoring');
-          BleConnectionHelper.setExpectedReboot(false);
-          return;
-        }
-
         BleConnectionHelper.setDisconnecthandled(true);
 
         onDisconnected();
@@ -591,7 +584,7 @@ class BleService {
   }
 
   /* ===================================================================
-   * MCUboot SMP FOTA — FIXED
+   * MCUboot SMP FOTA
    *
    * =================================================================== */
 
@@ -602,7 +595,7 @@ class BleService {
   private fotaResolver: ((data: any) => void) | null = null;
   private fotaRejecter: ((err: Error) => void) | null = null;
   private smpBuffer: Buffer | null = null;
-  private smpExpectedLength = 0; // renamed — avoids clash with model transfer
+  private smpExpectedLength = 0;
   private pendingFotaResponse: any | null = null;
 
   /* ── Subscribe to FOTA notifications ── */
@@ -616,15 +609,12 @@ class BleService {
         if (error) {
           const msg = String(error?.message ?? '');
 
-          // console.log('[FOTA] monitor error:', msg);
-
           if (
             msg.includes('disconnected') ||
             msg.includes('GATT') ||
             msg.includes('Operation was cancelled') ||
             msg.includes('Device is not connected')
           ) {
-            // console.log('[FOTA] Device reboot disconnect (expected)');
             return;
           }
 
@@ -642,19 +632,11 @@ class BleService {
 
         // if device disconnected, ignore
         if (!deviceId) {
-          // console.log('[FOTA] device already cleared');
           return;
         }
 
         const chunk = Buffer.from(characteristic.value, 'base64');
         if (chunk.length < 1) return;
-
-        // console.log(
-        //   '[FOTA] ← notification',
-        //   chunk.length,
-        //   'bytes:',
-        //   chunk.toString('hex'),
-        // );
 
         /* ── Reassembly ──
          * First packet: contains 8-byte SMP header
@@ -664,7 +646,6 @@ class BleService {
          */
         if (!this.smpBuffer) {
           if (chunk.length < 8) {
-            // console.log('[FOTA] fragment too short, dropping');
             return;
           }
           const payloadLen = chunk.readUInt16BE(2);
@@ -675,9 +656,6 @@ class BleService {
         }
 
         if (this.smpBuffer.length < this.smpExpectedLength) {
-          // console.log(
-          //   `[FOTA] reassembling ${this.smpBuffer.length}/${this.smpExpectedLength}`,
-          // );
           return;
         }
 
@@ -691,11 +669,6 @@ class BleService {
         const group = fullFrame.readUInt16BE(4);
         const seq = fullFrame[6];
         const cmd = fullFrame[7];
-        // console.log(
-        //   `[FOTA] ← op=0x${op.toString(
-        //     16,
-        //   )} group=${group} seq=${seq} cmd=${cmd}`,
-        // );
 
         const payloadBytes = fullFrame.slice(8);
         let decoded: any = {};
@@ -703,14 +676,7 @@ class BleService {
         if (payloadBytes.length > 0) {
           try {
             decoded = decode(payloadBytes);
-            // console.log('[FOTA] decoded:', JSON.stringify(decoded));
           } catch (e) {
-            // console.log(
-            //   '[FOTA] CBOR decode failed:',
-            //   e,
-            //   '| raw:',
-            //   payloadBytes.toString('hex'),
-            // );
             return;
           }
         }
@@ -767,9 +733,9 @@ class BleService {
    *   v=1 op=2 (WriteReq) → 0x0A   ← used for: upload, confirm, reset
    *
    * Verified from log bytes:
-   *   0x0800000100000008A0 → Version:1 Op:0 Cmd:8  (bootloader query)
-   *   0x0A0000310001ED00…  → Version:1 Op:2 Cmd:0  (confirm)
-   *   0x0A0000010000EE05A0 → Version:1 Op:2 Cmd:5  (reset)
+   *   Version:1 Op:0 Cmd:8  (bootloader query)
+   *   Version:1 Op:2 Cmd:0  (confirm)
+   *   Version:1 Op:2 Cmd:5  (reset)
    */
   private buildSmpPacket(
     op: number,
@@ -790,9 +756,6 @@ class BleService {
 
   /* ── Convert Buffer → Uint8Array recursively ──
    *
-   * cbor-x encodes Uint8Array as CBOR byte string (major type 2).
-   * If you pass a Buffer, some cbor-x versions encode it as an array
-   * of numbers (major type 4) — which MCUboot rejects as "status" error.
    */
   private prepareCborBody(body: any): any {
     if (Buffer.isBuffer(body)) return new Uint8Array(body);
@@ -810,8 +773,6 @@ class BleService {
 
   /* ── Core send + wait ──
    *
-   * ✅ FIX 1 (race condition): responsePromise is created BEFORE
-   * writeCharacteristic so we never miss a fast notification.
    */
   private async sendSmp(
     deviceId: string,
@@ -826,27 +787,16 @@ class BleService {
     this.smpBuffer = null;
     this.smpExpectedLength = 0;
 
-    // ✅ FIX 2: convert Buffer → Uint8Array for CBOR byte strings
     const cborBody = this.prepareCborBody(body);
 
     const encoder = new Encoder({
       useRecords: false,
       structuredClone: false,
-      tagUint8Array: false, // 🔥 CRITICAL FIX
+      tagUint8Array: false,
     });
 
     const payload = Buffer.from(encoder.encode(cborBody));
-    // const payload = Buffer.from(encode(cborBody));
     const packet = this.buildSmpPacket(op, group, command, payload, version);
-
-    // console.log(
-    //   `[FOTA] → op=${op} grp=${group} cmd=${command} seq=${
-    //     this.fotaSeq - 1
-    //   } len=${payload.length}`,
-    // );
-    // console.log('[FOTA] → hex:', packet.toString('hex'));
-
-    // ✅ FIX 1: set up promise BEFORE writing characteristic
     const responsePromise = this.waitForFotaResponse(timeoutMs);
 
     await this.bleManager.writeCharacteristicWithResponseForDevice(
@@ -861,10 +811,6 @@ class BleService {
 
   /* ── Step 1: SMP params — v0 header, MUST be first ──
    *
-   * Log sends: 0x000000010000FF06A0
-   *   byte[0]=0x00 → version=0, op=0
-   *   seq=0xFF, cmd=6, payload=0xA0 (empty CBOR map)
-   * Response: {"buf_size":2475,"buf_count":4}
    */
   querySmpParams = async (
     deviceId: string,
@@ -877,13 +823,10 @@ class BleService {
     header.writeUInt8(0x00, 1); // flags
     header.writeUInt16BE(0x01, 2); // payload len = 1
     header.writeUInt16BE(0x00, 4); // group = 0
-    header.writeUInt8(0xff, 6); // seq = 0xFF (matches log exactly)
+    header.writeUInt8(0xff, 6); // seq = 0xFF
     header.writeUInt8(0x06, 7); // cmd = 6
 
     const packet = Buffer.concat([header, Buffer.from([0xa0])]); // 0xA0 = empty CBOR map
-    // console.log('[FOTA] → SMP params (v0):', packet.toString('hex'));
-
-    // ✅ FIX 1: promise before write
     const responsePromise = this.waitForFotaResponse(5000);
 
     await this.bleManager.writeCharacteristicWithoutResponseForDevice(
@@ -894,7 +837,6 @@ class BleService {
     );
 
     const response = await responsePromise;
-    // console.log('[FOTA] SMP params:', response);
     return {
       bufSize: response?.buf_size ?? 256,
       bufCount: response?.buf_count ?? 4,
@@ -933,12 +875,6 @@ class BleService {
     filePath: string,
     onProgress?: (percent: number) => void,
   ): Promise<void> {
-    // ✅ FIX 3: use already-negotiated MTU, never re-negotiate here
-    // const mtu = Math.max(this.negotiatedMTU, 64);
-    // // Max data per chunk = MTU - 3 (ATT) - 8 (SMP header) - CBOR overhead
-    // const firstChunkDataMax = 400; // first has extra 'len' field
-    // const chunkDataMax = 450;
-
     const mtu = Math.max(this.negotiatedMTU, 64);
 
     // ATT payload
@@ -958,8 +894,6 @@ class BleService {
       'base64',
     );
     const totalSize = fileBuffer.length;
-
-    // console.log(`[FOTA] firmware ${totalSize} bytes, MTU=${mtu}`);
 
     let offset = 0;
     const t0 = Date.now();
@@ -999,9 +933,6 @@ class BleService {
       if (typeof nextOffset === 'number' && nextOffset > offset) {
         offset = nextOffset;
       } else {
-        // console.log(
-        //   '[FOTA] WARN: no valid off in response, advancing manually',
-        // );
         offset += slice.length;
       }
 
@@ -1009,16 +940,9 @@ class BleService {
 
       const elapsed = (Date.now() - t0) / 1000;
       const speed = elapsed > 0 ? (offset / 1024 / elapsed).toFixed(1) : '?';
-      // console.log(
-      //   `[FOTA] ${offset}/${totalSize} (${((offset / totalSize) * 100).toFixed(
-      //     1,
-      //   )}%) ${speed} kB/s`,
-      // );
 
       await new Promise(r => setTimeout(r, 5));
     }
-
-    // console.log(`[FOTA] upload done in ${Date.now() - t0}ms`);
   }
 
   /* ── Step 6: Confirm new image ── */
@@ -1045,52 +969,38 @@ class BleService {
 
     const packet = this.buildSmpPacket(2, 0, 5, payload, 1);
 
-    // console.log('[FOTA] → RESET hex:', packet.toString('hex'));
-
     try {
-      // ✅ USE WITH RESPONSE (like nRF Connect)
+      // ✅ USE WITH RESPONSE
       await this.bleManager.writeCharacteristicWithResponseForDevice(
         deviceId,
         this.fotaServiceUUID,
         this.fotaCharUUID,
         packet.toString('base64'),
       );
-    } catch (e) {
-      // console.log('[FOTA] reset write error (may disconnect):', e);
-      // throw new Error('[FOTA] reset write error (may disconnect):');
-    }
+    } catch (e) {}
   }
 
-  /* ── Full FOTA flow ──
+  /* ──FOTA MTU REQUEST ──
    *
-   * ✅ USE THIS in downloadFile() — replace the manual step calls:
-   *
-   *   // Stop UART
-   *   useBleCommandStore.getState().stopNotifications();
-   *
-   *   // Run FOTA
-   *   await bleService.performFota(deviceId, filePath, setProgress);
-   *
-   *   setInstalledBuild(build);
-   *   setInstallingId(null);
    */
 
   private async requestFotaMtu(deviceId: string): Promise<number> {
     try {
-      // console.log('[FOTA] Requesting MTU 498...');
       const device = await this.bleManager.requestMTUForDevice(deviceId, 498);
 
       const mtu = device.mtu ?? 23;
-      // console.log(`[FOTA] Negotiated MTU: ${mtu}`);
 
       this.negotiatedMTU = mtu;
       return mtu;
     } catch (e) {
-      // console.log('[FOTA] MTU request failed, using default');
       this.negotiatedMTU = 247; // safe fallback
       return this.negotiatedMTU;
     }
   }
+
+  /* ──FOTA MTU FLOW ──
+   *
+   */
 
   async performFota(
     deviceId: string,
@@ -1100,10 +1010,9 @@ class BleService {
   ): Promise<void> {
     const log = (msg: string) => {
       // console.log('[FOTA]', msg);
-      onLog?.(msg);
+      // onLog?.(msg);
     };
 
-    // this.stopDisconnectListener();
     this.cleanupMonitors();
 
     BleConnectionHelper.setFotaRunning(true);
@@ -1181,7 +1090,6 @@ class BleService {
       this.fotaRejecter = null;
       this.smpBuffer = null;
       this.smpExpectedLength = 0;
-      BleConnectionHelper.setExpectedReboot(false);
       BleConnectionHelper.setFotaRunning(false);
       // console.log('[FOTA] cleanup done');
     }
@@ -1387,6 +1295,7 @@ class BleService {
 
         await new Promise(r => setTimeout(r, 30));
       }
+      BleConnectionHelper.setExpectedReboot(true);
       this.cleanupMonitors();
       // console.log('Model transfer complete');
     } catch (error) {

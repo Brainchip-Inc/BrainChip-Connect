@@ -11,6 +11,8 @@ export interface AIModel {
   filepath: string;
   filename: string;
   created_at: string;
+  local?: boolean;
+  localPath?: string;
 }
 
 interface ModelState {

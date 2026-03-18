@@ -1,4 +1,10 @@
-import { CheckCircle, ChevronLeft, RefreshCw } from 'lucide-react-native';
+import {
+  CheckCircle,
+  ChevronLeft,
+  CloudDownload,
+  Folder,
+  RefreshCw,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -17,6 +23,8 @@ import { useBleStore } from '../store/useBleStore';
 import { useDeviceAuthStore } from '../store/useDeviceAuthStore';
 import { AIModel, useModelStore } from '../store/useModelStore';
 import { Colors } from '../theme/theme';
+import { pick } from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
 
 type ScreenState = 'list' | 'updating' | 'completed';
 
@@ -32,21 +40,25 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const deviceId = connectedDevice?.id ?? 'Unknown Device';
   const { models, fetchModels, downloadModel, loading } = useModelStore();
   const token = useDeviceAuthStore(state => state.token);
+  const [localModel, setLocalModel] = useState<AIModel | null>(null);
+  const [showServerModels, setShowServerModels] = useState(false);
+  const [serverLoading, setServerLoading] = useState(false);
 
-  useEffect(() => {
-    if (token) {
-      fetchModels(token);
-    }
-  }, [token]);
+  // useEffect(() => {
+  //   if (token) {
+  //     fetchModels(token);
+  //   }
+  // }, [token]);
 
   const startUpdate = async (model: AIModel) => {
     if (screen === 'updating') return;
+
     if (!connectedDevice?.id) {
       Alert.alert('No device connected');
       return;
     }
 
-    if (!token) {
+    if (!token && !model.local) {
       Alert.alert('Device not authenticated');
       return;
     }
@@ -54,51 +66,50 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
     setScreen('updating');
     setProgress(0);
 
-    let ackSub: ReturnType<typeof BleService.subscribeToModelAck> | null = null;
+    let ackSub: any = null;
 
     try {
-      const filePath = await downloadModel(model.id, token, model.filename);
+      let filePath = '';
 
-      if (!filePath) {
-        Alert.alert('Download failed', 'Unable to download the model');
-        setScreen('list');
-        return;
+      // 🔹 Local model
+      if (model.local) {
+        filePath = model.localPath!;
+      }
+      // 🔹 Server model
+      else {
+        const downloaded = await downloadModel(
+          model.id,
+          token!,
+          model.filename,
+        );
+
+        if (!downloaded) {
+          throw new Error('Download failed');
+        }
+
+        filePath = downloaded;
       }
 
-      // Subscribe to ACKs (Flash Erase & Flash Write Done)
       ackSub = BleService.subscribeToModelAck(deviceId, ack => {
         if (ack === BleService.getAckFlashErase()) {
-          setProgress(50); // Update progress after erase
+          setProgress(50);
         }
 
         if (ack === BleService.getAckFlashWrite()) {
-          setProgress(100); // Update progress after write
+          setProgress(100);
         }
       });
 
-      // Start model file transfer
-      await BleService.sendModelFile(deviceId, filePath, false, percent => {
-        setProgress(Math.min(percent, 100));
-      });
-
-      // ✅ Only if sendModelFile succeeds and ACKs are received
-      Alert.alert(
-        'Update Complete',
-        'The device has been successfully updated.',
+      await BleService.sendModelFile(deviceId, filePath, false, percent =>
+        setProgress(percent),
       );
+
       setScreen('completed');
     } catch (error) {
-      // console.error('Update failed:', error);
       Alert.alert('Update Failed', String(error));
       setScreen('list');
     } finally {
-      // Clean up the ACK subscription
-      try {
-        ackSub?.remove();
-      } catch (e) {
-        console.log('ACK sub already removed');
-      }
-      ackSub = null;
+      ackSub?.remove();
     }
   };
 
@@ -106,6 +117,49 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const stopUpdate = () => {
     setProgress(0);
     setScreen('list');
+  };
+
+  const browseLocalModel = async () => {
+    try {
+      setShowServerModels(false);
+      const [result] = await pick({
+        type: ['*/*'],
+        copyTo: 'cachesDirectory',
+      });
+
+      const sourceUri = (result as any).fileCopyUri ?? result.uri;
+
+      if (!sourceUri) return;
+
+      const cleanUri = sourceUri.replace('file://', '');
+
+      const fileName = result.name ?? 'model.tflite';
+
+      const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+
+      await RNFS.copyFile(cleanUri, localPath);
+
+      const stat = await RNFS.stat(localPath);
+
+      const model: AIModel = {
+        id: -1,
+        version: 'Local Model',
+        filename: fileName,
+        size_kb: Math.round(stat.size / 1024),
+        local: true,
+        localPath: localPath,
+        release_notes: 'NA',
+        created_at: new Date().toISOString(),
+        description: 'Local model selected from device',
+        filepath: localPath,
+      };
+
+      setLocalModel(model);
+    } catch (err: any) {
+      if (err?.message !== 'User cancelled the picker') {
+        Alert.alert('File selection failed');
+      }
+    }
   };
 
   return (
@@ -134,8 +188,81 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
             <Text style={styles.title}>Current Version</Text>
             <Text style={styles.version}>Not Found</Text>
           </View>
+          <View
+            style={{
+              flexDirection: 'column',
+              gap: 10,
+              marginBottom: 20,
+              paddingTop: 10,
+            }}
+          >
+            <Button
+              mode="contained"
+              icon={({ size, color }) => <Folder size={size} color={color} />}
+              onPress={browseLocalModel}
+            >
+              Browse Local Model
+            </Button>
+
+            <Button
+              mode="outlined"
+              icon={({ size, color }) => (
+                <CloudDownload size={size} color={color} />
+              )}
+              onPress={async () => {
+                if (!token) return;
+
+                setLocalModel(null);
+                setShowServerModels(true);
+                setServerLoading(true);
+
+                await fetchModels(token);
+
+                setServerLoading(false);
+              }}
+            >
+              Download From Server
+            </Button>
+          </View>
           {/* ---------------- SCREEN 1 ---------------- */}
+          {screen === 'list' && localModel && (
+            <View style={styles.card}>
+              <View style={styles.versionHeaderRow}>
+                <Text style={styles.title}>Available Version</Text>
+
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>LOCAL</Text>
+                </View>
+              </View>
+
+              <Text style={styles.newVersion}>{localModel.filename}</Text>
+
+              <Text style={styles.releaseTitle}>Description</Text>
+
+              <Text style={styles.bullet}>• {localModel.description}</Text>
+
+              <Text style={styles.title}>Size: {localModel.size_kb} KB</Text>
+
+              <Button
+                mode="contained"
+                style={styles.primaryBtn}
+                onPress={() => startUpdate(localModel)}
+              >
+                Install Model
+              </Button>
+            </View>
+          )}
+          {screen === 'list' && showServerModels && serverLoading && (
+            <View style={styles.card}>
+              <RefreshCw size={24} color={Colors.primary} />
+              <Text style={{ marginTop: 10 }}>
+                Fetching models from server...
+              </Text>
+            </View>
+          )}
           {screen === 'list' &&
+            showServerModels &&
+            !serverLoading &&
             models.map((model, index) => {
               const isNew = index === 0; // first item is newest
 
