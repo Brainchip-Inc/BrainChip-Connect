@@ -5,7 +5,7 @@ import { StatusBar } from 'react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { Base64 } from 'react-native-ble-plx';
+import { Base64, UUID } from 'react-native-ble-plx';
 import AboutScreen from './src/app/screens/AboutScreen';
 import AccountPrivacyPolicyScreen from './src/app/screens/AccountPrivacyPolicyScreen';
 import AccountTermsAndConditionsScreen from './src/app/screens/AccountTermsAndConditionsScreen';
@@ -54,12 +54,14 @@ export type RootParamList = {
     deviceName: string;
     rssi: number | null;
     deviceInfo: Base64 | null;
+    serviceUUIDs: UUID[] | null;
   };
   DeviceConnecting: {
     deviceId: string;
     deviceName: string;
     rssi: number | null;
     deviceInfo: Base64 | null;
+    serviceUUIDs: UUID[] | null;
   };
   DeviceApplications: {
     deviceId: string;

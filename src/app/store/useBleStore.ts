@@ -1,4 +1,4 @@
-import { Base64 } from 'react-native-ble-plx';
+import { Base64, UUID } from 'react-native-ble-plx';
 import { create } from 'zustand';
 
 export interface BLEDevice {
@@ -6,6 +6,7 @@ export interface BLEDevice {
   name: string | null;
   rssi: number | null;
   deviceInfo: Base64 | null;
+  serviceUUIDs: UUID[] | null;
 }
 
 interface BleState {
