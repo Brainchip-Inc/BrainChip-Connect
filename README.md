@@ -105,3 +105,55 @@ Folder Structure
 | `react-native-device-info`                  | Get mobile device info like model, OS version                              |
 | `react-native-paper`                        | Modern Material Design UI components for buttons, cards, lists, and modals |
 | `react-native-vector-icons`                 | Icons                                                                      |
+
+### BLE library patch (Android only) (temporary)
+
+With `react-native-ble-plx@3.5.0` on React Native `0.83.x`, we hit a native crash when a BLE monitor errors/cancels:
+
+- `java.lang.NullPointerException: Parameter specified as non-null is null: method com.facebook.react.bridge.PromiseImpl.reject, parameter code`
+
+Root cause: on Android, `SafePromise` sometimes calls `promise.reject(code, …)` with a null/empty `code`, which newer React Native does not allow.
+
+We ship a small patch to `react-native-ble-plx` using `patch-package` so this is applied automatically on all machines.
+
+#### How the patch is set up
+
+- Patched file:
+
+  - `node_modules/react-native-ble-plx/android/src/main/java/com/bleplx/utils/SafePromise.java`
+
+- Change: in all `reject(String code, …)` overloads, we default `code` if it is null/empty:
+
+  ```java
+  if (code == null || code.isEmpty()) {
+    code = "E_BLE_ERROR";
+  }
+
+  ```
+
+- Patch file (committed to the repo):
+
+  - `patches/react-native-ble-plx+3.5.0.patch`
+
+- package.json includes:
+
+  ```
+  "scripts": {
+      ...,
+      "postinstall": "patch-package",
+  }
+
+  ```
+
+- After cloning / pulling:
+
+  - `npm install          # or: yarn`
+    The postinstall script runs patch-package and applies the BLE patch automatically.
+
+  - If you ever need to regenerate the patch after modifying SafePromise.java:
+
+        - `npx patch-package react-native-ble-plx`
+
+    This updates patches/react-native-ble-plx+3.5.0.patch – commit that file.
+
+  - This patch is Android-only (Java side).
