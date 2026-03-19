@@ -1,10 +1,11 @@
+import { Base64 } from 'react-native-ble-plx';
 import { create } from 'zustand';
-import { Device } from 'react-native-ble-plx';
 
 export interface BLEDevice {
   id: string;
   name: string | null;
   rssi: number | null;
+  deviceInfo: Base64 | null;
 }
 
 interface BleState {
@@ -21,7 +22,12 @@ interface BleState {
 
   // Connection
   connectedDevice: BLEDevice | null;
-  connectionState: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+  connectionState:
+    | 'idle'
+    | 'connecting'
+    | 'connected'
+    | 'disconnected'
+    | 'error';
   setConnectedDevice: (device: BLEDevice | null) => void;
   setConnectionState: (state: BleState['connectionState']) => void;
 
@@ -40,18 +46,18 @@ interface BleState {
   setTermsAccepted: (accepted: boolean) => void;
 }
 
-export const useBleStore = create<BleState>((set) => ({
+export const useBleStore = create<BleState>(set => ({
   // Bluetooth adapter state
   isBluetoothEnabled: false,
-  setBluetoothEnabled: (enabled) => set({ isBluetoothEnabled: enabled }),
+  setBluetoothEnabled: enabled => set({ isBluetoothEnabled: enabled }),
 
   // Scanning
   isScanning: false,
-  setScanning: (scanning) => set({ isScanning: scanning }),
+  setScanning: scanning => set({ isScanning: scanning }),
   discoveredDevices: [],
-  addDiscoveredDevice: (device) =>
-    set((state) => {
-      if (state.discoveredDevices.find((d) => d.id === device.id)) {
+  addDiscoveredDevice: device =>
+    set(state => {
+      if (state.discoveredDevices.find(d => d.id === device.id)) {
         return state;
       }
       return { discoveredDevices: [...state.discoveredDevices, device] };
@@ -61,8 +67,8 @@ export const useBleStore = create<BleState>((set) => ({
   // Connection
   connectedDevice: null,
   connectionState: 'idle',
-  setConnectedDevice: (device) => set({ connectedDevice: device }),
-  setConnectionState: (connectionState) => set({ connectionState }),
+  setConnectedDevice: device => set({ connectedDevice: device }),
+  setConnectionState: connectionState => set({ connectionState }),
 
   // Permissions
   permissions: {
@@ -70,14 +76,14 @@ export const useBleStore = create<BleState>((set) => ({
     location: false,
     notifications: false,
   },
-  setPermissions: (permissions) =>
-    set((state) => ({
+  setPermissions: permissions =>
+    set(state => ({
       permissions: { ...state.permissions, ...permissions },
     })),
 
   // User acceptance
   privacyAccepted: false,
   termsAccepted: false,
-  setPrivacyAccepted: (accepted) => set({ privacyAccepted: accepted }),
-  setTermsAccepted: (accepted) => set({ termsAccepted: accepted }),
+  setPrivacyAccepted: accepted => set({ privacyAccepted: accepted }),
+  setTermsAccepted: accepted => set({ termsAccepted: accepted }),
 }));

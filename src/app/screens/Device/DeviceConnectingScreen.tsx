@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import { useBleStore } from '../../store/useBleStore';
+import { Colors } from '../../theme/theme';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
@@ -25,7 +26,7 @@ const DeviceConnectingScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { deviceId, deviceName, rssi } = route.params;
+  const { deviceId, deviceName, rssi, deviceInfo } = route.params;
   const { setConnectedDevice, setConnectionState } = useBleStore();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -87,7 +88,12 @@ const DeviceConnectingScreen: React.FC = () => {
         // All steps completed
         setCurrentStep(totalSteps);
         setProgress(1);
-        setConnectedDevice({ id: deviceId, name: deviceName, rssi });
+        setConnectedDevice({
+          id: deviceId,
+          name: deviceName,
+          rssi: rssi,
+          deviceInfo: deviceInfo,
+        });
         setConnectionState('connected');
 
         // Navigate to Device Applications after brief delay
@@ -109,17 +115,16 @@ const DeviceConnectingScreen: React.FC = () => {
         if (!isMountedRef.current) return;
 
         setConnectionState('error');
-        const message = error instanceof Error ? error.message : 'Failed to connect to the device. Please try again.';
-        Alert.alert(
-          'Connection Failed',
-          message,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack(),
-            },
-          ],
-        );
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Failed to connect to the device. Please try again.';
+        Alert.alert('Connection Failed', message, [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
       }
     };
 
@@ -132,7 +137,14 @@ const DeviceConnectingScreen: React.FC = () => {
         stepIntervalRef.current = null;
       }
     };
-  }, [deviceId, deviceName, rssi, navigation, setConnectedDevice, setConnectionState]);
+  }, [
+    deviceId,
+    deviceName,
+    rssi,
+    navigation,
+    setConnectedDevice,
+    setConnectionState,
+  ]);
 
   return (
     <View
@@ -234,7 +246,7 @@ const DeviceConnectingScreen: React.FC = () => {
                     height: 32,
                     borderRadius: 16,
                     backgroundColor: isCompleted
-                      ? '#0BD6A5'
+                      ? `${Colors.success}`
                       : isCurrent
                       ? 'rgba(0, 97, 237, 0.1)'
                       : 'rgba(0, 0, 0, 0.05)',
@@ -244,7 +256,11 @@ const DeviceConnectingScreen: React.FC = () => {
                   }}
                 >
                   {isCompleted ? (
-                    <CheckCircle2 size={20} color="#FFFFFF" strokeWidth={2} />
+                    <CheckCircle2
+                      size={20}
+                      color={Colors.white}
+                      strokeWidth={2}
+                    />
                   ) : isCurrent ? (
                     <Loader
                       size={20}

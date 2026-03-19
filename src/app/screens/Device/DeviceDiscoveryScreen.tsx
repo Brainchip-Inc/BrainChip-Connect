@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  ScrollView,
-  useWindowDimensions,
-  Alert,
-  TouchableOpacity,
-} from 'react-native';
-import { Text, Button, ActivityIndicator, useTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bluetooth, RefreshCw, Wifi } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Bluetooth, RefreshCw, Wifi } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  ScrollView,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { Device } from 'react-native-ble-plx';
+import { ActivityIndicator, Button, Text, useTheme } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
-import { Device } from 'react-native-ble-plx';
-import { useBleStore, BLEDevice } from '../../store/useBleStore';
+import { BLEDevice, useBleStore } from '../../store/useBleStore';
+import { Colors } from '../../theme/theme';
 
 const SCAN_TIMEOUT = 10000;
 
@@ -64,6 +65,15 @@ const DeviceDiscoveryScreen: React.FC = () => {
     setScanTimeRemaining(0);
   }, []);
 
+  /**
+   * Service UUIDs to filter the device
+   */
+  const serviceUUIDs: Array<string> = [
+    '0000fee7-0000-1000-8000-00805f9b34fb',
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+    '00001523-1212-efde-1523-785feabcd123',
+  ]; // testdevice, akida, akida tag
+
   const startScanning = useCallback(async () => {
     stopScanning();
     setScanning(true);
@@ -94,15 +104,17 @@ const DeviceDiscoveryScreen: React.FC = () => {
       // scanDevices now returns a cleanup function (no longer a Promise)
       scanCleanupRef.current = BleService.scanDevices(
         (device: Device) => {
+          console.log('device discovered', device);
           if (device.name) {
             addDiscoveredDevice({
               id: device.id,
               name: device.name,
               rssi: device.rssi,
+              deviceInfo: device.manufacturerData,
             });
           }
         },
-        null,
+        serviceUUIDs,
         SCAN_TIMEOUT,
       );
     } catch (error) {
@@ -113,10 +125,12 @@ const DeviceDiscoveryScreen: React.FC = () => {
 
   const handleDevicePress = (device: BLEDevice) => {
     stopScanning();
+    console.log('handlepress', device);
     navigation.navigate('DevicePreview', {
       deviceId: device.id,
       deviceName: device.name || 'Unknown Device',
       rssi: device.rssi,
+      deviceInfo: device.deviceInfo,
     });
   };
 
@@ -266,7 +280,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
                 mode="contained"
                 onPress={startScanning}
                 style={{ marginTop: spacing * 2 }}
-                icon={() => <RefreshCw size={16} color="#fff" />}
+                icon={() => <RefreshCw size={16} color={Colors.white} />}
               >
                 Scan again
               </Button>
@@ -302,6 +316,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
                 mode="contained"
                 onPress={startScanning}
                 style={{ marginTop: spacing * 2 }}
+                icon={() => <RefreshCw size={16} color={Colors.white} />}
               >
                 Scan again
               </Button>
