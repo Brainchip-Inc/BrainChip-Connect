@@ -18,6 +18,9 @@ import DeviceConnectingScreen from './src/app/screens/Device/DeviceConnectingScr
 import DeviceDetailsScreen from './src/app/screens/Device/DeviceDetailsScreen';
 import DeviceDiscoveryScreen from './src/app/screens/Device/DeviceDiscoveryScreen';
 import DeviceApplicationsScreen from './src/app/screens/Device/DeviceApplicationScreen';
+import { Base64 } from 'react-native-ble-plx';
+import NotificationsScreen from './src/app/screens/NotificationsScreen';
+import EventHistoryScreen from './src/app/screens/EventHistoryScreen';
 
 export type RootParamList = {
   Splash: undefined;
@@ -41,17 +44,23 @@ export type RootParamList = {
     deviceId: string;
     deviceName: string;
     rssi: number | null;
+    deviceInfo: Base64 | null;
   };
   DeviceConnecting: {
     deviceId: string;
     deviceName: string;
     rssi: number | null;
+    deviceInfo: Base64 | null;
   };
   DeviceApplications: {
     deviceId: string;
     deviceName: string;
     rssi: number | null;
   };
+  Notifications: undefined;
+  Eventhistory: undefined;
+  FirmwareUpdate: undefined;
+  AIModelUpdate: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootParamList>();
@@ -69,15 +78,41 @@ const App = () => {
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="GetStarted" component={GetStartedScreen} />
             <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen name="DeviceDetails" component={DeviceDetailsScreen} />
+            <Stack.Screen
+              name="DeviceDetails"
+              component={DeviceDetailsScreen}
+            />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="Permissions" component={PermissionsScreen} />
-            <Stack.Screen name="DeviceDiscovery" component={DeviceDiscoveryScreen} />
-            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-            <Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
-            <Stack.Screen name="DevicePreview" component={DevicePreviewScreen} />
-            <Stack.Screen name="DeviceConnecting" component={DeviceConnectingScreen} />
-            <Stack.Screen name="DeviceApplications" component={DeviceApplicationsScreen} />
+            <Stack.Screen
+              name="DeviceDiscovery"
+              component={DeviceDiscoveryScreen}
+            />
+            <Stack.Screen
+              name="PrivacyPolicy"
+              component={PrivacyPolicyScreen}
+            />
+            <Stack.Screen
+              name="TermsAndConditions"
+              component={TermsAndConditionsScreen}
+            />
+            <Stack.Screen
+              name="DevicePreview"
+              component={DevicePreviewScreen}
+            />
+            <Stack.Screen
+              name="DeviceConnecting"
+              component={DeviceConnectingScreen}
+            />
+            <Stack.Screen
+              name="DeviceApplications"
+              component={DeviceApplicationsScreen}
+            />
+            <Stack.Screen name="Eventhistory" component={EventHistoryScreen} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+            />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>

@@ -1,10 +1,12 @@
-import React from 'react';
-import { View, ScrollView, useWindowDimensions } from 'react-native';
-import { Text, Button, useTheme, Divider } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bluetooth, Shield } from 'lucide-react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Bluetooth, Shield } from 'lucide-react-native';
+import React from 'react';
+import { ScrollView, useWindowDimensions, View } from 'react-native';
+import base64 from 'react-native-base64';
+import { Base64 } from 'react-native-ble-plx';
+import { Button, Divider, Text, useTheme } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootParamList } from '../../../../App';
 
 type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
@@ -16,17 +18,45 @@ const DevicePreviewScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const {
-    deviceId,
-    deviceName,
-    rssi,
-    deviceInfo, // 👈 optional future object
-  } = route.params as any;
+  const { deviceId, deviceName, rssi, deviceInfo } = route.params;
 
-  // Fallback-safe values
-  const deviceType = deviceInfo?.type || deviceName;
-  const firmware = deviceInfo?.firmware || '—';
-  const protocol = deviceInfo?.protocol || 'BLE';
+  const parseManufacturerData = (mfData: Base64) => {
+    const manufacturerInfo = base64.decode(mfData);
+    const bleVersion = {
+      major: manufacturerInfo[0],
+      minor: manufacturerInfo[1],
+    };
+
+    const firmwareVersion = {
+      major: manufacturerInfo[2],
+      minor: manufacturerInfo[3],
+      patch: manufacturerInfo[4],
+    };
+
+    const deviceType = manufacturerInfo.slice(5, 12);
+    console.log('deviceType', deviceType);
+    console.log(
+      'firmwareVersion:',
+      `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
+    );
+    console.log('bleVersion', `${bleVersion.major}.${bleVersion.minor}`);
+    return {
+      deviceType: deviceType,
+      firmwareVersion: `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
+      bleVersion: `BLE ${bleVersion.major}.${bleVersion.minor}`,
+    };
+  };
+
+  console.log('deviceInfo', deviceInfo);
+  const parsedDeviceInfo = deviceInfo
+    ? parseManufacturerData(deviceInfo)
+    : {
+        deviceType: 'Unknown',
+        firmwareVersion: 'Unknown',
+        bleVersion: 'Unknown',
+      };
+
+  const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo;
   const macAddress = deviceId || '—';
 
   const spacing = width < 375 ? 12 : 16;
@@ -35,8 +65,8 @@ const DevicePreviewScreen: React.FC = () => {
 
   const deviceDetails = [
     { label: 'Device Type', value: deviceType },
-    { label: 'Firmware', value: firmware },
-    { label: 'Protocol', value: protocol },
+    { label: 'Firmware', value: firmwareVersion },
+    { label: 'Protocol', value: bleVersion },
     { label: 'MAC Address', value: macAddress },
   ];
 
@@ -181,6 +211,7 @@ const DevicePreviewScreen: React.FC = () => {
                 deviceId,
                 deviceName,
                 rssi,
+                deviceInfo,
               })
             }
           >

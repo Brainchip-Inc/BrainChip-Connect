@@ -179,6 +179,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 26,
     color: '#000',
+    fontWeight: 700,
   },
 
   cardSubtitle: {

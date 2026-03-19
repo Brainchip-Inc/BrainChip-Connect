@@ -29,12 +29,7 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
         },
       ]}
     >
-      <View
-        style={[
-          styles.iconContainer,
-          { backgroundColor: theme.colors.primaryContainer },
-        ]}
-      >
+      <View style={[styles.iconContainer]}>
         <Icon />
       </View>
 
