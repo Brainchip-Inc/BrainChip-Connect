@@ -169,6 +169,55 @@ Use `--apply` to delete known generated files (safe to regenerate later).
 
 - iOS build issues after dependency changes:
   Re-run:
+
   ```bash
   cd ios && bundle exec pod install && cd ..
+  ```
+
+- iOS build issues not resolving:
+
+  Clear Xcode DerivedData (this removes cached build data):
+
+  ```bash
+  rm -rf ~/Library/Developer/Xcode/DerivedData
+  ```
+
+  Then reinstall pods and rebuild:
+
+  ```bash
+  cd ios
+  bundle install
+  bundle exec pod install
+  cd ..
+  ```
+
+- Error: `No Podfile found`
+  Make sure you are inside the `ios` directory before running:
+
+  ```bash
+  cd ios
+  bundle exec pod install
+  ```
+
+- Issues after pulling latest code:
+  Always run:
+  ```bash
+  bundle install
+  cd ios
+  bundle exec pod install
+  cd ..
+  ```
+- If build still fails (full clean setup):
+
+  ```bash
+  rm -rf node_modules
+  rm -rf ios/Pods ios/Podfile.lock
+  rm -rf ~/Library/Developer/Xcode/DerivedData
+
+  npm install
+  bundle install
+
+  cd ios
+  bundle exec pod install
+  cd ..
   ```

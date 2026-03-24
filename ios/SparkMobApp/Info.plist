@@ -43,6 +43,8 @@
 	<string>This app uses location to discover nearby Bluetooth devices.</string>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>This app sends notifications to keep you updated.</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

@@ -306,7 +306,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       // // 4. Done
       // setInstalledBuild(build);
 
-      if (!selectedFile || !connectedDevice?.id) {
+      if (!filePath || !connectedDevice?.id) {
         Alert.alert(
           'Installation Failed',
           'No Device Connected or firmware selected',
@@ -316,7 +316,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
 
       await runFirmwareUpdate(
         connectedDevice.id,
-        selectedFile.uri,
+        filePath,
         'local',
         build,
       );
