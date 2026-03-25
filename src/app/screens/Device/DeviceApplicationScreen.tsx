@@ -22,6 +22,7 @@ import { useBleStore } from '../../store/useBleStore';
 import NotificationCard from '../../../components/custom/NotificationCard';
 import { useNotificationsStore } from '../../store/useNotificationStore';
 import { AppsList } from '../../../services/ble/bleParser';
+import { useFirmwareStore } from '../../store/useFirmwareStore';
 
 type DeviceApplicationsRouteProp = RouteProp<
   RootParamList,
@@ -129,6 +130,8 @@ const DeviceApplicationsScreen: React.FC = () => {
   const activeApp = useBleCommandStore(state => state.activeApp);
   const appList = useBleCommandStore(state => state.appsList);
 
+  const installedBuild = useFirmwareStore(state => state.installedBuild)
+
   useEffect(() => {
     if (!deviceId) return;
 
@@ -183,9 +186,7 @@ const DeviceApplicationsScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!muteStatus) {
-      const appActive = APPS_List.find(a => a.active);
-      if (appActive) {
+    if (!muteStatus && activeApp) {
         if (latestDetection && confidence !== undefined) {
           setShowNotification(true);
           // auto hide after 5 seconds (optional)
@@ -194,9 +195,8 @@ const DeviceApplicationsScreen: React.FC = () => {
           }, 5000);
           return () => clearTimeout(timer);
         }
-      }
     }
-  }, [latestDetection, confidence, muteStatus]);
+  }, [latestDetection, confidence, muteStatus, activeApp]);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -215,36 +215,77 @@ const DeviceApplicationsScreen: React.FC = () => {
           <Text style={[styles.title, { color: theme.colors.onBackground }]}>
             Select the Application
           </Text>
-          {/* Default Configuration */}
-          <View
-            style={[
-              styles.defaultCard,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.outline,
-              },
-            ]}
-          >
-            <View style={styles.defaultHeader}>
-              <Cpu size={16} color={theme.colors.primary} />
-              <Text
-                style={[styles.defaultTitle, { color: theme.colors.onSurface }]}
-              >
-                Default Configuration
-              </Text>
-            </View>
-            <Text
+
+          {installedBuild && (
+            <View
               style={[
-                styles.defaultDesc,
-                { color: theme.colors.onSurfaceVariant },
+                styles.defaultCard,
+                {
+                  backgroundColor: theme.colors.primary,
+                  borderColor: theme.colors.outline,
+                },
               ]}
             >
-              No specific firmware build installed. All 4 AI use cases are
-              currently available on your device. You can install a specialized
-              build from Settings → Firmware Update to optimize for specific
-              applications.
-            </Text>
-          </View>
+              <View style={styles.defaultHeader}>
+                <Cpu size={16} color={theme.colors.surface} />
+                <Text
+                  style={[styles.defaultTitle, { color: theme.colors.surface }]}
+                >
+                  Current Firmware Build
+                </Text>
+              </View>
+              <Text
+                variant="displaySmall"
+                style={[{ color: theme.colors.surface, padding: 5 }]}
+              >
+                {installedBuild.title}
+              </Text>
+              <Text
+                style={[
+                  styles.defaultDesc,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
+                {installedBuild.description}
+              </Text>
+            </View>
+          )}
+
+          {!installedBuild && (
+            <View
+              style={[
+                styles.defaultCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outline,
+                },
+              ]}
+            >
+              <View style={styles.defaultHeader}>
+                <Cpu size={16} color={theme.colors.primary} />
+                <Text
+                  style={[
+                    styles.defaultTitle,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
+                  Default Configuration
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.defaultDesc,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
+                No specific firmware build installed. All 4 AI use cases are
+                currently available on your device. You can install a
+                specialized build from Settings → Firmware Update to optimize
+                for specific applications.
+              </Text>
+            </View>
+          )}
+          
           {/* Application Cards */}
           {APPS_List.map(app => {
             // const isActive = app.active;

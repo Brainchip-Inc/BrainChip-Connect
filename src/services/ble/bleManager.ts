@@ -799,12 +799,21 @@ class BleService {
     const packet = this.buildSmpPacket(op, group, command, payload, version);
     const responsePromise = this.waitForFotaResponse(timeoutMs);
 
-    await this.bleManager.writeCharacteristicWithResponseForDevice(
-      deviceId,
-      this.fotaServiceUUID,
-      this.fotaCharUUID,
-      packet.toString('base64'),
-    );
+    if (Platform.OS === 'ios') {
+      await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+        deviceId,
+        this.fotaServiceUUID,
+        this.fotaCharUUID,
+        packet.toString('base64'),
+      );
+    }else{
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.fotaServiceUUID,
+        this.fotaCharUUID,
+        packet.toString('base64'),
+      );
+    }
 
     return responsePromise;
   }
@@ -970,13 +979,24 @@ class BleService {
     const packet = this.buildSmpPacket(2, 0, 5, payload, 1);
 
     try {
-      // ✅ USE WITH RESPONSE
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
-        deviceId,
-        this.fotaServiceUUID,
-        this.fotaCharUUID,
-        packet.toString('base64'),
-      );
+        if (Platform.OS === 'ios') {
+          await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+            deviceId,
+            this.fotaServiceUUID,
+            this.fotaCharUUID,
+            packet.toString('base64'),
+          );
+          // 🔥 important for iOS flush
+          await new Promise(r => setTimeout(r, 300));
+        } else {
+          // keep Android behavior unchanged
+          await this.bleManager.writeCharacteristicWithResponseForDevice(
+            deviceId,
+            this.fotaServiceUUID,
+            this.fotaCharUUID,
+            packet.toString('base64'),
+          );
+        }
     } catch (e) {}
   }
 
@@ -1009,8 +1029,8 @@ class BleService {
     onLog?: (msg: string) => void,
   ): Promise<void> {
     const log = (msg: string) => {
-      // console.log('[FOTA]', msg);
-      // onLog?.(msg);
+      console.log('[FOTA]', msg);
+      onLog?.(msg);
     };
 
     this.cleanupMonitors();
@@ -1024,7 +1044,7 @@ class BleService {
     const sub = this.subscribeToFotaNotifications(deviceId);
 
     // Wait for subscription to stabilise (matches nRF Connect wait(300))
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500));
 
     try {
       // 2. SMP params — v0 handshake, MUST be before anything else

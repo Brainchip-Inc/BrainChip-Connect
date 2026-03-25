@@ -8,6 +8,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -122,10 +123,21 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const browseLocalModel = async () => {
     try {
       setShowServerModels(false);
-      const [result] = await pick({
-        type: ['*/*'],
+      // const [result] = await pick({
+      //   type: ['*/*'],
+      //   copyTo: 'cachesDirectory',
+      // });
+
+      const results = await pick({
+        allowMultiSelection: false,
+        type: Platform.select({
+          ios: ['public.data'],
+          android: ['*/*'],
+        }),
         copyTo: 'cachesDirectory',
       });
+
+      const result = results[0];
 
       const sourceUri = (result as any).fileCopyUri ?? result.uri;
 
@@ -133,7 +145,12 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
       const cleanUri = sourceUri.replace('file://', '');
 
-      const fileName = result.name ?? 'model.tflite';
+      const fileName = result.name ?? 'model.bin';
+
+      if (!fileName.toLowerCase().endsWith('.bin')) {
+        Alert.alert('Invalid File', 'Please select a .bin model file');
+        return;
+      }
 
       const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 

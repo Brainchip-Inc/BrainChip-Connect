@@ -9,6 +9,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -146,12 +147,27 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     setSelectedFile(null);
 
     try {
-      const [result] = await pick({
-        type: ['*/*'],
+      // const [result] = await pick({
+      //   type: ['*/*'],
+      //   copyTo: 'cachesDirectory',
+      // });
+      const results = await pick({
+        allowMultiSelection: false,
+        type: Platform.select({
+          ios: ['public.data'],
+          android: ['*/*'],
+        }),
         copyTo: 'cachesDirectory',
       });
 
+      const result = results[0];
+
       const fileName = result.name ?? 'firmware.bin';
+
+      if (!fileName.toLowerCase().endsWith('.bin')) {
+        Alert.alert('Invalid File', 'Please select a .bin firmware file');
+        return;
+      }
 
       // Prefer copied path
       const sourceUri = (result as any).fileCopyUri ?? result.uri;
@@ -317,7 +333,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       await runFirmwareUpdate(
         connectedDevice.id,
         filePath,
-        'local',
+        build.id,
         build,
       );
     } catch (error: any) {
