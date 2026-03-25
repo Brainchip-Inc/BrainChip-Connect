@@ -111,8 +111,6 @@ export const useFirmwareStore = create<FirmwareState>(set => ({
   // ✅ NEW FUNCTION
   downloadFirmware: async (id: string, token: string, filename: string) => {
     try {
-      set({ loading: true, error: null });
-
       const downloadUrl = `${BASE_URL}/device/firmware/${id}/download`;
 
       const localPath = `${RNFS.DocumentDirectoryPath}/firmware_${id}_${filename}`;
@@ -128,8 +126,6 @@ export const useFirmwareStore = create<FirmwareState>(set => ({
       if (downloadResult.statusCode !== 200) {
         throw new Error('Download failed');
       }
-
-      set({ loading: false });
 
       return localPath; // return file path for OTA usage
     } catch (error: any) {

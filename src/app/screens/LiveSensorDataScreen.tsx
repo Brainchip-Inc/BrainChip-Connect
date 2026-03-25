@@ -37,6 +37,7 @@ import { AppType, useLiveSensorStore } from '../store/useLiveSensorStore';
 import { Colors } from '../theme/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../App';
+import { useBleCommandStore } from '../store/useBleCommandStore';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 48 - 32; // margins + card padding
@@ -141,12 +142,14 @@ const LiveSensorDataScreen = () => {
   const [showDeviceInfo, setShowDeviceInfo] = useState(false);
   const [edgeLearningMode, setEdgeLearningMode] = useState(false);
 
+  const activeApp = useBleCommandStore(state => state.activeApp);
+
   useEffect(() => {
     const interval = setInterval(() => {
       simulateData();
     }, 1000);
     return () => clearInterval(interval);
-  }, [isStreaming]);
+  }, [activeApp]);
 
   // ─── App type icon ──────────────────────────────────────────────────────────
   const getAppIcon = () => {

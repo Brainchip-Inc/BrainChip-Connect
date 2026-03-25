@@ -57,7 +57,7 @@ export const useLiveSensorStore = create<SensorState>((set, get) => ({
   },
 
   simulateData: () => {
-    if (!get().isStreaming) return;
+    // if (!get().isStreaming) return; // need to confirm once
 
     set({
       detectedWord: useBleCommandStore.getState().latestDetection,
