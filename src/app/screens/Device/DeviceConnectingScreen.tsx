@@ -28,7 +28,8 @@ const DeviceConnectingScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs } = route.params;
+  const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs, deviceType } =
+    route.params;
   const { setConnectedDevice, setConnectionState } = useBleStore();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -62,9 +63,13 @@ const DeviceConnectingScreen: React.FC = () => {
         setConnectionState('connecting');
 
         // ?? Authenticate with server
-        const secretkey = process.env.SECRETKEY;
         const deviceUniqServiceId = serviceUUIDs![0];
-        await authenticateDevice(deviceId, secretkey!, deviceUniqServiceId!);
+        await authenticateDevice(
+          deviceId,
+          deviceName,
+          deviceType,
+          deviceUniqServiceId!,
+        );
 
         // Start connection process
         const connectionPromise = BleService.connectDevice(deviceId, () => {

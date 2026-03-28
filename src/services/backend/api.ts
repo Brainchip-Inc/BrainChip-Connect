@@ -42,10 +42,21 @@ async function request<T>(
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(
-      `API ${method} ${endpoint} failed (${response.status}): ${text}`,
-    );
+    let message = 'Something went wrong';
+
+    try {
+      const errorData = await response.json();
+
+      // backend uses "detail"
+      if (errorData?.detail) {
+        message = errorData.detail;
+      }
+    } catch {
+      const text = await response.text();
+      message = text || message;
+    }
+
+    throw new Error(message);
   }
 
   return response.json();

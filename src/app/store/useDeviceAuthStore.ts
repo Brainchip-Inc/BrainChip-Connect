@@ -19,13 +19,16 @@ interface DeviceAuthState {
   token: string | null;
   deviceId: string | null;
   deviceUniqId: string | null;
+  deviceName: string | null;
+  deviceType: string | null;
 
   loading: boolean;
   error: string | null;
 
   authenticateDevice: (
     deviceId: string,
-    deviceSecret: string,
+    deviceName: string,
+    deviceType: string,
     deviceUniqId: string,
   ) => Promise<void>;
   logout: () => void;
@@ -39,10 +42,17 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
   deviceUniqId: null,
   loading: false,
   error: null,
+  deviceName: null,
+  deviceType: null,
 
   /* ===== AUTHENTICATE DEVICE ===== */
 
-  authenticateDevice: async (deviceId, deviceSecret, deviceUniqId) => {
+  authenticateDevice: async (
+    deviceId,
+    deviceName,
+    deviceType,
+    deviceUniqId,
+  ) => {
     set({ loading: true, error: null });
 
     // const formData = new FormData();
@@ -58,7 +68,8 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
 
         set({
           token: cached.token,
-          deviceId,
+          deviceName,
+          deviceType,
           deviceUniqId,
           loading: false,
         });
@@ -70,26 +81,35 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
       // 🔵 If not cached → call server
       const formData = new FormData();
       formData.append('device_id', deviceUniqId);
-      formData.append('device_secret', deviceSecret);
+      formData.append('device_name', deviceName);
+      formData.append('device_type', deviceType);
 
-      const response = await apiService.post<AuthResponse>(
-        '/device/authenticate',
-        formData,
-        true,
+      const queryParam =
+        'device_id=' +
+        deviceUniqId +
+        '&device_name=' +
+        deviceName +
+        '&device_type=' +
+        deviceType;
+
+      const response = await apiService.get<AuthResponse>(
+        '/device/authenticate?' + queryParam,
       );
 
       // ✅ Save token in storage
       await storeDeviceAuth({
         deviceId: deviceId,
         deviceUniqId: deviceUniqId,
-        deviceName: '',
+        deviceName: deviceName,
         token: response.access_token,
         authenticated: true,
+        deviceType: deviceType,
       });
 
       set({
         token: response.access_token,
-        deviceId,
+        deviceName,
+        deviceType,
         deviceUniqId,
         loading: false,
       });

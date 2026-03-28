@@ -62,6 +62,7 @@ export type RootParamList = {
     rssi: number | null;
     deviceInfo: Base64 | null;
     serviceUUIDs: UUID[] | null;
+    deviceType: string;
   };
   DeviceApplications: {
     deviceId: string;

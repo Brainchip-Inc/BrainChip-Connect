@@ -8,6 +8,7 @@ export interface DeviceAuthCache {
   deviceName?: string;
   token: string;
   authenticated: boolean;
+  deviceType: string;
 }
 
 export const getStoredDeviceAuth = async (
