@@ -173,13 +173,13 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               break;
 
             case 'DEPLOYSTOP':
-              console.log('stop ack', data.data);
+              if (__DEV__) console.log('stop ack', data.data);
               break;
             case 'STREAMSTOP':
-              console.log('stop ack', data.data);
+              if (__DEV__) console.log('stop ack', data.data);
               break;
             case 'APPS':
-              console.log('apps', data.data);
+              if (__DEV__) console.log('apps', data.data);
               const rcvdData = String(data.data);
               const parsedData = rcvdData.split(',');
 
@@ -243,7 +243,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
       set({ subscription: sub });
     } catch (error) {
-      console.error('Subscription error:', error);
+      if (__DEV__) console.error('Subscription error:', error);
     }
   },
 
@@ -255,7 +255,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       try {
         sub.remove();
       } catch (e) {
-        console.log('Subscription already removed');
+        if (__DEV__) console.warn('Subscription already removed');
       }
     }
     set({ subscription: null });

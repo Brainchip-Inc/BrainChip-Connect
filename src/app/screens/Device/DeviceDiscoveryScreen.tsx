@@ -106,7 +106,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
       // scanDevices now returns a cleanup function (no longer a Promise)
       scanCleanupRef.current = BleService.scanDevices(
         (device: Device) => {
-          console.log('device discovered', device);
+          if (__DEV__) console.log('device discovered', device);
           if (device.name) {
             addDiscoveredDevice({
               id: device.id,
@@ -128,7 +128,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
 
   const handleDevicePress = (device: BLEDevice) => {
     stopScanning();
-    console.log('handlepress', device);
+    if (__DEV__) console.log('handlepress', device);
     navigation.navigate('DevicePreview', {
       deviceId: device.id,
       deviceName: device.name || 'Unknown Device',

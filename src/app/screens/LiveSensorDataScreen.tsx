@@ -173,11 +173,11 @@ const LiveSensorDataScreen = () => {
 
   const sendEdgeCmd = async (value: number) => {
     try {
-      console.log('Sending EDGE command:', value);
+      if (__DEV__) console.log('Sending EDGE command:', value);
 
       await BleService.sendEdgeCommand(deviceId, value);
     } catch (err) {
-      console.log('Edge command error', err);
+      if (__DEV__) console.error('Edge command error', err);
 
       Alert.alert('Command Failed', 'Unable to send command to the device.');
     }

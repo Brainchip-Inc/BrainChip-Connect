@@ -130,7 +130,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
 
       setSelectedFile(null);
     } catch (error: any) {
-      console.error('[FOTA ERROR]', error);
+      if (__DEV__) console.error('[FOTA ERROR]', error);
       Alert.alert(
         'Firmware Update Failed',
         error?.message ?? 'The firmware update did not complete.',
@@ -193,9 +193,9 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         uri: localPath,
       });
 
-      console.log('Local firmware copied to:', localPath);
+      if (__DEV__) console.log('Local firmware copied to:', localPath);
     } catch (err: any) {
-      console.log('File picker error:', err?.message);
+      if (__DEV__) console.log('File picker error:', err?.message);
 
       if (err?.message !== 'User cancelled the picker') {
         Alert.alert('File selection failed');
@@ -297,7 +297,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         authtoken,
         build.filename,
       );
-      console.log('🚀 ~ downloadFile ~ filePath:', filePath);
+      if (__DEV__) console.log('downloadFile filePath:', filePath);
       if (!filePath) throw new Error('Download failed');
 
       // const connected = await bleService.isDeviceConnected(deviceId);
@@ -337,7 +337,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         build,
       );
     } catch (error: any) {
-      console.error('[downloadFile] error:', error);
+      if (__DEV__) console.error('[downloadFile] error:', error);
       Alert.alert(
         'Firmware Update Failed',
         error?.message ?? 'The firmware update did not complete.',

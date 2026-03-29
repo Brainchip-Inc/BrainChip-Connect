@@ -38,7 +38,7 @@ export type ParsedResponse =
 const multiFrameBuffer: Record<number, string[]> = {};
 
 export const parseBleMessage = (raw: string): ParsedResponse | null => {
-  console.log('buildResponse', raw);
+  if (__DEV__) console.log('buildResponse', raw);
   // Remove CR
   const cleaned = raw.replace('\r', '');
 
