@@ -30,5 +30,22 @@ target 'SparkMobApp' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Fix fmt consteval build error with Xcode 26
+    # consteval is broken in Apple Clang shipped with Xcode 26 — patch fmt source
+    fmt_base = File.join(__dir__, 'Pods', 'fmt', 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      unless content.include?('Xcode 26')
+        # Replace the narrow Apple Clang version check with a catch-all for all Apple Clang
+        content.sub!(
+          '#elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L' + "\n" +
+          '#  define FMT_USE_CONSTEVAL 0  // consteval is broken in Apple clang < 14.',
+          '#elif defined(__apple_build_version__)' + "\n" +
+          '#  define FMT_USE_CONSTEVAL 0  // consteval is broken in Apple clang (Xcode 26)'
+        )
+        File.write(fmt_base, content)
+      end
+    end
   end
 end
