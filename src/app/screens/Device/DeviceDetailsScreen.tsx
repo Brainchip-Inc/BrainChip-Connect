@@ -85,7 +85,7 @@ const DeviceDetailsScreen: React.FC = () => {
                 ],
               );
             } catch (error: any) {
-              console.error('Disconnect error:', error);
+              if (__DEV__) console.error('Disconnect error:', error);
               setConnectionStatus('error');
               Alert.alert(
                 'Disconnect Failed',
@@ -107,7 +107,7 @@ const DeviceDetailsScreen: React.FC = () => {
       setIsConnected(connected);
       setConnectionStatus(connected ? 'connected' : 'disconnected');
     } catch (error) {
-      console.error('Error checking connection:', error);
+      if (__DEV__) console.error('Error checking connection:', error);
       setConnectionStatus('error');
     }
   };

@@ -30,7 +30,7 @@ const FactoryResetModal = ({ visible, onCancel, onConfirm }: any) => {
         setResetError('');
       } // Callback after successful reset
     } catch (error) {
-      console.error('Reset failed:', error);
+      if (__DEV__) console.error('Reset failed:', error);
     } finally {
       setIsResetting(false); // Hide loader once reset is done (either success or error)
     }

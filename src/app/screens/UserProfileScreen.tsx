@@ -102,7 +102,7 @@ const UserProfileScreen = ({ navigation }: any) => {
                 ],
               );
             } catch (error: any) {
-              console.error('Disconnect error:', error);
+              if (__DEV__) console.error('Disconnect error:', error);
               setConnectionStatus('error');
               Alert.alert(
                 'Disconnect Failed',

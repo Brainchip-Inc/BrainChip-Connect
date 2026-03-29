@@ -452,7 +452,9 @@ class BleService {
   stopDisconnectListener = () => {
     try {
       this.disconnectSubscription?.remove();
-    } catch {}
+    } catch (e) {
+      if (__DEV__) console.warn('Failed to remove disconnect listener:', e);
+    }
 
     this.disconnectSubscription = null;
   };
@@ -1065,7 +1067,7 @@ class BleService {
     this.otaInProgress = 'firmware';
 
     const log = (msg: string) => {
-      console.log('[FOTA]', msg);
+      if (__DEV__) console.log('[FOTA]', msg);
       onLog?.(msg);
     };
 
@@ -1137,7 +1139,7 @@ class BleService {
 
       return;
     } catch (error: any) {
-      console.error('[FOTA ERROR]', error);
+      if (__DEV__) console.error('[FOTA ERROR]', error);
       return;
     } finally {
       this.otaInProgress = null;
