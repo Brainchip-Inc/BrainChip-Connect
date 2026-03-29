@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Keychain from 'react-native-keychain';
 
 export const DEVICE_AUTH_KEY = '@spark_device_auth';
 
@@ -15,13 +15,13 @@ export const getStoredDeviceAuth = async (
   deviceUniqId: string,
 ): Promise<DeviceAuthCache | null> => {
   try {
-    const stored = await AsyncStorage.getItem(
-      `${DEVICE_AUTH_KEY}_${deviceUniqId}`,
-    );
+    const credentials = await Keychain.getGenericPassword({
+      service: `${DEVICE_AUTH_KEY}_${deviceUniqId}`,
+    });
 
-    if (!stored) return null;
+    if (!credentials) return null;
 
-    return JSON.parse(stored);
+    return JSON.parse(credentials.password);
   } catch {
     return null;
   }
@@ -30,12 +30,15 @@ export const getStoredDeviceAuth = async (
 export const storeDeviceAuth = async (
   device: DeviceAuthCache,
 ): Promise<void> => {
-  await AsyncStorage.setItem(
-    `${DEVICE_AUTH_KEY}_${device.deviceUniqId}`,
+  await Keychain.setGenericPassword(
+    device.deviceUniqId ?? device.deviceId,
     JSON.stringify(device),
+    { service: `${DEVICE_AUTH_KEY}_${device.deviceUniqId}` },
   );
 };
 
 export const clearDeviceAuth = async (deviceUniqId: string): Promise<void> => {
-  await AsyncStorage.removeItem(`${DEVICE_AUTH_KEY}_${deviceUniqId}`);
+  await Keychain.resetGenericPassword({
+    service: `${DEVICE_AUTH_KEY}_${deviceUniqId}`,
+  });
 };
