@@ -35,7 +35,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
-  const [installingId, setInstallingId] = useState<string | null>(null);
+  const [installingId, setInstallingId] = useState<string | number | null>(null);
   const [progress, setProgress] = useState(0);
   const { connectedDevice } = useBleStore();
   const [selectedFile, setSelectedFile] = useState<{
@@ -92,7 +92,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const runFirmwareUpdate = async (
     deviceId: string,
     filePath: string,
-    buildId: string,
+    buildId: string | number,
     build?: FirmwareBuild,
   ) => {
     try {

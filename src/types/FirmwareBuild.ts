@@ -1,5 +1,5 @@
 export interface FirmwareBuild {
-  id: string;
+  id: number;
   title: string;
   description: string;
   useCases: string[];
