@@ -1,6 +1,6 @@
 import { BleCommand } from './bleCommands';
 
-export const buildCommand = (cmd: BleCommand): string => {
+export const buildCommand = (cmd: BleCommand | String): string => {
   const payload = String(cmd); // enum → string
   const length = payload.length; // number of chars
 

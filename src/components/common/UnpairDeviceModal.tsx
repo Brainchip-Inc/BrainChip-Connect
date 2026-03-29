@@ -1,51 +1,17 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  ActivityIndicator,
-} from 'react-native';
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, Button, Portal, Modal } from 'react-native-paper';
 import { AlertTriangle, X } from 'lucide-react-native';
 import { Colors } from '../../app/theme/theme';
-import { useBleCommandStore } from '../../app/store/useBleCommandStore';
 
 const { width, height } = Dimensions.get('window');
 
-const FactoryResetModal = ({ visible, onCancel, onConfirm }: any) => {
-  const { resetError, requestDeviceReset, setResetError } =
-    useBleCommandStore();
-
-  // Track the state for reset
-  const [isResetting, setIsResetting] = useState(false);
-
-  const handleDeviceReset = async () => {
-    // Start the reset process
-    setIsResetting(true); // Show loader when the reset starts
-    try {
-      const status = await requestDeviceReset();
-      if (status) {
-        onConfirm();
-        setResetError('');
-      } // Callback after successful reset
-    } catch (error) {
-      console.error('Reset failed:', error);
-    } finally {
-      setIsResetting(false); // Hide loader once reset is done (either success or error)
-    }
-  };
-
-  const handleDismiss = () => {
-    onCancel();
-    setResetError(''); // Reset error state when closing the modal
-  };
-
+const UnpairDeviceModal = ({ visible, onCancel, onConfirm }: any) => {
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={handleDismiss}
+        onDismiss={onCancel}
         contentContainerStyle={styles.modalContainer}
         dismissable
       >
@@ -60,61 +26,41 @@ const FactoryResetModal = ({ visible, onCancel, onConfirm }: any) => {
               <View style={styles.iconBox}>
                 <AlertTriangle size={20} color={Colors.error} />
               </View>
-              <Text style={styles.title}>Factory Reset?</Text>
+              <Text style={styles.title}>Unpair Device?</Text>
             </View>
 
-            <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onCancel} style={styles.closeBtn}>
               <X size={18} />
             </TouchableOpacity>
           </View>
 
           {/* DESCRIPTION */}
-          <Text style={styles.warningText}>
-            This will erase all data and settings on the device.
-          </Text>
-
           <Text style={styles.subText}>
-            This action cannot be undone. Your device will be restored to
-            factory defaults.
+            This will disconnect your device and return you to the welcome
+            screen. You'll need to pair again to reconnect.
           </Text>
 
           {/* ACTIONS */}
           <View style={styles.actions}>
-            <Button
-              mode="outlined"
-              onPress={handleDismiss}
-              style={styles.cancelBtn}
-              disabled={isResetting} // Disable Cancel button while resetting
-            >
+            <Button mode="outlined" onPress={onCancel} style={styles.cancelBtn}>
               Cancel
             </Button>
 
             <Button
               mode="contained"
-              onPress={handleDeviceReset}
+              onPress={onConfirm}
               style={styles.resetBtn}
-              disabled={isResetting} // Disable Reset button while resetting
             >
-              {isResetting ? (
-                <ActivityIndicator size="small" color={Colors.white} /> // Show loader while resetting
-              ) : (
-                'Reset Device'
-              )}
+              Unpair
             </Button>
           </View>
-
-          {/* Show error message if there's any reset error */}
-          {resetError &&
-            !isResetting && ( // Only show error if reset is not ongoing
-              <Text style={styles.errorText}>{resetError}</Text>
-            )}
         </View>
       </Modal>
     </Portal>
   );
 };
 
-export default FactoryResetModal;
+export default UnpairDeviceModal;
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
@@ -136,9 +82,6 @@ const styles = StyleSheet.create({
     width: '90%',
     backgroundColor: `${Colors.white}`,
     padding: 20,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: `${Colors.error}`,
   },
 
   /* HEADER */
@@ -210,14 +153,5 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: `${Colors.error}`,
     marginLeft: 8,
-  },
-
-  errorText: {
-    fontFamily: 'Inter',
-    fontSize: 14,
-    fontWeight: '600',
-    color: `${Colors.error}`,
-    marginTop: 12,
-    textAlign: 'center',
   },
 });

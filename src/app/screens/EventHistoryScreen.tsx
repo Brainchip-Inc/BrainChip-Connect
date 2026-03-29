@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Card, Text } from 'react-native-paper';
 import {
   ChevronLeft,
   Bell,
@@ -20,6 +20,7 @@ import { useBleStore } from '../store/useBleStore';
 import { RouteName, ROUTES } from '../../types/routes';
 import { useEventsStore } from '../store/useEventStore';
 import { Colors } from '../theme/theme';
+import { useBleCommandStore } from '../store/useBleCommandStore';
 
 const CONTENT_WIDTH = 382;
 
@@ -31,9 +32,64 @@ const EventHistoryScreen = ({ navigation }: any) => {
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
 
+  const activeApp = useBleCommandStore(state => state.activeApp);
+
+  const { todayEvents, loadEvents } = useEventsStore();
+
   const handleMoreDetails = () => {
     Alert.alert('This feature will be implemented later.');
   };
+
+  const formatTimeAgo = (timestamp: number) => {
+    const diff = Date.now() - timestamp;
+    const mins = Math.floor(diff / 60000);
+
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    return new Date(timestamp).toLocaleDateString();
+  };
+
+  const todayKey = new Date().toISOString().split('T')[0];
+
+  const formatDisplayDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+
+    return date.toLocaleDateString(undefined, {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const filteredEvents = eventsData
+    // 1️⃣ Sort dates newest first
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map(section => {
+      // 2️⃣ Filter by active app
+      const filteredItems = section.items
+        .filter(item => item.appId === activeApp)
+        // 3️⃣ Sort newest first inside each section
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(item => ({
+          ...item,
+          time: formatTimeAgo(item.timestamp),
+        }));
+
+      return {
+        date: formatDisplayDate(section.date),
+        items: filteredItems,
+      };
+    })
+    // 4️⃣ Remove empty sections
+    .filter(section => section.items.length > 0);
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
 
   return (
     <View style={styles.root}>
@@ -61,7 +117,7 @@ const EventHistoryScreen = ({ navigation }: any) => {
             {/* ROW 2 */}
             <Text style={styles.muteText}>
               All notifications and alerts from your{' '}
-              <Text style={styles.bold}>Vision Lite</Text> on{' '}
+              <Text style={styles.bold}>{activeApp ?? 'Application'}</Text> on{' '}
               <Text style={styles.bold}>{deviceName}</Text>
             </Text>
           </View>
@@ -69,7 +125,39 @@ const EventHistoryScreen = ({ navigation }: any) => {
 
         {/* CONTENT */}
         <View style={styles.container}>
-          {eventsData.map(section => (
+          {filteredEvents.length === 0 && (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                margin: 20,
+              }}
+            >
+              <Card
+                style={{
+                  width: '80%',
+                  padding: 16,
+                  backgroundColor: Colors.background,
+                }}
+              >
+                <Card.Content
+                  style={{ alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      opacity: 0.6,
+                      textAlign: 'center',
+                    }}
+                  >
+                    No events recorded for today.
+                  </Text>
+                </Card.Content>
+              </Card>
+            </View>
+          )}
+          {filteredEvents.map(section => (
             <View key={section.date} style={{ marginTop: 12 }}>
               <Text style={styles.date}>{section.date}</Text>
               {section.items.map((item, idx) => (

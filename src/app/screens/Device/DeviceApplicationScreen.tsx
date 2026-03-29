@@ -1,4 +1,5 @@
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Cpu, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -10,25 +11,27 @@ import {
 } from 'react-native';
 import { Button, ProgressBar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RootParamList } from '../../../../App';
+import { RouteName, ROUTES } from '../../../types/routes';
+import { AppType } from '../../store/useLiveSensorStore';
+import { useBleCommandStore } from '../../store/useBleCommandStore';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../../components/custom/DeviceHeader';
-import { DeviceInfo } from '../../../services/ble/bleParser';
-import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
-import { RouteName, ROUTES } from '../../../types/routes';
-import { Subscription } from 'react-native-ble-plx';
-import { BleData } from '../../../types/bleData';
-import { BleCommand } from '../../../services/ble/bleCommands';
-import BleService from '../../../services/ble/bleManager';
+import { RootParamList } from '../../../../App';
+import { useBleStore } from '../../store/useBleStore';
+import NotificationCard from '../../../components/custom/NotificationCard';
+import { useNotificationsStore } from '../../store/useNotificationStore';
+import { AppsList } from '../../../services/ble/bleParser';
+import { useFirmwareStore } from '../../store/useFirmwareStore';
 
 type DeviceApplicationsRouteProp = RouteProp<
   RootParamList,
   'DeviceApplications'
 >;
+type NavigationProp = NativeStackNavigationProp<RootParamList>;
 
 interface AppItem {
-  id: string;
+  id: AppType;
   name: string;
   description: string;
   size: string;
@@ -42,7 +45,7 @@ interface AppItem {
   power: string;
 }
 
-const APPS: AppItem[] = [
+const APPS_List: AppItem[] = [
   {
     id: 'keyword',
     name: 'Keyword Spotting',
@@ -95,6 +98,17 @@ const DeviceApplicationsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const route = useRoute<DeviceApplicationsRouteProp>();
+  const navigation = useNavigation<NavigationProp>();
+  const {
+    batteryLevel,
+    batteryLoading,
+    batteryError,
+    deployApp,
+    stopApp,
+    latestDetection,
+    confidence,
+  } = useBleCommandStore();
+
   const { connectedDevice } = useBleStore();
 
   const deviceName =
@@ -102,89 +116,87 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const deviceId = route.params?.deviceId ?? connectedDevice?.id ?? null;
 
-  const spacing = width < 375 ? 12 : 16;
-  const horizontalPadding = width < 375 ? 16 : 20;
-  const maxWidth = width >= 768 ? 640 : width;
-
-  const [apps, setApps] = useState<AppItem[]>(APPS);
+  // const [apps, setApps] = useState<AppItem[]>(APPS);
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.HOME);
   const [infoAppId, setInfoAppId] = useState<string | null>(null);
-  const [batteryLevel, setBatteryLevel] = useState<string | null>(null);
-  const [batteryError, setBatteryError] = useState<string | null>(null);
-  const [batteryLoading, setBatteryLoading] = useState(true);
-  const fullBatteryMins = 1440; // 24hrs
-
-  // will use it for future , to send the ble command to device to activate the application
-  const handleDeploy = (app: AppItem) => {
-    setApps(prev =>
-      prev.map(a =>
-        a.id === app.id
-          ? { ...a, active: true, latestDetection: 'Waiting...', confidence: 0 }
-          : {
-              ...a,
-              active: false,
-              latestDetection: undefined,
-              confidence: undefined,
-            },
-      ),
-    );
-    Alert.alert('Deploying', `${app.name} is being deployed to the device.`);
-  };
-
-  const handleStop = (app: AppItem) => {
-    setApps(prev =>
-      prev.map(a =>
-        a.id === app.id
-          ? {
-              ...a,
-              active: false,
-              latestDetection: undefined,
-              confidence: undefined,
-            }
-          : a,
-      ),
-    );
-    Alert.alert('Stopped', `${app.name} has been stopped.`);
-  };
 
   const contentWidth = Math.min(width - 48, 382);
+  const fullBatteryMins = 1440; // 24hrs
+  const spacing = width < 375 ? 12 : 16;
+
+  const [showNotification, setShowNotification] = useState(false);
+  const { muteStatus, updateMuteStatus } = useNotificationsStore();
+
+  const activeApp = useBleCommandStore(state => state.activeApp);
+  const appList = useBleCommandStore(state => state.appsList);
+
+  const installedBuild = useFirmwareStore(state => state.installedBuild)
 
   useEffect(() => {
-    let subscription: Subscription | undefined;
+    if (!deviceId) return;
 
-    const setupBle = async () => {
-      try {
-        setBatteryLoading(true);
-        setBatteryError(null);
-
-        subscription = await BleService.subscribeToNotifications(
-          deviceId,
-          (data: BleData) => {
-            console.log('BLE DATA:', data);
-            if (!data) return;
-
-            if (data.type === 'BATTERY') {
-              setBatteryLevel(String(data.data)); // always string
-              setBatteryLoading(false);
-              setBatteryError(null);
-            }
-          },
-        );
-
-        await BleService.sendCommand(deviceId, BleCommand.BATTERY);
-      } catch (error) {
-        console.error('BLE setup error:', error);
-        setBatteryError('Unable to fetch battery info');
-        setBatteryLoading(false);
-      }
-    };
-
-    setupBle();
+    // Start the device session when a device is connected
+    useBleCommandStore.getState().startDeviceSession(connectedDevice);
 
     return () => {
-      subscription?.remove();
+      // Clean up on disconnect
+      useBleCommandStore.getState().endDeviceSession();
     };
-  }, [deviceId]);
+  }, [deviceId, connectedDevice]);
+
+  const handleDeploy = async (app: AppItem | AppsList) => {
+    if (!deviceId) {
+      Alert.alert('Error', 'Device not connected');
+      return;
+    }
+
+    try {
+      await deployApp(app.id);
+      // Alert.alert('Deploying', `${app.name} is being deployed.`);
+    } catch (error) {
+      console.error('Deploy error:', error);
+      Alert.alert('Error', 'Failed to deploy application');
+    }
+  };
+
+  const handleStop = async (app: AppItem | AppsList) => {
+    if (!deviceId) return;
+
+    try {
+      await stopApp(app.id); // Stop app using the store method
+    } catch (error: any) {
+      console.error('Stop error:', error);
+      Alert.alert('Error', 'Failed to stop application');
+    }
+  };
+
+  const navigateToLiveSensor = (app: AppItem | AppsList) => {
+    navigation.navigate('LiveSensorData', {
+      appType: app.id,
+      title: app.name,
+    });
+  };
+
+  const navigateToNotification = () => {
+    navigation.navigate('Notifications');
+  };
+
+  const muteNotifiations = () => {
+    updateMuteStatus(false);
+  };
+
+  useEffect(() => {
+    if (!muteStatus && activeApp) {
+        if (latestDetection && confidence !== undefined) {
+          setShowNotification(true);
+          // auto hide after 5 seconds (optional)
+          const timer = setTimeout(() => {
+            setShowNotification(false);
+          }, 5000);
+          return () => clearTimeout(timer);
+        }
+    }
+  }, [latestDetection, confidence, muteStatus, activeApp]);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -203,39 +215,81 @@ const DeviceApplicationsScreen: React.FC = () => {
           <Text style={[styles.title, { color: theme.colors.onBackground }]}>
             Select the Application
           </Text>
-          {/* Default Configuration */}
-          <View
-            style={[
-              styles.defaultCard,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.outline,
-              },
-            ]}
-          >
-            <View style={styles.defaultHeader}>
-              <Cpu size={16} color={theme.colors.primary} />
-              <Text
-                style={[styles.defaultTitle, { color: theme.colors.onSurface }]}
-              >
-                Default Configuration
-              </Text>
-            </View>
-            <Text
+
+          {installedBuild && (
+            <View
               style={[
-                styles.defaultDesc,
-                { color: theme.colors.onSurfaceVariant },
+                styles.defaultCard,
+                {
+                  backgroundColor: theme.colors.primary,
+                  borderColor: theme.colors.outline,
+                },
               ]}
             >
-              No specific firmware build installed. All 4 AI use cases are
-              currently available on your device. You can install a specialized
-              build from Settings → Firmware Update to optimize for specific
-              applications.
-            </Text>
-          </View>
+              <View style={styles.defaultHeader}>
+                <Cpu size={16} color={theme.colors.surface} />
+                <Text
+                  style={[styles.defaultTitle, { color: theme.colors.surface }]}
+                >
+                  Current Firmware Build
+                </Text>
+              </View>
+              <Text
+                variant="displaySmall"
+                style={[{ color: theme.colors.surface, padding: 5 }]}
+              >
+                {installedBuild.title}
+              </Text>
+              <Text
+                style={[
+                  styles.defaultDesc,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
+                {installedBuild.description}
+              </Text>
+            </View>
+          )}
+
+          {!installedBuild && (
+            <View
+              style={[
+                styles.defaultCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outline,
+                },
+              ]}
+            >
+              <View style={styles.defaultHeader}>
+                <Cpu size={16} color={theme.colors.primary} />
+                <Text
+                  style={[
+                    styles.defaultTitle,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
+                  Default Configuration
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.defaultDesc,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
+                No specific firmware build installed. All 4 AI use cases are
+                currently available on your device. You can install a
+                specialized build from Settings → Firmware Update to optimize
+                for specific applications.
+              </Text>
+            </View>
+          )}
+          
           {/* Application Cards */}
-          {apps.map(app => {
-            const isActive = app.active;
+          {APPS_List.map(app => {
+            // const isActive = app.active;
+            const isActive = activeApp === app.id;
             const isInfoVisible = infoAppId === app.id;
 
             return (
@@ -355,7 +409,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                           { color: theme.colors.primary },
                         ]}
                       >
-                        {app.latestDetection || 'Waiting...'}
+                        {latestDetection || 'Waiting...'}
                       </Text>
                       <Text
                         style={[
@@ -363,7 +417,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                           { color: theme.colors.secondary },
                         ]}
                       >
-                        {app.confidence ?? 0}%
+                        {confidence ?? 0}%
                       </Text>
                     </View>
                   </View>
@@ -379,11 +433,9 @@ const DeviceApplicationsScreen: React.FC = () => {
                   >
                     <Text
                       variant="labelSmall"
-                      style={[
-                        {
-                          color: theme.colors.primary,
-                        },
-                      ]}
+                      style={{
+                        color: theme.colors.primary,
+                      }}
                     >
                       {isInfoVisible ? 'Less Information' : 'More Information'}
                     </Text>
@@ -398,11 +450,9 @@ const DeviceApplicationsScreen: React.FC = () => {
                     >
                       <Text
                         variant="labelSmall"
-                        style={[
-                          {
-                            color: theme.colors.surface,
-                          },
-                        ]}
+                        style={{
+                          color: theme.colors.surface,
+                        }}
                       >
                         Deploy Application
                       </Text>
@@ -416,11 +466,9 @@ const DeviceApplicationsScreen: React.FC = () => {
                     >
                       <Text
                         variant="labelSmall"
-                        style={[
-                          {
-                            color: theme.colors.surface,
-                          },
-                        ]}
+                        style={{
+                          color: theme.colors.surface,
+                        }}
                       >
                         Stop Application
                       </Text>
@@ -433,12 +481,212 @@ const DeviceApplicationsScreen: React.FC = () => {
                     mode="contained"
                     style={{ marginTop: spacing }}
                     icon={() => <Zap size={16} color={Colors.white} />}
-                    onPress={() =>
-                      Alert.alert(
-                        'Live Data',
-                        `Viewing live sensor data for ${app.name}. (Not yet implemented)`,
-                      )
-                    }
+                    onPress={() => navigateToLiveSensor(app)}
+                  >
+                    View Live Sensor Data
+                  </Button>
+                )}
+              </View>
+            );
+          })}
+
+          {appList.map(app => {
+            // const isActive = app.active;
+            const isActive = activeApp === app.id;
+            const isInfoVisible = infoAppId === app.id;
+
+            return (
+              <View
+                key={app.id}
+                style={[
+                  styles.appCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: isActive
+                      ? theme.colors.primary
+                      : Colors.border.light,
+                  },
+                ]}
+              >
+                {/* Header */}
+                <View style={styles.appHeader}>
+                  <View
+                    style={[
+                      styles.iconBox,
+                      { borderColor: theme.colors.outline },
+                    ]}
+                  >
+                    <Cpu size={18} color={theme.colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.titleRow}>
+                      <Text variant="titleMedium">{app.name}</Text>
+                      <Text
+                        style={[
+                          styles.activeBadge,
+                          {
+                            color: isActive
+                              ? theme.colors.secondary
+                              : theme.colors.error,
+                          },
+                        ]}
+                      >
+                        {isActive ? '● Active' : '● Inactive'}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        ...styles.appDesc,
+                        color: theme.colors.onSurfaceVariant,
+                      }}
+                    >
+                      {app.description}
+                    </Text>
+
+                    {isInfoVisible ? (
+                      <View style={styles.infoBlock}>
+                        {[
+                          ['Processor', app.processor],
+                          ['Model Name', app.modelName],
+                          ['Model Version', app.modelVersion],
+                          ['Model Size', app.modelSize],
+                          ['Input Shape', app.inputShape],
+                          ['No of Classes', app.noOfClasses],
+                          ['Akida Nodes', app.nodes],
+                          ['Power Consumption', app.powerConsumption],
+                        ].map(([label, value]) => (
+                          <View key={label} style={styles.infoRow}>
+                            <Text
+                              style={[
+                                styles.bullet,
+                                { color: theme.colors.primary },
+                              ]}
+                            >
+                              ✱
+                            </Text>
+                            <Text
+                              style={[
+                                styles.infoText,
+                                { color: theme.colors.onSurface },
+                              ]}
+                            >
+                              <Text style={styles.label}>{label}:</Text> {value}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text
+                        style={{
+                          ...styles.sizeText,
+                          color: theme.colors.onSurfaceVariant,
+                        }}
+                      >
+                        ◦ Size: {app.size}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Active Block */}
+                {isActive && (
+                  <View
+                    style={[
+                      styles.activeBlock,
+                      {
+                        borderColor: theme.colors.primary,
+                        backgroundColor: 'rgba(0,97,237,0.05)',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.activeLabel,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      Latest Detection
+                    </Text>
+                    <View style={styles.activeRow}>
+                      <Text
+                        style={[
+                          styles.activeValue,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        {latestDetection || 'Waiting...'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.activePercent,
+                          { color: theme.colors.secondary },
+                        ]}
+                      >
+                        {confidence ?? 0}%
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={[styles.actionRow, { marginTop: spacing }]}>
+                  {/* Toggle Info Button */}
+                  <Button
+                    mode="outlined"
+                    style={{ flex: 1, borderColor: theme.colors.primary }}
+                    onPress={() => setInfoAppId(isInfoVisible ? null : app.id)}
+                  >
+                    <Text
+                      variant="labelSmall"
+                      style={{
+                        color: theme.colors.primary,
+                      }}
+                    >
+                      {isInfoVisible ? 'Less Information' : 'More Information'}
+                    </Text>
+                  </Button>
+
+                  {/* Deploy / Stop Button */}
+                  {!isActive ? (
+                    <Button
+                      mode="contained"
+                      style={{ flex: 1 }}
+                      onPress={() => handleDeploy(app)}
+                    >
+                      <Text
+                        variant="labelSmall"
+                        style={{
+                          color: theme.colors.surface,
+                        }}
+                      >
+                        Deploy Application
+                      </Text>
+                    </Button>
+                  ) : (
+                    <Button
+                      mode="contained"
+                      buttonColor={theme.colors.error}
+                      style={{ flex: 1 }}
+                      onPress={() => handleStop(app)}
+                    >
+                      <Text
+                        variant="labelSmall"
+                        style={{
+                          color: theme.colors.surface,
+                        }}
+                      >
+                        Stop Application
+                      </Text>
+                    </Button>
+                  )}
+                </View>
+
+                {isActive && (
+                  <Button
+                    mode="contained"
+                    style={{ marginTop: spacing }}
+                    icon={() => <Zap size={16} color={Colors.white} />}
+                    onPress={() => navigateToLiveSensor(app)}
                   >
                     View Live Sensor Data
                   </Button>
@@ -497,6 +745,21 @@ const DeviceApplicationsScreen: React.FC = () => {
           ) : null}
         </View>
       </ScrollView>
+
+      {showNotification && (
+        <View style={styles.notificationOverlay}>
+          <NotificationCard
+            title={APPS_List.find(a => a.active)?.name ?? 'Application'}
+            description={`"${latestDetection}"`}
+            confidence={confidence ?? 0}
+            onSeeMore={() => {
+              navigateToNotification();
+            }}
+            onMuteNotifications={muteNotifiations}
+            onClose={() => setShowNotification(false)}
+          />
+        </View>
+      )}
 
       {/* Bottom Navigation */}
       <BottomNavigationBar
@@ -599,5 +862,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: `${Colors.black}`,
     fontWeight: 400,
+  },
+
+  notificationOverlay: {
+    position: 'absolute',
+    top: 90,
+    left: 0,
+    right: 0,
+    zIndex: 999,
   },
 });

@@ -1,15 +1,20 @@
+import { decode, Encoder } from 'cbor-x';
+import CRC32 from 'crc-32';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { BleManager, Device, State, Subscription } from 'react-native-ble-plx';
-import { Platform, PermissionsAndroid } from 'react-native';
+import RNFS from 'react-native-fs';
+import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
+import { BleData } from '../../types/bleData';
+import { BleCommand } from './bleCommands';
 import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
-import { BleCommand } from './bleCommands';
-import { BleData } from '../../types/bleData';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
 class BleService {
   private bleManager: BleManager;
   private stateSubscription: Subscription | null = null;
+  private disconnectSubscription: Subscription | null = null;
 
   /* -------------------------------------------------------------------------- */
   /*                              BLE UUID CONFIG                               */
@@ -37,6 +42,10 @@ class BleService {
    * Used to receive notifications/data FROM the device TO the app.
    */
   private txUUID: string = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+  private readonly CHUNK_SIZE = 247;
+  private negotiatedMTU = 23;
+  private monitorSubscriptions: Subscription[] = [];
 
   constructor() {
     this.bleManager = new BleManager();
@@ -246,6 +255,34 @@ class BleService {
           return;
         }
 
+        // Skip processing if the device is null or invalid
+        if (!device || !device.id) {
+          return;
+        }
+
+        // Skip devices that have no name or serviceUUIDs
+        if (!device.name || !device.serviceUUIDs) {
+          return;
+        }
+
+        // **Important**: Here we filter the devices explicitly
+        if (serviceUUIDs && serviceUUIDs.length > 0) {
+          // Ensure device.serviceUUIDs is not null or undefined
+          if (device.serviceUUIDs && device.serviceUUIDs.length > 0) {
+            // Check if the device has one of the provided serviceUUIDs
+            const deviceHasServiceUUID = device.serviceUUIDs.some(serviceUUID =>
+              serviceUUIDs.includes(serviceUUID),
+            );
+
+            // If the device does not have any matching serviceUUIDs, skip it
+            if (!deviceHasServiceUUID) {
+              return;
+            }
+          } else {
+            return; // Skip device if it doesn't advertise any serviceUUIDs
+          }
+        }
+
         if (device) {
           onDeviceFound(device);
         }
@@ -276,10 +313,23 @@ class BleService {
   /**
    * Connect to a BLE device and discover its services/characteristics.
    */
-  connectDevice = async (deviceId: string): Promise<Device> => {
+  connectDevice = async (
+    deviceId: string,
+    onDisconnected?: () => void,
+  ): Promise<Device> => {
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
+      const updatedDevice = await device.requestMTU(this.CHUNK_SIZE);
+
+      this.negotiatedMTU = updatedDevice.mtu ?? 23;
       await device.discoverAllServicesAndCharacteristics();
+
+      BleConnectionHelper.setConnectedDevice(deviceId);
+
+      this.listenForDisconnection(deviceId, () => {
+        BleConnectionHelper.handleDisconnect(deviceId);
+      });
+
       return device;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -292,6 +342,8 @@ class BleService {
    */
   disconnectDevice = async (deviceId: string) => {
     try {
+      this.cleanupMonitors();
+      BleConnectionHelper.markManualDisconnect();
       await this.bleManager.cancelDeviceConnection(deviceId);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -370,6 +422,35 @@ class BleService {
   };
 
   /**
+   * Listen for device disconnection.
+   *
+   */
+  listenForDisconnection = (deviceId: string, onDisconnected: () => void) => {
+    this.disconnectSubscription = this.bleManager.onDeviceDisconnected(
+      deviceId,
+      (error, device) => {
+        // console.log('[BLE] Device disconnected');
+
+        this.cleanupMonitors();
+
+        BleConnectionHelper.setDisconnecthandled(true);
+
+        onDisconnected();
+      },
+    );
+
+    return this.disconnectSubscription;
+  };
+
+  stopDisconnectListener = () => {
+    try {
+      this.disconnectSubscription?.remove();
+    } catch {}
+
+    this.disconnectSubscription = null;
+  };
+
+  /**
    * Discover all services and characteristics on a connected device.
    * Useful when UUIDs are not known ahead of time.
    */
@@ -412,8 +493,12 @@ class BleService {
 
   // Sending command from phone app to device
   // Sending a string command directly as UTF-8 bytes
-  sendCommand = async (deviceId: string, command: BleCommand) => {
+  sendCommand = async (deviceId: string, command: BleCommand | String) => {
     try {
+      const connected = await this.isDeviceConnected(deviceId);
+      if (!connected) {
+        throw new Error('Device disconnected');
+      }
       const updatedCommand = buildCommand(command);
       // Convert the string into a buffer with UTF-8 encoding
       const bufferCommand = Buffer.from(updatedCommand, 'utf-8');
@@ -426,9 +511,10 @@ class BleService {
         bufferCommand.toString('base64'),
       );
 
-      console.log('Command sent successfully.');
-    } catch (error) {
-      console.error('Error sending command:', error);
+      // console.log('Command sent successfully.');
+    } catch (error: any) {
+      // console.error('Error sending command:', error);
+      throw new Error(error?.message || 'Failed to send command');
     }
   };
 
@@ -443,7 +529,17 @@ class BleService {
       this.txUUID,
       (error, characteristic) => {
         if (error) {
-          console.error('Notification error:', error);
+          const msg = error?.message ?? '';
+          // console.log('[BLE] monitor error:', msg);
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
           return;
         }
 
@@ -462,19 +558,873 @@ class BleService {
       },
     );
 
-    return {
-      remove: () => subscription.remove(),
-    };
+    this.monitorSubscriptions.push(subscription);
+
+    return subscription;
   };
 
   /**
    * Clean up BLE manager resources. Call when the app is shutting down.
    */
   destroy = () => {
+    this.cleanupMonitors();
     this.stateSubscription?.remove();
     this.stateSubscription = null;
     this.bleManager.destroy();
   };
+
+  private cleanupMonitors() {
+    this.monitorSubscriptions.forEach(sub => {
+      try {
+        sub.remove();
+      } catch {}
+    });
+
+    this.monitorSubscriptions = [];
+  }
+
+  /* ===================================================================
+   * MCUboot SMP FOTA
+   *
+   * =================================================================== */
+
+  private fotaServiceUUID = '8d53dc1d-1db7-4cd3-868b-8a527460aa84';
+  private fotaCharUUID = 'da2e7828-fbce-4e01-ae9e-261174997c48';
+
+  private fotaSeq = 0;
+  private fotaResolver: ((data: any) => void) | null = null;
+  private fotaRejecter: ((err: Error) => void) | null = null;
+  private smpBuffer: Buffer | null = null;
+  private smpExpectedLength = 0;
+  private pendingFotaResponse: any | null = null;
+
+  /* ── Subscribe to FOTA notifications ── */
+
+  subscribeToFotaNotifications = (deviceId: string): Subscription => {
+    const fotasubscrption = this.bleManager.monitorCharacteristicForDevice(
+      deviceId,
+      this.fotaServiceUUID,
+      this.fotaCharUUID,
+      (error, characteristic) => {
+        if (error) {
+          const msg = String(error?.message ?? '');
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('GATT') ||
+            msg.includes('Operation was cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
+          if (this.fotaRejecter) {
+            const rej = this.fotaRejecter;
+            this.fotaResolver = null;
+            this.fotaRejecter = null;
+            rej(new Error(msg));
+          }
+
+          return;
+        }
+
+        if (!characteristic?.value) return;
+
+        // if device disconnected, ignore
+        if (!deviceId) {
+          return;
+        }
+
+        const chunk = Buffer.from(characteristic.value, 'base64');
+        if (chunk.length < 1) return;
+
+        /* ── Reassembly ──
+         * First packet: contains 8-byte SMP header
+         *   bytes[2-3] = payload length (big-endian)
+         *   total expected = 8 + payloadLen
+         * Subsequent packets: appended until full
+         */
+        if (!this.smpBuffer) {
+          if (chunk.length < 8) {
+            return;
+          }
+          const payloadLen = chunk.readUInt16BE(2);
+          this.smpExpectedLength = 8 + payloadLen;
+          this.smpBuffer = Buffer.from(chunk);
+        } else {
+          this.smpBuffer = Buffer.concat([this.smpBuffer, chunk]);
+        }
+
+        if (this.smpBuffer.length < this.smpExpectedLength) {
+          return;
+        }
+
+        // Full frame received
+        const fullFrame = this.smpBuffer.slice(0, this.smpExpectedLength);
+        this.smpBuffer = null;
+        this.smpExpectedLength = 0;
+
+        // Log header fields
+        const op = fullFrame[0];
+        const group = fullFrame.readUInt16BE(4);
+        const seq = fullFrame[6];
+        const cmd = fullFrame[7];
+
+        const payloadBytes = fullFrame.slice(8);
+        let decoded: any = {};
+
+        if (payloadBytes.length > 0) {
+          try {
+            decoded = decode(payloadBytes);
+          } catch (e) {
+            return;
+          }
+        }
+
+        if (this.fotaResolver) {
+          const resolve = this.fotaResolver;
+          this.fotaResolver = null;
+          this.fotaRejecter = null;
+          resolve(decoded);
+        } else {
+          // resolver not ready yet → store response
+          this.pendingFotaResponse = decoded;
+        }
+      },
+    );
+    this.monitorSubscriptions.push(fotasubscrption);
+    return fotasubscrption;
+  };
+
+  /* ── Wait for one FOTA response ── */
+
+  private waitForFotaResponse(timeoutMs = 15000): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // if response already arrived
+      if (this.pendingFotaResponse) {
+        const data = this.pendingFotaResponse;
+        this.pendingFotaResponse = null;
+        resolve(data);
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        this.fotaResolver = null;
+        this.fotaRejecter = null;
+        reject(new Error(`FOTA timeout after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      this.fotaResolver = (data: any) => {
+        clearTimeout(timer);
+        resolve(data);
+      };
+
+      this.fotaRejecter = (err: Error) => {
+        clearTimeout(timer);
+        reject(err);
+      };
+    });
+  }
+
+  /* ── Build SMP header ──
+   *
+   * byte[0] = (version << 3) | op
+   *   v=1 op=0 (ReadReq)  → 0x08   ← used for: bootloader, mode, image list
+   *   v=1 op=2 (WriteReq) → 0x0A   ← used for: upload, confirm, reset
+   *
+   * Verified from log bytes:
+   *   Version:1 Op:0 Cmd:8  (bootloader query)
+   *   Version:1 Op:2 Cmd:0  (confirm)
+   *   Version:1 Op:2 Cmd:5  (reset)
+   */
+  private buildSmpPacket(
+    op: number,
+    group: number,
+    command: number,
+    payload: Buffer,
+    version = 1,
+  ): Buffer {
+    const header = Buffer.alloc(8);
+    header.writeUInt8((version << 3) | (op & 0x07), 0);
+    header.writeUInt8(0x00, 1);
+    header.writeUInt16BE(payload.length, 2);
+    header.writeUInt16BE(group, 4);
+    header.writeUInt8(this.fotaSeq++ & 0xff, 6);
+    header.writeUInt8(command, 7);
+    return Buffer.concat([header, payload]);
+  }
+
+  /* ── Convert Buffer → Uint8Array recursively ──
+   *
+   */
+  private prepareCborBody(body: any): any {
+    if (Buffer.isBuffer(body)) return new Uint8Array(body);
+    if (body instanceof Uint8Array) return body;
+    if (Array.isArray(body)) return body.map(v => this.prepareCborBody(v));
+    if (body && typeof body === 'object') {
+      const result: Record<string, any> = {};
+      for (const key of Object.keys(body)) {
+        result[key] = this.prepareCborBody(body[key]);
+      }
+      return result;
+    }
+    return body;
+  }
+
+  /* ── Core send + wait ──
+   *
+   */
+  private async sendSmp(
+    deviceId: string,
+    op: number,
+    group: number,
+    command: number,
+    body: any,
+    version = 1,
+    timeoutMs = 15000,
+  ): Promise<any> {
+    // Reset reassembly
+    this.smpBuffer = null;
+    this.smpExpectedLength = 0;
+
+    const cborBody = this.prepareCborBody(body);
+
+    const encoder = new Encoder({
+      useRecords: false,
+      structuredClone: false,
+      tagUint8Array: false,
+    });
+
+    const payload = Buffer.from(encoder.encode(cborBody));
+    const packet = this.buildSmpPacket(op, group, command, payload, version);
+    const responsePromise = this.waitForFotaResponse(timeoutMs);
+
+    if (Platform.OS === 'ios') {
+      await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+        deviceId,
+        this.fotaServiceUUID,
+        this.fotaCharUUID,
+        packet.toString('base64'),
+      );
+    }else{
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.fotaServiceUUID,
+        this.fotaCharUUID,
+        packet.toString('base64'),
+      );
+    }
+
+    return responsePromise;
+  }
+
+  /* ── Step 1: SMP params — v0 header, MUST be first ──
+   *
+   */
+  querySmpParams = async (
+    deviceId: string,
+  ): Promise<{ bufSize: number; bufCount: number }> => {
+    this.smpBuffer = null;
+    this.smpExpectedLength = 0;
+
+    const header = Buffer.alloc(8);
+    header.writeUInt8(0x00, 0); // version=0, op=0
+    header.writeUInt8(0x00, 1); // flags
+    header.writeUInt16BE(0x01, 2); // payload len = 1
+    header.writeUInt16BE(0x00, 4); // group = 0
+    header.writeUInt8(0xff, 6); // seq = 0xFF
+    header.writeUInt8(0x06, 7); // cmd = 6
+
+    const packet = Buffer.concat([header, Buffer.from([0xa0])]); // 0xA0 = empty CBOR map
+    const responsePromise = this.waitForFotaResponse(5000);
+
+    await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+      deviceId,
+      this.fotaServiceUUID,
+      this.fotaCharUUID,
+      packet.toString('base64'),
+    );
+
+    const response = await responsePromise;
+    return {
+      bufSize: response?.buf_size ?? 256,
+      bufCount: response?.buf_count ?? 4,
+    };
+  };
+
+  /* ── Step 2: Bootloader info ── */
+
+  async queryBootloaderInfo(deviceId: string): Promise<string> {
+    const res = await this.sendSmp(deviceId, 0, 0, 8, {});
+    return res?.bootloader ?? 'unknown';
+  }
+
+  /* ── Step 3: Boot mode ── */
+
+  async queryBootMode(deviceId: string): Promise<number> {
+    const res = await this.sendSmp(deviceId, 0, 0, 8, { query: 'mode' });
+    return res?.mode ?? -1;
+  }
+
+  /* ── Step 4: List images ── */
+
+  async sendImageList(deviceId: string): Promise<any> {
+    return this.sendSmp(deviceId, 0, 1, 0, {});
+  }
+
+  /* ── Step 5: Upload firmware ──
+   *
+   * ✅ op=2 (WriteReq) — upload is a WRITE not a READ
+   * ✅ CBOR key order: { data, len (first only), off }
+   * ✅ Uint8Array for data field — encodes as CBOR byte string
+   * ✅ No MTU re-negotiation — uses already negotiated MTU
+   */
+  async sendFirmwareFile(
+    deviceId: string,
+    filePath: string,
+    onProgress?: (percent: number) => void,
+  ): Promise<void> {
+    const mtu = Math.max(this.negotiatedMTU, 64);
+
+    // ATT payload
+    const attPayload = mtu - 3;
+
+    // SMP header
+    const smpHeader = 8;
+
+    // CBOR overhead safety
+    const cborSafety = 20;
+
+    const chunkDataMax = attPayload - smpHeader - cborSafety;
+    const firstChunkDataMax = chunkDataMax - 10;
+
+    const fileBuffer = Buffer.from(
+      await RNFS.readFile(filePath, 'base64'),
+      'base64',
+    );
+    const totalSize = fileBuffer.length;
+
+    let offset = 0;
+    const t0 = Date.now();
+
+    while (offset < totalSize) {
+      const isFirst = offset === 0;
+      const maxData = isFirst ? firstChunkDataMax : chunkDataMax;
+      const end = Math.min(offset + maxData, totalSize);
+      const slice = fileBuffer.slice(offset, end);
+
+      // ✅ CBOR key order: data → len → off  (MCUboot is order-sensitive)
+      // ✅ Uint8Array so cbor-x encodes as byte string
+      const body: Record<string, any> = {};
+      body.data = new Uint8Array(slice);
+      if (isFirst) body.len = totalSize;
+      body.off = offset;
+
+      // First chunk: device erases flash → allow 30s
+      const timeout = isFirst ? 30000 : 15000;
+
+      const response = await this.sendSmp(
+        deviceId,
+        2, // ✅ op = WriteReq (was 0 = ReadReq — this caused "status" error)
+        1, // Group = Image
+        1, // Cmd = Upload
+        body,
+        1,
+        timeout,
+      );
+
+      if (response?.rc !== undefined && response.rc !== 0) {
+        throw new Error(`Upload error at offset ${offset}: rc=${response.rc}`);
+      }
+
+      // Device echoes next expected offset in response.off
+      const nextOffset: number | undefined = response?.off;
+      if (typeof nextOffset === 'number' && nextOffset > offset) {
+        offset = nextOffset;
+      } else {
+        offset += slice.length;
+      }
+
+      onProgress?.(Math.min((offset / totalSize) * 100, 100));
+
+      const elapsed = (Date.now() - t0) / 1000;
+      const speed = elapsed > 0 ? (offset / 1024 / elapsed).toFixed(1) : '?';
+
+      await new Promise(r => setTimeout(r, 5));
+    }
+  }
+
+  /* ── Step 6: Confirm new image ── */
+
+  async confirmFirmware(deviceId: string, hashBase64: string): Promise<any> {
+    return this.sendSmp(deviceId, 2, 1, 0, {
+      confirm: true,
+      hash: new Uint8Array(Buffer.from(hashBase64, 'base64')), // ✅ Uint8Array
+    });
+  }
+
+  /* ── Step 7: Reset device ──
+   * GATT_CONN_TIMEOUT (status=8) after this = NORMAL, device is rebooting
+   */
+
+  async resetDevice(deviceId: string): Promise<void> {
+    const payload = Buffer.from(
+      new Encoder({
+        useRecords: false,
+        structuredClone: false,
+        tagUint8Array: false,
+      }).encode({}),
+    );
+
+    const packet = this.buildSmpPacket(2, 0, 5, payload, 1);
+
+    try {
+        if (Platform.OS === 'ios') {
+          await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+            deviceId,
+            this.fotaServiceUUID,
+            this.fotaCharUUID,
+            packet.toString('base64'),
+          );
+          // 🔥 important for iOS flush
+          await new Promise(r => setTimeout(r, 300));
+        } else {
+          // keep Android behavior unchanged
+          await this.bleManager.writeCharacteristicWithResponseForDevice(
+            deviceId,
+            this.fotaServiceUUID,
+            this.fotaCharUUID,
+            packet.toString('base64'),
+          );
+        }
+    } catch (e) {}
+  }
+
+  /* ──FOTA MTU REQUEST ──
+   *
+   */
+
+  private async requestFotaMtu(deviceId: string): Promise<number> {
+    try {
+      const device = await this.bleManager.requestMTUForDevice(deviceId, 498);
+
+      const mtu = device.mtu ?? 23;
+
+      this.negotiatedMTU = mtu;
+      return mtu;
+    } catch (e) {
+      this.negotiatedMTU = 247; // safe fallback
+      return this.negotiatedMTU;
+    }
+  }
+
+  /* ──FOTA MTU FLOW ──
+   *
+   */
+
+  async performFota(
+    deviceId: string,
+    filePath: string,
+    onProgress?: (percent: number) => void,
+    onLog?: (msg: string) => void,
+  ): Promise<void> {
+    const log = (msg: string) => {
+      console.log('[FOTA]', msg);
+      onLog?.(msg);
+    };
+
+    this.cleanupMonitors();
+
+    BleConnectionHelper.setFotaRunning(true);
+
+    // 1️⃣ Request high MTU FIRST
+    await this.requestFotaMtu(deviceId);
+
+    // 2️⃣ Then subscribe to notifications
+    const sub = this.subscribeToFotaNotifications(deviceId);
+
+    // Wait for subscription to stabilise (matches nRF Connect wait(300))
+    await new Promise(r => setTimeout(r, 500));
+
+    try {
+      // 2. SMP params — v0 handshake, MUST be before anything else
+      log('Querying SMP params...');
+      const params = await this.querySmpParams(deviceId);
+      log(`buf_size=${params.bufSize} buf_count=${params.bufCount}`);
+
+      // 3. Bootloader info
+      log('Querying bootloader...');
+      const bootloader = await this.queryBootloaderInfo(deviceId);
+      log(`Bootloader: ${bootloader}`);
+
+      // 4. Boot mode
+      log('Querying boot mode...');
+      const mode = await this.queryBootMode(deviceId);
+      log(`Boot mode: ${mode}`);
+
+      // 5. List images
+      log('Listing images...');
+      const imageList = await this.sendImageList(deviceId);
+      log(`Images: ${JSON.stringify(imageList)}`);
+
+      // 6. Upload firmware
+      log('Uploading firmware...');
+      await this.sendFirmwareFile(deviceId, filePath, onProgress);
+      log('Upload complete');
+
+      // 7. Get updated image list for slot 1 hash
+      log('Getting updated image list...');
+      const updatedList = await this.sendImageList(deviceId);
+      const slot1 = updatedList?.images?.find((img: any) => img.slot === 1);
+      if (!slot1?.hash) throw new Error('Slot 1 not found after upload');
+
+      const hashBase64 = Buffer.from(slot1.hash).toString('base64');
+      log(`Confirming hash: ${hashBase64}`);
+
+      // 8. Confirm
+      await this.confirmFirmware(deviceId, hashBase64);
+      log('Image confirmed');
+
+      // 9. Reset
+      log('Resetting device...');
+
+      BleConnectionHelper.setExpectedReboot(true);
+      await this.resetDevice(deviceId);
+      log('Reset command sent');
+
+      try {
+        sub.remove();
+      } catch {}
+
+      // allow device reboot
+      await new Promise(r => setTimeout(r, 2000));
+
+      log('FOTA SUCCESS ✅');
+
+      return;
+    } catch (error: any) {
+      console.error('[FOTA ERROR]', error);
+      return;
+    } finally {
+      this.fotaResolver = null;
+      this.fotaRejecter = null;
+      this.smpBuffer = null;
+      this.smpExpectedLength = 0;
+      BleConnectionHelper.setFotaRunning(false);
+      // console.log('[FOTA] cleanup done');
+    }
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                         MODEL TRANSFER UUID CONFIG                          */
+  /* -------------------------------------------------------------------------- */
+
+  private modelServiceUUID = 'f000aa00-0451-4000-b000-000000000000';
+  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000';
+  private ackUUID = 'f000aa02-0451-4000-b000-000000000000';
+  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000';
+  private fileSizeUUID = 'f000aa04-0451-4000-b000-000000000000';
+  private appUUID = 'f000aa05-0451-4000-b000-000000000000';
+  private crcUUID = 'f000aa06-0451-4000-b000-000000000000';
+  private edgeCommandServiceUUID = 'f000bb11-0111-9000-c000-000000000000';
+  private edgeCharUUID = 'f000bb10-0111-9000-c000-000000000000';
+  private edgeAckUUID = 'f000bb12-0111-9000-c000-000000000000';
+
+  private readonly ACK_FLASH_ERASE_DONE = 0xee;
+  private readonly ACK_FLASH_WRITE_DONE = 0xcc;
+  private readonly BUFFER_SIZE = 102236;
+  private readonly ACK_EDGE_COMMAND = 0xa7;
+
+  //Model OTA Updation
+
+  private ackResolver: (() => void) | null = null;
+
+  private computeCRC32 = async (filePath: string): Promise<number> => {
+    const base64 = await RNFS.readFile(filePath, 'base64');
+    const buffer = Buffer.from(base64, 'base64');
+
+    // Initial CRC value matches Python
+    let crc = 0xffffffff;
+
+    // Update CRC in chunks
+    crc = CRC32.buf(buffer, crc);
+
+    // Final XOR to match Python
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+
+  private detectAppIndex = (filePath: string): number => {
+    const name = filePath.toLowerCase();
+
+    if (name.includes('mnist')) return 0;
+    if (name.includes('kws')) return 1;
+
+    throw new Error("Filename must contain 'mnist' or 'kws'");
+  };
+
+  // private waitForAck = (timeoutMs = 5000): Promise<void> => {
+  //   return new Promise((resolve, reject) => {
+  //     this.ackResolver = resolve;
+  //     setTimeout(() => reject(new Error('ACK timeout')), timeoutMs);
+  //   });
+  // };
+  private waitForAck = (timeoutMs = 5000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.ackResolver = null;
+        reject(new Error('ACK timeout'));
+      }, timeoutMs);
+
+      this.ackResolver = () => {
+        clearTimeout(timeout);
+        this.ackResolver = null;
+        resolve();
+      };
+    });
+  };
+
+  subscribeToModelAck = (deviceId: string, callback: (ack: number) => void) => {
+    const modelsubscription = this.bleManager.monitorCharacteristicForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      this.ackUUID,
+      (error, characteristic) => {
+        if (error) {
+          const msg = error?.message ?? '';
+          // console.log('[MODEL ACK] monitor error:', msg);
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
+          return;
+        }
+
+        if (!characteristic?.value) return;
+
+        const ack = Buffer.from(characteristic.value, 'base64')[0];
+
+        // console.log('[ACK]', ack);
+
+        if (ack === this.ACK_FLASH_ERASE_DONE) {
+          // console.log('ACK_FLASH_ERASE_DONE');
+          callback(ack);
+        }
+
+        if (ack === this.ACK_FLASH_WRITE_DONE) {
+          // console.log('ACK_FLASH_WRITE_DONE');
+          callback(ack);
+          this.ackResolver?.();
+          this.ackResolver = null;
+        }
+      },
+    );
+
+    this.monitorSubscriptions.push(modelsubscription);
+    return modelsubscription;
+  };
+
+  sendModelFile = async (
+    deviceId: string,
+    filePath: string,
+    writeToSram = false,
+    onProgress?: (percent: number) => void,
+  ) => {
+    try {
+      const stat = await RNFS.stat(filePath);
+      const fileSize = stat.size;
+
+      const appIndex = this.detectAppIndex(filePath);
+
+      // console.log('Selected APP:', appIndex === 0 ? 'MNIST' : 'KWS');
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.appUUID,
+        Buffer.from([appIndex]).toString('base64'),
+      );
+
+      const sizeBuf = Buffer.alloc(4);
+      sizeBuf.writeUInt32LE(fileSize);
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.fileSizeUUID,
+        sizeBuf.toString('base64'),
+      );
+
+      const crc32 = await this.computeCRC32(filePath);
+      // console.log('crc32', crc32);
+      const crcBuf = Buffer.alloc(4);
+      crcBuf.writeUInt32LE(crc32);
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.crcUUID,
+        crcBuf.toString('base64'),
+      );
+
+      // console.log(`CRC32 sent: 0x${crc32.toString(16)}`);
+
+      const base64 = await RNFS.readFile(filePath, 'base64');
+      const fileBuffer = Buffer.from(base64, 'base64');
+
+      let sent = 0;
+      let sinceLastAck = 0;
+      const ackLimit = writeToSram ? this.BUFFER_SIZE : fileSize;
+      // console.log('ackLimit', ackLimit);
+
+      while (sent < fileBuffer.length) {
+        const connected = await this.isDeviceConnected(deviceId);
+        if (!connected) {
+          throw new Error('Device disconnected during transfer');
+        }
+        const payloadSize = this.negotiatedMTU - 3;
+        // console.log('payloadSize', payloadSize);
+        const chunk = fileBuffer.slice(sent, sent + payloadSize);
+        // console.log('chunk', chunk);
+        await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+          deviceId,
+          this.modelServiceUUID,
+          this.fileTransferUUID,
+          chunk.toString('base64'),
+        );
+
+        sent += chunk.length;
+        sinceLastAck += chunk.length;
+
+        onProgress?.((sent / fileSize) * 100);
+
+        // console.log('ackLimit', ackLimit, 'sinceLastAck', sinceLastAck);
+        if (sinceLastAck >= ackLimit) {
+          // console.log('Waiting for ACK...');
+          await this.waitForAck();
+          sinceLastAck = 0;
+        }
+
+        if (sent % (payloadSize * 10) === 0) {
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        await new Promise(r => setTimeout(r, 30));
+      }
+      BleConnectionHelper.setExpectedReboot(true);
+      this.cleanupMonitors();
+      // console.log('Model transfer complete');
+    } catch (error) {
+      // console.error('Model transfer failed:', error);
+      throw error;
+    }
+  };
+
+  public getAckFlashErase() {
+    return this.ACK_FLASH_ERASE_DONE;
+  }
+
+  public getAckFlashWrite() {
+    return this.ACK_FLASH_WRITE_DONE;
+  }
+
+  public getAckEdgeMode() {
+    return this.ACK_EDGE_COMMAND;
+  }
+
+  /* ===============================
+   Send Edge Command (0/1/2/3)
+   =============================== */
+
+  private edgeAckResolver: (() => void) | null = null;
+
+  private waitForEdgeAck = (timeoutMs = 10000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      this.edgeAckResolver = resolve;
+
+      const timeout = setTimeout(() => {
+        this.edgeAckResolver = null;
+        reject(new Error('Edge ACK timeout'));
+      }, timeoutMs);
+    });
+  };
+
+  subscribeToEdgeLearningAck = (
+    deviceId: string,
+    callback: (ack: number) => void,
+  ) => {
+    const edgeSubscription = this.bleManager.monitorCharacteristicForDevice(
+      deviceId,
+      this.edgeCommandServiceUUID,
+      this.edgeAckUUID,
+      (error, characteristic) => {
+        if (error) {
+          const msg = error?.message ?? '';
+          // console.log('[EDGE ACK] monitor error:', msg);
+
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('cancelled') ||
+            msg.includes('Device is not connected')
+          ) {
+            return;
+          }
+
+          return;
+        }
+
+        if (!characteristic?.value) return;
+
+        const ack = Buffer.from(characteristic.value, 'base64')[0];
+
+        if (ack === this.ACK_EDGE_COMMAND) {
+          // console.log('ACK_FLASH_WRITE_DONE');
+          callback(ack);
+          this.edgeAckResolver?.();
+          this.edgeAckResolver = null;
+        }
+      },
+    );
+    this.monitorSubscriptions.push(edgeSubscription);
+    return edgeSubscription;
+  };
+
+  async sendEdgeCommand(deviceId: string, value: number) {
+    try {
+      const connected = await this.isDeviceConnected(deviceId);
+
+      if (!connected) {
+        throw new Error('Device disconnected');
+      }
+
+      const buffer = Buffer.from([value]);
+
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.edgeCommandServiceUUID,
+        this.edgeCharUUID,
+        buffer.toString('base64'),
+      );
+
+      // console.log('[EDGE] Command sent:', value);
+
+      // wait only for learning command
+      if (value === 1) {
+        // console.log('[EDGE] Waiting for learning ACK...');
+        await this.waitForEdgeAck();
+        // console.log('[EDGE] Learning completed');
+      }
+    } catch (error: any) {
+      // console.log('[EDGE] Command failed:', error?.message || error);
+
+      // propagate error to UI
+      throw new Error(error?.message || 'Failed to send edge command');
+    }
+  }
 }
 
 export default new BleService();

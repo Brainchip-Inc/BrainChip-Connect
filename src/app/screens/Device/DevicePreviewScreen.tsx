@@ -18,7 +18,7 @@ const DevicePreviewScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { deviceId, deviceName, rssi, deviceInfo } = route.params;
+  const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs } = route.params;
 
   const parseManufacturerData = (mfData: Base64) => {
     const manufacturerInfo = base64.decode(mfData);
@@ -34,12 +34,6 @@ const DevicePreviewScreen: React.FC = () => {
     };
 
     const deviceType = manufacturerInfo.slice(5, 12);
-    console.log('deviceType', deviceType);
-    console.log(
-      'firmwareVersion:',
-      `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
-    );
-    console.log('bleVersion', `${bleVersion.major}.${bleVersion.minor}`);
     return {
       deviceType: deviceType,
       firmwareVersion: `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
@@ -47,7 +41,6 @@ const DevicePreviewScreen: React.FC = () => {
     };
   };
 
-  console.log('deviceInfo', deviceInfo);
   const parsedDeviceInfo = deviceInfo
     ? parseManufacturerData(deviceInfo)
     : {
@@ -68,6 +61,7 @@ const DevicePreviewScreen: React.FC = () => {
     { label: 'Firmware', value: firmwareVersion },
     { label: 'Protocol', value: bleVersion },
     { label: 'MAC Address', value: macAddress },
+    { label: 'Device ID', value: serviceUUIDs![0] },
   ];
 
   return (
@@ -212,6 +206,8 @@ const DevicePreviewScreen: React.FC = () => {
                 deviceName,
                 rssi,
                 deviceInfo,
+                serviceUUIDs,
+                deviceType,
               })
             }
           >

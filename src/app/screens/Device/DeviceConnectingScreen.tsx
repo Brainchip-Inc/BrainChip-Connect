@@ -9,6 +9,8 @@ import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
+import { useDeviceAuthStore } from '../../store/useDeviceAuthStore';
+import { useBleCommandStore } from '../../store/useBleCommandStore';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
@@ -26,7 +28,8 @@ const DeviceConnectingScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { deviceId, deviceName, rssi, deviceInfo } = route.params;
+  const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs, deviceType } =
+    route.params;
   const { setConnectedDevice, setConnectionState } = useBleStore();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -46,6 +49,9 @@ const DeviceConnectingScreen: React.FC = () => {
     ? 20
     : Math.min(width * 0.1, 80);
   const maxWidth = isLargeDevice ? 600 : width;
+  const authenticateDevice = useDeviceAuthStore(
+    state => state.authenticateDevice,
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -56,8 +62,33 @@ const DeviceConnectingScreen: React.FC = () => {
       try {
         setConnectionState('connecting');
 
+        // ?? Authenticate with server
+        const deviceUniqServiceId = serviceUUIDs![0];
+        await authenticateDevice(
+          deviceId,
+          deviceName,
+          deviceType,
+          deviceUniqServiceId!,
+        );
+
         // Start connection process
-        const connectionPromise = BleService.connectDevice(deviceId);
+        const connectionPromise = BleService.connectDevice(deviceId, () => {
+          Alert.alert(
+            'Device Disconnected',
+            'The device connection was lost.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setConnectedDevice(null);
+                  setConnectionState('disconnected');
+                  navigation.replace('DeviceDiscovery');
+                },
+              },
+            ],
+            { cancelable: false },
+          );
+        });
 
         // Animate connection steps with progress
         stepIntervalRef.current = setInterval(() => {
@@ -93,10 +124,13 @@ const DeviceConnectingScreen: React.FC = () => {
           name: deviceName,
           rssi: rssi,
           deviceInfo: deviceInfo,
+          serviceUUIDs: serviceUUIDs,
         });
         setConnectionState('connected');
 
-        // Navigate to Device Applications after brief delay
+        useBleCommandStore.getState().startNotifications(deviceId);
+
+        // Navigate to Device Applications
         setTimeout(() => {
           if (!isMountedRef.current) return;
           navigation.replace('DeviceApplications', {

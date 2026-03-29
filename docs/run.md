@@ -33,7 +33,26 @@ git clone <repository-url>
 cd spark-phone
 git checkout <branch-name>
 npm install
+cp .env.template .env
 ```
+
+### Create .env file
+
+The .env file contains environment-specific settings that are used by the application.
+
+#### Environment Variables
+
+SERVER_URL: Base URL of the Spark backend server.
+
+#### Create .env file in main directory and add the following lines:
+
+SERVER_URL = http://<server.ip>:<server:port> or cp .env.template and update the value
+
+#### Env variable Notes
+
+Do not add spaces around =
+Ensure your server is reachable from your device/emulator
+Use your machine’s local IP (not localhost) when testing on a physical device
 
 ## iOS (First)
 
@@ -59,6 +78,7 @@ cd ..
 ```
 
 Note:
+
 - You may see a React Native deprecation notice about calling `pod install` directly.
 - This is informational and does not block setup.
 - Continue using `bundle exec pod install` for local native dependency install.
@@ -167,6 +187,261 @@ Use `--apply` to delete known generated files (safe to regenerate later).
 
 - iOS build issues after dependency changes:
   Re-run:
+
   ```bash
   cd ios && bundle exec pod install && cd ..
   ```
+
+- iOS build issues not resolving:
+
+  Clear Xcode DerivedData (this removes cached build data):
+
+  ```bash
+  rm -rf ~/Library/Developer/Xcode/DerivedData
+  ```
+
+  Then reinstall pods and rebuild:
+
+  ```bash
+  cd ios
+  bundle install
+  bundle exec pod install
+  cd ..
+  ```
+
+- Error: `No Podfile found`
+  Make sure you are inside the `ios` directory before running:
+
+  ```bash
+  cd ios
+  bundle exec pod install
+  ```
+
+- Issues after pulling latest code:
+  Always run:
+  ```bash
+  bundle install
+  cd ios
+  bundle exec pod install
+  cd ..
+  ```
+- If build still fails (full clean setup):
+
+  ```bash
+  rm -rf node_modules
+  rm -rf ios/Pods ios/Podfile.lock
+  rm -rf ~/Library/Developer/Xcode/DerivedData
+
+  npm install
+  bundle install
+
+  cd ios
+  bundle exec pod install
+  cd ..
+  ```
+
+## 🌱 Environment Variables (`.env`) Handling
+
+### ⚠️ Important
+
+Environment variables are **cached at build time**.
+If you update `.env`, the changes will **NOT reflect automatically**.
+
+You must **reset cache and rebuild the app**.
+
+## 🔄 Apply `.env` Changes (Recommended Steps)
+
+```bash
+# 1. Stop Metro (Ctrl + C)
+
+# 2. Reset Metro cache
+npm start --reset-cache
+```
+
+Then rebuild the app:
+
+### 🤖 Android
+
+```bash
+cd android
+./gradlew clean
+cd ..
+
+npm run android
+```
+
+### 🍎 iOS
+
+```bash
+cd ios
+xcodebuild clean
+cd ..
+
+npm run ios
+```
+
+## 🧹 Deep Clean (If changes still not reflecting)
+
+### Android
+
+```bash
+cd android
+./gradlew clean
+cd ..
+```
+
+### iOS
+
+```bash
+rm -rf ios/build
+rm -rf ~/Library/Developer/Xcode/DerivedData
+
+cd ios
+bundle exec pod install
+cd ..
+```
+
+## 💡 Notes
+
+- `.env` changes are **not hot-reloaded**
+- Always rebuild after changing environment variables
+- If using libraries like `react-native-config`, rebuild is mandatory
+- If issues persist, restart Metro + reinstall pods (iOS)
+
+# 📦 Build Outputs
+
+## 🤖 Android Builds
+
+### 🔹 Debug APK
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+📍 Output:
+
+```
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Install:
+
+```bash
+adb install android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### 🔹 Release APK
+
+#### Generate Keystore (one-time)
+
+```bash
+keytool -genkey -v -keystore my-release-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Move keystore to:
+
+```
+android/app/
+```
+
+#### Configure Signing
+
+Edit `android/gradle.properties`:
+
+```properties
+MYAPP_UPLOAD_STORE_FILE=my-release-key.keystore
+MYAPP_UPLOAD_KEY_ALIAS=my-key-alias
+MYAPP_UPLOAD_STORE_PASSWORD=*****
+MYAPP_UPLOAD_KEY_PASSWORD=*****
+```
+
+Edit `android/app/build.gradle`:
+
+```gradle
+signingConfigs {
+    release {
+        storeFile file(MYAPP_UPLOAD_STORE_FILE)
+        storePassword MYAPP_UPLOAD_STORE_PASSWORD
+        keyAlias MYAPP_UPLOAD_KEY_ALIAS
+        keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+    }
+}
+
+buildTypes {
+    release {
+        signingConfig signingConfigs.release
+        minifyEnabled false
+        shrinkResources false
+    }
+}
+```
+
+#### Build Release APK
+
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+📍 Output:
+
+```
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+### 🔹 Android App Bundle (Recommended)
+
+```bash
+cd android
+./gradlew bundleRelease
+```
+
+📍 Output:
+
+```
+android/app/build/outputs/bundle/release/app-release.aab
+```
+
+## 🍎 iOS Builds
+
+### 🔹 Debug Build
+
+```bash
+npm run ios
+```
+
+### 🔹 Archive Build (IPA)
+
+```bash
+open ios/SparkMobApp.xcworkspace
+```
+
+### Steps:
+
+1. Select **Any iOS Device**
+2. Menu → **Product → Archive**
+
+### 🔹 Export IPA
+
+- Open **Organizer**
+- Select archive
+- Click **Distribute App**
+- Choose:
+
+  - Development
+  - Ad Hoc
+  - App Store
+
+📍 Output:
+
+```
+.ipa file
+```
+
+# 🎯 Build outputs Notes
+
+- Debug builds → testing
+- Release builds → distribution
+- AAB → Play Store (recommended)
+- iOS requires Apple Developer account
