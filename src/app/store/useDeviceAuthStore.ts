@@ -1,11 +1,9 @@
 import { create } from 'zustand';
 import { apiService } from '../../services/backend/api';
 import {
-  clearDeviceAuth,
   getStoredDeviceAuth,
   storeDeviceAuth,
 } from './deviceAuthStorage';
-import { Alert } from 'react-native';
 
 /* ================= TYPES ================= */
 
@@ -55,17 +53,11 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
   ) => {
     set({ loading: true, error: null });
 
-    // const formData = new FormData();
-    // formData.append('device_id', deviceUniqId); // added for testing
-    // formData.append('device_secret', deviceSecret);
-
     try {
       // ✅ Check cache first
       const cached = await getStoredDeviceAuth(deviceUniqId);
 
       if (cached && cached.authenticated) {
-        console.log('Using cached token');
-
         set({
           token: cached.token,
           deviceName,
@@ -76,24 +68,14 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
 
         return;
       }
-      console.log('deviceUniqId', deviceUniqId);
-
       // 🔵 If not cached → call server
-      const formData = new FormData();
-      formData.append('device_id', deviceUniqId);
-      formData.append('device_name', deviceName);
-      formData.append('device_type', deviceType);
-
-      const queryParam =
-        'device_id=' +
-        deviceUniqId +
-        '&device_name=' +
-        deviceName +
-        '&device_type=' +
-        deviceType;
-
-      const response = await apiService.get<AuthResponse>(
-        '/device/authenticate?' + queryParam,
+      const response = await apiService.post<AuthResponse>(
+        '/device/authenticate',
+        {
+          device_id: deviceUniqId,
+          device_name: deviceName,
+          device_type: deviceType,
+        },
       );
 
       // ✅ Save token in storage
