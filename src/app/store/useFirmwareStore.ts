@@ -14,7 +14,7 @@ interface FirmwareState {
 
   fetchFirmwareBuilds: (token: string) => Promise<void>;
   downloadFirmware: (
-    id: string,
+    id: number,
     token: string,
     filename: string,
   ) => Promise<string | null>;
@@ -61,7 +61,7 @@ export const useFirmwareStore = create<FirmwareState>(set => ({
     }
   },
 
-  downloadFirmware: async (id: string, token: string, filename: string) => {
+  downloadFirmware: async (id: number, token: string, filename: string) => {
     const localPath = `${RNFS.DocumentDirectoryPath}/firmware_${id}_${filename}`;
 
     try {
