@@ -9,6 +9,7 @@ export interface DeviceAuthCache {
   token: string;
   authenticated: boolean;
   deviceType: string;
+  expiresAt?: number; // Absolute timestamp (ms since epoch)
 }
 
 export const getStoredDeviceAuth = async (

@@ -57,7 +57,11 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
       // ✅ Check cache first
       const cached = await getStoredDeviceAuth(deviceUniqId);
 
-      if (cached && cached.authenticated) {
+      if (
+        cached &&
+        cached.authenticated &&
+        (!cached.expiresAt || cached.expiresAt > Date.now())
+      ) {
         set({
           token: cached.token,
           deviceName,
@@ -78,7 +82,11 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
         },
       );
 
-      // ✅ Save token in storage
+      // ✅ Save token in storage with expiry
+      const expiresAt = response.expires_in
+        ? Date.now() + response.expires_in * 1000
+        : Date.now() + 24 * 60 * 60 * 1000; // Default 24h
+
       await storeDeviceAuth({
         deviceId: deviceId,
         deviceUniqId: deviceUniqId,
@@ -86,6 +94,7 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
         token: response.access_token,
         authenticated: true,
         deviceType: deviceType,
+        expiresAt,
       });
 
       set({
