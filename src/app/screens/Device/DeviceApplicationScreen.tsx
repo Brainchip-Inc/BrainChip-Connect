@@ -154,7 +154,7 @@ const DeviceApplicationsScreen: React.FC = () => {
       await deployApp(app.id);
       // Alert.alert('Deploying', `${app.name} is being deployed.`);
     } catch (error) {
-      console.error('Deploy error:', error);
+      if (__DEV__) console.error('Deploy error:', error);
       Alert.alert('Error', 'Failed to deploy application');
     }
   };
@@ -165,7 +165,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     try {
       await stopApp(app.id); // Stop app using the store method
     } catch (error: any) {
-      console.error('Stop error:', error);
+      if (__DEV__) console.error('Stop error:', error);
       Alert.alert('Error', 'Failed to stop application');
     }
   };

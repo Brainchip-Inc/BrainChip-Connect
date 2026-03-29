@@ -53,7 +53,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         todayEvents: todaySection?.items ?? [],
       });
     } catch (e) {
-      console.log('Load events error:', e);
+      if (__DEV__) console.warn('Load events error:', e);
     }
   },
 

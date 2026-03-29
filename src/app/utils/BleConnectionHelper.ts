@@ -63,20 +63,18 @@ class BleConnectionHelper {
   /* ---------------------------------- */
 
   handleDisconnect = (deviceId: string) => {
-    console.log('[BLE] Disconnected:', deviceId);
+    if (__DEV__) console.log('[BLE] Disconnected:', deviceId);
 
     if (this.isManualDisconnect) {
-      console.log('[BLE] Manual disconnect');
+      if (__DEV__) console.log('[BLE] Manual disconnect');
       this.clearDevice();
       return;
     }
 
     if (this.isExpectedReboot) {
-      console.log('[BLE] Ignoring reboot disconnect');
+      if (__DEV__) console.log('[BLE] Ignoring reboot disconnect');
       this.showRebootAlert();
     }
-
-    console.log('[BLE] Disconnected:', deviceId);
 
     this.clearDevice();
 
