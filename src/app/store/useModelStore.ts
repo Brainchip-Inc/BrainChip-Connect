@@ -71,12 +71,12 @@ export const useModelStore = create<ModelState>(set => ({
 
   /* ================= DOWNLOAD MODEL ================= */
   downloadModel: async (id, token, filename) => {
+    const localPath = `${RNFS.DocumentDirectoryPath}/model_${id}_${filename}`;
+
     try {
       set({ loading: true, error: null });
 
       const downloadUrl = `${BASE_URL}/device/models/${id}/download`;
-
-      const localPath = `${RNFS.DocumentDirectoryPath}/model_${id}_${filename}`;
 
       const result = await RNFS.downloadFile({
         fromUrl: downloadUrl,
@@ -92,8 +92,9 @@ export const useModelStore = create<ModelState>(set => ({
 
       set({ loading: false });
 
-      return localPath; // return file path for OTA
+      return localPath;
     } catch (error: any) {
+      try { await RNFS.unlink(localPath); } catch {}
       set({
         error: error.message || 'Download error',
         loading: false,
