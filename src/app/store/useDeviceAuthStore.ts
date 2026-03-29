@@ -73,13 +73,14 @@ export const useDeviceAuthStore = create<DeviceAuthState>(set => ({
         return;
       }
       // 🔵 If not cached → call server
+      const formData = new FormData();
+      formData.append('device_id', deviceUniqId);
+      formData.append('device_name', deviceName);
+      formData.append('device_type', deviceType);
       const response = await apiService.post<AuthResponse>(
         '/device/authenticate',
-        {
-          device_id: deviceUniqId,
-          device_name: deviceName,
-          device_type: deviceType,
-        },
+        formData,
+        true,
       );
 
       // ✅ Save token in storage with expiry
