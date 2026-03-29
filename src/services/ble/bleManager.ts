@@ -47,6 +47,10 @@ class BleService {
   private negotiatedMTU = 23;
   private monitorSubscriptions: Subscription[] = [];
 
+  // Command queue to serialize BLE write operations
+  private commandQueue: Array<() => Promise<void>> = [];
+  private isProcessingQueue = false;
+
   constructor() {
     this.bleManager = new BleManager();
   }
@@ -493,29 +497,40 @@ class BleService {
 
   // Sending command from phone app to device
   // Sending a string command directly as UTF-8 bytes
-  sendCommand = async (deviceId: string, command: BleCommand | String) => {
-    try {
-      const connected = await this.isDeviceConnected(deviceId);
-      if (!connected) {
-        throw new Error('Device disconnected');
-      }
-      const updatedCommand = buildCommand(command);
-      // Convert the string into a buffer with UTF-8 encoding
-      const bufferCommand = Buffer.from(updatedCommand, 'utf-8');
-
-      // Write the buffer to the BLE characteristic
-      await this.bleManager.writeCharacteristicWithoutResponseForDevice(
-        deviceId,
-        this.serviceUUID,
-        this.rxUUID,
-        bufferCommand.toString('base64'),
-      );
-
-      // console.log('Command sent successfully.');
-    } catch (error: any) {
-      // console.error('Error sending command:', error);
-      throw new Error(error?.message || 'Failed to send command');
+  private processCommandQueue = async () => {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+    while (this.commandQueue.length > 0) {
+      const next = this.commandQueue.shift()!;
+      await next();
     }
+    this.isProcessingQueue = false;
+  };
+
+  sendCommand = (deviceId: string, command: BleCommand | String): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      this.commandQueue.push(async () => {
+        try {
+          const connected = await this.isDeviceConnected(deviceId);
+          if (!connected) {
+            throw new Error('Device disconnected');
+          }
+          const updatedCommand = buildCommand(command);
+          const bufferCommand = Buffer.from(updatedCommand, 'utf-8');
+
+          await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+            deviceId,
+            this.serviceUUID,
+            this.rxUUID,
+            bufferCommand.toString('base64'),
+          );
+          resolve();
+        } catch (error: any) {
+          reject(new Error(error?.message || 'Failed to send command'));
+        }
+      });
+      this.processCommandQueue();
+    });
   };
 
   // Receiving data from the device
@@ -1148,7 +1163,11 @@ class BleService {
 
   //Model OTA Updation
 
-  private ackResolver: (() => void) | null = null;
+  private ackQueue: Array<{
+    resolve: () => void;
+    reject: (e: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }> = [];
 
   private computeCRC32 = async (filePath: string): Promise<number> => {
     const base64 = await RNFS.readFile(filePath, 'base64');
@@ -1173,25 +1192,23 @@ class BleService {
     throw new Error("Filename must contain 'mnist' or 'kws'");
   };
 
-  // private waitForAck = (timeoutMs = 5000): Promise<void> => {
-  //   return new Promise((resolve, reject) => {
-  //     this.ackResolver = resolve;
-  //     setTimeout(() => reject(new Error('ACK timeout')), timeoutMs);
-  //   });
-  // };
   private waitForAck = (timeoutMs = 5000): Promise<void> => {
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.ackResolver = null;
+      const timer = setTimeout(() => {
+        this.ackQueue = this.ackQueue.filter(e => e.timer !== timer);
         reject(new Error('ACK timeout'));
       }, timeoutMs);
 
-      this.ackResolver = () => {
-        clearTimeout(timeout);
-        this.ackResolver = null;
-        resolve();
-      };
+      this.ackQueue.push({ resolve, reject, timer });
     });
+  };
+
+  private resolveNextAck = () => {
+    const entry = this.ackQueue.shift();
+    if (entry) {
+      clearTimeout(entry.timer);
+      entry.resolve();
+    }
   };
 
   subscribeToModelAck = (deviceId: string, callback: (ack: number) => void) => {
@@ -1227,10 +1244,8 @@ class BleService {
         }
 
         if (ack === this.ACK_FLASH_WRITE_DONE) {
-          // console.log('ACK_FLASH_WRITE_DONE');
           callback(ack);
-          this.ackResolver?.();
-          this.ackResolver = null;
+          this.resolveNextAck();
         }
       },
     );
