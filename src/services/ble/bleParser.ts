@@ -1,5 +1,6 @@
 // bleParser.ts
 
+import { AppType } from '../../app/store/useLiveSensorStore';
 import { BleCommand } from './bleCommands';
 
 export interface DeviceInfo {
@@ -9,11 +10,29 @@ export interface DeviceInfo {
   hardware: string;
   protocol: string;
 }
-
+export interface AppsList {
+  id: AppType;
+  name: string;
+  description: string;
+  size: string;
+  processor: string;
+  modelName: string;
+  modelVersion: string;
+  modelSize: string;
+  inputShape: string;
+  noOfClasses: string;
+  nodes: string;
+  powerConsumption: string;
+}
 export type ParsedResponse =
   | { type: 'BATTERY'; data: string }
   | { type: 'DEVICE_INFO'; data: DeviceInfo }
-  | { type: 'RAW'; cmd: BleCommand; data: string };
+  | { type: 'RAW'; cmd: BleCommand; data: string }
+  | { type: 'DEPLOYSTART'; data: string }
+  | { type: 'STREAMSTART'; data: string }
+  | { type: 'DEPLOYSTOP'; data: string }
+  | { type: 'STREAMSTOP'; data: string }
+  | { type: 'APPS'; data: string };
 
 // Multi-frame buffer (keyed by command enum)
 const multiFrameBuffer: Record<number, string[]> = {};
@@ -34,6 +53,8 @@ export const parseBleMessage = (raw: string): ParsedResponse | null => {
   // Payload = everything after length
   const payload = parts.slice(3).join(',');
   const [cmdStr, data = ''] = payload.split(':');
+  // const [cmdStr, ...rest] = payload.split(':');
+  // const data = rest.join(':');
 
   const cmd = Number(cmdStr) as BleCommand;
 
@@ -86,6 +107,35 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
         },
       };
     }
+    case BleCommand.DEPLOYSTART:
+      return {
+        type: 'DEPLOYSTART',
+        data: `${data}`,
+      };
+
+    case BleCommand.STREAMSTART:
+      return {
+        type: 'STREAMSTART',
+        data: `${data}`,
+      };
+
+    case BleCommand.DEPLOYSTOP:
+      return {
+        type: 'DEPLOYSTOP',
+        data: `${data}`,
+      };
+
+    case BleCommand.STREAMSTOP:
+      return {
+        type: 'STREAMSTOP',
+        data: `${data}`,
+      };
+
+    case BleCommand.APPS:
+      return {
+        type: 'APPS',
+        data: `${data}`,
+      };
 
     default:
       return {

@@ -1,93 +1,85 @@
 import { create } from 'zustand';
+import RNFS from 'react-native-fs';
+
+const EVENTS_FILE = `${RNFS.DocumentDirectoryPath}/events.json`;
 
 interface EventItem {
+  appId: string;
   title: string;
-  time: string;
+  timestamp: number;
   confidence: number;
-  status: 'ok' | 'warn'; // Event status (e.g., 'ok' or 'warn')
+  status: 'ok' | 'warn';
 }
 
 interface EventSection {
-  date: string;
+  date: string; // YYYY-MM-DD
   items: EventItem[];
 }
 
 interface EventsState {
   events: EventSection[];
-  setEvents: (data: EventSection[]) => void;
+  todayEvents: EventItem[];
+
+  loadEvents: () => Promise<void>;
+  addEvent: (event: EventItem) => Promise<void>;
+  clearEvents: () => Promise<void>;
 }
 
-export const useEventsStore = create<EventsState>(set => ({
-  events: [
-    {
-      date: 'December 26, 2025',
-      items: [
-        {
-          title: 'Person detected',
-          time: '3m ago',
-          confidence: 97,
-          status: 'ok',
-        },
-        {
-          title: 'Vehicle detected',
-          time: '45m ago',
-          confidence: 84,
-          status: 'ok',
-        },
-        {
-          title: 'Building detected',
-          time: '2h ago',
-          confidence: 99,
-          status: 'ok',
-        },
-        {
-          title: 'Package detected',
-          time: '5h ago',
-          confidence: 88,
-          status: 'ok',
-        },
-        {
-          title: 'Box detected',
-          time: '10h ago',
-          confidence: 98,
-          status: 'ok',
-        },
-        {
-          title: 'Package detected with low confidence',
-          time: '20h ago',
-          confidence: 72,
-          status: 'warn',
-        },
-      ],
-    },
-    {
-      date: 'December 25, 2025',
-      items: [
-        {
-          title: 'Car detected',
-          time: 'Yesterday',
-          confidence: 96,
-          status: 'ok',
-        },
-      ],
-    },
-    {
-      date: 'December 24, 2025',
-      items: [
-        {
-          title: 'Vehicle detected',
-          time: 'Dec 24',
-          confidence: 94,
-          status: 'ok',
-        },
-      ],
-    },
-    {
-      date: 'December 23, 2025',
-      items: [
-        { title: 'Cat detected', time: 'Dec 23', confidence: 91, status: 'ok' },
-      ],
-    },
-  ],
-  setEvents: data => set({ events: data }),
+const getTodayDate = () => {
+  const d = new Date();
+  return d.toISOString().split('T')[0]; // YYYY-MM-DD
+};
+
+export const useEventsStore = create<EventsState>((set, get) => ({
+  events: [],
+  todayEvents: [],
+
+  loadEvents: async () => {
+    try {
+      const exists = await RNFS.exists(EVENTS_FILE);
+      if (!exists) {
+        set({ events: [], todayEvents: [] });
+        return;
+      }
+
+      const file = await RNFS.readFile(EVENTS_FILE, 'utf8');
+      const parsed: EventSection[] = JSON.parse(file);
+
+      const today = getTodayDate();
+      const todaySection = parsed.find(e => e.date === today);
+
+      set({
+        events: parsed,
+        todayEvents: todaySection?.items ?? [],
+      });
+    } catch (e) {
+      console.log('Load events error:', e);
+    }
+  },
+
+  addEvent: async (event: EventItem) => {
+    const today = getTodayDate();
+    let events = [...get().events];
+
+    let todaySection = events.find(e => e.date === today);
+
+    if (!todaySection) {
+      todaySection = { date: today, items: [] };
+      events.unshift(todaySection);
+    }
+
+    todaySection.items.unshift(event);
+
+    await RNFS.writeFile(EVENTS_FILE, JSON.stringify(events), 'utf8');
+
+    set({
+      events,
+      todayEvents: todaySection.items,
+    });
+  },
+
+  clearEvents: async () => {
+    await RNFS.unlink(EVENTS_FILE).catch(() => {});
+    set({ events: [], todayEvents: [] });
+  },
 }));

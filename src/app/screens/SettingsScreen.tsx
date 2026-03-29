@@ -20,6 +20,7 @@ import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import { useBleStore } from '../store/useBleStore';
 import { Colors } from '../theme/theme';
+import { RouteName, ROUTES } from '../../types/routes';
 
 type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
 
@@ -48,9 +49,7 @@ const SettingRow = ({ icon, title, subtitle, onPress }: any) => (
 const SettingsScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [activeRoute, setActiveRoute] = useState<
-    'Home' | 'Notifications' | 'Settings' | 'Profile'
-  >('Settings');
+  const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
   const [showPowerModal, setShowPowerModal] = useState(false);
   const [showSensorModal, setShowSensorModal] = useState(false);
   const [showReset, setShowReset] = useState(false);

@@ -43,6 +43,8 @@ const DeviceDiscoveryScreen: React.FC = () => {
   const maxWidth = width >= 768 ? 600 : width;
 
   const hasDevices = devices.length > 0;
+  const privacyAccepted = useBleStore(state => state.privacyAccepted);
+  const termsAccepted = useBleStore(state => state.termsAccepted);
 
   const getSignalColor = (rssi: number | null) => {
     if (!rssi) return theme.colors.outline;
@@ -69,9 +71,9 @@ const DeviceDiscoveryScreen: React.FC = () => {
    * Service UUIDs to filter the device
    */
   const serviceUUIDs: Array<string> = [
-    '0000fee7-0000-1000-8000-00805f9b34fb',
-    '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
-    '00001523-1212-efde-1523-785feabcd123',
+    // '0000fee7-0000-1000-8000-00805f9b34fb',
+    // '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+    // '00001523-1212-efde-1523-785feabcd123',
   ]; // testdevice, akida, akida tag
 
   const startScanning = useCallback(async () => {
@@ -111,6 +113,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
               name: device.name,
               rssi: device.rssi,
               deviceInfo: device.manufacturerData,
+              serviceUUIDs: device.serviceUUIDs,
             });
           }
         },
@@ -131,6 +134,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
       deviceName: device.name || 'Unknown Device',
       rssi: device.rssi,
       deviceInfo: device.deviceInfo,
+      serviceUUIDs: device.serviceUUIDs,
     });
   };
 
@@ -285,14 +289,15 @@ const DeviceDiscoveryScreen: React.FC = () => {
                 Scan again
               </Button>
 
-              {/* BACK */}
-              <Button
-                mode="outlined"
-                onPress={() => navigation.goBack()}
-                style={{ marginTop: spacing }}
-              >
-                Back
-              </Button>
+              {privacyAccepted && termsAccepted ? (
+                <Button
+                  mode="outlined"
+                  onPress={() => navigation.goBack()}
+                  style={{ marginTop: spacing }}
+                >
+                  Back
+                </Button>
+              ) : null}
             </>
           )}
 

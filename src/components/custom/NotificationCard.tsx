@@ -1,27 +1,22 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Text, useTheme, IconButton, ProgressBar } from 'react-native-paper';
-import { X } from 'lucide-react-native';
+import { Text, useTheme, ProgressBar } from 'react-native-paper';
+import { X, Bell } from 'lucide-react-native';
+import { Colors } from '../../app/theme/theme';
 
 interface NotificationCardProps {
-  icon?: React.ReactNode;
   title: string;
   description: string;
-  confidence?: number; // 0-100
-  showProgress?: boolean;
-  showMoreButton?: boolean;
+  confidence?: number;
   onSeeMore?: () => void;
   onMuteNotifications?: () => void;
   onClose?: () => void;
 }
 
 const NotificationCard: React.FC<NotificationCardProps> = ({
-  icon,
   title,
   description,
   confidence,
-  showProgress = false,
-  showMoreButton = false,
   onSeeMore,
   onMuteNotifications,
   onClose,
@@ -29,146 +24,154 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
   const theme = useTheme();
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.outline,
-        },
-      ]}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          {icon || (
-            <View
-              style={[
-                styles.defaultIcon,
-                { backgroundColor: 'rgba(0, 97, 237, 0.1)' },
-              ]}
-            />
+    <View style={styles.wrapper}>
+      <View style={styles.container}>
+        {/* HEADER */}
+        <View style={styles.header}>
+          {/* Blue Icon Box */}
+          <View style={styles.iconBox}>
+            <Bell size={18} color="#FFFFFF" />
+          </View>
+
+          <Text style={styles.title}>{title}</Text>
+
+          {onClose && (
+            <TouchableOpacity onPress={onClose}>
+              <X size={18} color="#6B7280" />
+            </TouchableOpacity>
           )}
         </View>
-        <View style={styles.headerText}>
-          <Text variant="titleMedium" style={{ fontWeight: '600' }}>
-            {title}
-          </Text>
-        </View>
-        {onClose && (
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <X size={20} color={theme.colors.onSurfaceVariant} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Description */}
-      <Text
-        variant="bodyMedium"
-        style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}
-      >
-        {description}
-      </Text>
+        {/* DETECTED TEXT */}
+        <Text style={styles.detectedText}>
+          Detected: <Text style={{ fontWeight: '600' }}>{description}</Text>
+        </Text>
 
-      {/* Confidence Progress */}
-      {showProgress && confidence !== undefined && (
-        <View style={styles.progressContainer}>
-          <View style={styles.progressHeader}>
-            <Text
-              variant="labelSmall"
-              style={{ color: theme.colors.onSurfaceVariant }}
-            >
-              Confidence:
-            </Text>
-            <Text
-              variant="labelMedium"
-              style={{ color: theme.colors.primary, fontWeight: '600' }}
-            >
-              {confidence}%
-            </Text>
+        {/* CONFIDENCE */}
+        {confidence !== undefined && (
+          <View style={styles.confidenceRow}>
+            <Text style={styles.confidenceLabel}>Confidence:</Text>
+
+            <View style={{ flex: 1 }}>
+              <ProgressBar
+                progress={confidence / 100}
+                color={Colors.primary}
+                style={styles.progress}
+              />
+            </View>
+
+            <Text style={styles.percent}>{confidence}%</Text>
           </View>
-          <ProgressBar
-            progress={confidence / 100}
-            color={theme.colors.primary}
-            style={{ height: 6, backgroundColor: 'rgba(0, 97, 237, 0.1)' }}
-          />
-        </View>
-      )}
-
-      {/* Actions */}
-      <View style={styles.actions}>
-        {showMoreButton && (
-          <TouchableOpacity onPress={onSeeMore} style={styles.seeMoreButton}>
-            <Text
-              variant="labelMedium"
-              style={{ color: theme.colors.primary, fontWeight: '600' }}
-            >
-              See More
-            </Text>
-          </TouchableOpacity>
         )}
-        {onMuteNotifications && (
+
+        {/* ACTIONS */}
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={onSeeMore}>
+            <Text style={styles.seeMore}>See More</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={onMuteNotifications}
-            style={styles.muteButton}
+            style={styles.muteRow}
           >
-            <Text
-              variant="labelSmall"
-              style={{ color: theme.colors.onSurfaceVariant }}
-            >
-              🔕 Mute Notifications
-            </Text>
+            <Bell size={14} color="#6B7280" />
+            <Text style={styles.muteText}>Mute Notifications</Text>
           </TouchableOpacity>
-        )}
+        </View>
       </View>
     </View>
   );
 };
 
+export default NotificationCard;
+
 const styles = StyleSheet.create({
-  container: {
-    borderWidth: 1,
-    padding: 16,
-    margin: 16,
+  wrapper: {
+    marginHorizontal: 20,
+    marginTop: 20,
   },
+
+  container: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    elevation: 6, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+  },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  iconContainer: {
-    marginRight: 12,
-  },
-  defaultIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 0,
-  },
-  headerText: {
-    flex: 1,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  progressContainer: {
     marginBottom: 12,
   },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+
+  iconBox: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#0A5ED7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
+
+  title: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  detectedText: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+
+  confidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  confidenceLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+
+  progress: {
+    height: 6,
+    backgroundColor: 'rgba(0, 97, 237, 0.1)',
+  },
+
+  percent: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A5ED7',
+  },
+
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  seeMoreButton: {
-    paddingVertical: 6,
+
+  seeMore: {
+    color: '#0A5ED7',
+    fontWeight: '600',
+    fontSize: 14,
   },
-  muteButton: {
-    paddingVertical: 6,
+
+  muteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  muteText: {
+    fontSize: 13,
+    color: '#6B7280',
   },
 });
-
-export default NotificationCard;

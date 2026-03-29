@@ -41,7 +41,7 @@ const BottomNavigationBar: React.FC<BottomNavigationProps> = ({
         navigation.navigate('Notifications');
         break;
       case 'Profile':
-        navigation.navigate('Eventhistory'); // Temporary, need to replace in future with profile
+        navigation.navigate('UserProfile');
         break;
       case 'Home':
         navigation.navigate('DeviceApplications', {

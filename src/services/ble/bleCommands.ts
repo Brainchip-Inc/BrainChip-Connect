@@ -10,7 +10,10 @@ export enum BleCommand {
   MOTA, // 6
   UNINSTALL, // 7
   RESET, // 8
-  DEPLOY, // 9
+  DEPLOYSTART, // 9
+  STREAMSTART, //10
+  DEPLOYSTOP, // 11
+  STREAMSTOP, //12
 }
 
 export const BleCommandMap: Record<BleCommand, string> = {
@@ -23,5 +26,8 @@ export const BleCommandMap: Record<BleCommand, string> = {
   [BleCommand.MOTA]: 'CMD%MOTA',
   [BleCommand.UNINSTALL]: 'CMD%UNINSTALL',
   [BleCommand.RESET]: 'CMD%RESET',
-  [BleCommand.DEPLOY]: 'CMD%DEPLOY',
+  [BleCommand.DEPLOYSTART]: 'CMD%DEPLOYSTART',
+  [BleCommand.STREAMSTART]: 'CMD%STREAMSTART',
+  [BleCommand.DEPLOYSTOP]: 'CMD%DEPLOYSTOP',
+  [BleCommand.STREAMSTOP]: 'CMD%STREAMSTOP',
 };
