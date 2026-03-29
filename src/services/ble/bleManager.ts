@@ -51,6 +51,9 @@ class BleService {
   private commandQueue: Array<() => Promise<void>> = [];
   private isProcessingQueue = false;
 
+  // OTA lock to prevent concurrent firmware + model updates
+  private otaInProgress: 'firmware' | 'model' | null = null;
+
   constructor() {
     this.bleManager = new BleManager();
   }
@@ -1056,6 +1059,11 @@ class BleService {
     onProgress?: (percent: number) => void,
     onLog?: (msg: string) => void,
   ): Promise<void> {
+    if (this.otaInProgress) {
+      throw new Error(`Cannot start firmware update — ${this.otaInProgress} update in progress`);
+    }
+    this.otaInProgress = 'firmware';
+
     const log = (msg: string) => {
       console.log('[FOTA]', msg);
       onLog?.(msg);
@@ -1132,12 +1140,12 @@ class BleService {
       console.error('[FOTA ERROR]', error);
       return;
     } finally {
+      this.otaInProgress = null;
       this.fotaResolver = null;
       this.fotaRejecter = null;
       this.smpBuffer = null;
       this.smpExpectedLength = 0;
       BleConnectionHelper.setFotaRunning(false);
-      // console.log('[FOTA] cleanup done');
     }
   }
 
@@ -1260,6 +1268,11 @@ class BleService {
     writeToSram = false,
     onProgress?: (percent: number) => void,
   ) => {
+    if (this.otaInProgress) {
+      throw new Error(`Cannot start model update — ${this.otaInProgress} update in progress`);
+    }
+    this.otaInProgress = 'model';
+
     try {
       const stat = await RNFS.stat(filePath);
       const fileSize = stat.size;
@@ -1343,10 +1356,10 @@ class BleService {
       }
       BleConnectionHelper.setExpectedReboot(true);
       this.cleanupMonitors();
-      // console.log('Model transfer complete');
     } catch (error) {
-      // console.error('Model transfer failed:', error);
       throw error;
+    } finally {
+      this.otaInProgress = null;
     }
   };
 
