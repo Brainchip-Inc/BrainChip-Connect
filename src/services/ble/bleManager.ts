@@ -573,13 +573,26 @@ class BleService {
     this.bleManager.destroy();
   };
 
+  /**
+   * Remove a single subscription and clean it from the tracked array.
+   */
+  removeSubscription = (sub: Subscription) => {
+    try {
+      sub.remove();
+    } catch (e) {
+      if (__DEV__) console.warn('Failed to remove BLE subscription:', e);
+    }
+    this.monitorSubscriptions = this.monitorSubscriptions.filter(s => s !== sub);
+  };
+
   private cleanupMonitors() {
-    this.monitorSubscriptions.forEach(sub => {
+    for (const sub of this.monitorSubscriptions) {
       try {
         sub.remove();
-      } catch {}
-    });
-
+      } catch (e) {
+        if (__DEV__) console.warn('Failed to remove BLE subscription:', e);
+      }
+    }
     this.monitorSubscriptions = [];
   }
 
@@ -1092,9 +1105,7 @@ class BleService {
       await this.resetDevice(deviceId);
       log('Reset command sent');
 
-      try {
-        sub.remove();
-      } catch {}
+      this.removeSubscription(sub);
 
       // allow device reboot
       await new Promise(r => setTimeout(r, 2000));
