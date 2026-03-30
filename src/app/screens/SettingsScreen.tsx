@@ -1,7 +1,5 @@
-import { RouteProp } from '@react-navigation/native';
 import {
   AlertTriangle,
-  ChevronLeft,
   ChevronRight,
   Cpu,
   Download,
@@ -9,10 +7,8 @@ import {
   Sliders,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RootParamList } from '../../../App';
 import FactoryResetModal from '../../components/common/FactoryResetModal';
 import PowerModeModal from '../../components/common/PowerModeModal';
 import SensorConfigModal from '../../components/common/SensorConfigModal';
@@ -21,10 +17,6 @@ import DeviceHeader from '../../components/custom/DeviceHeader';
 import { useBleStore } from '../store/useBleStore';
 import { Colors } from '../theme/theme';
 import { RouteName, ROUTES } from '../../types/routes';
-
-type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
-
-const CONTENT_WIDTH = 400;
 
 const Section = ({ title, children }: any) => (
   <View style={{ marginBottom: 20 }}>
@@ -48,7 +40,6 @@ const SettingRow = ({ icon, title, subtitle, onPress }: any) => (
 
 const SettingsScreen = ({ navigation }: any) => {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
   const [showPowerModal, setShowPowerModal] = useState(false);
   const [showSensorModal, setShowSensorModal] = useState(false);
@@ -61,25 +52,15 @@ const SettingsScreen = ({ navigation }: any) => {
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* TOP BAR */}
       <DeviceHeader deviceName={deviceName} showConnectionStatus={true} />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          {
-            paddingBottom: insets.bottom + 140,
-            flexGrow: 1,
-          },
-        ]}
-      >
+
+      <View style={styles.content}>
         {/* HEADER */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <ChevronLeft size={30} />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
 
-        <View style={[styles.container]}>
+        {/* SECTIONS */}
+        <View style={{ flex: 1 }}>
           {/* DEVICE */}
           <Section title="Device">
             <SettingRow
@@ -112,7 +93,7 @@ const SettingsScreen = ({ navigation }: any) => {
               style={styles.secondCard}
               onPress={() => navigation.navigate('AIModelUpdate')}
             >
-              <View style={styles.secondcardRow}>
+              <View style={styles.cardRow}>
                 <Download size={20} />
                 <View style={styles.cardText}>
                   <Text style={styles.cardTitle}>AI Model Update</Text>
@@ -142,19 +123,9 @@ const SettingsScreen = ({ navigation }: any) => {
               </View>
             </View>
           </TouchableOpacity>
-
-          {/* FOOTER */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>BrainChip Akida� Neuron</Text>
-            <Text style={styles.footerText}>
-              Firmware v2.4.1 � Serial: AKD-A7F3
-            </Text>
-            <Text style={styles.footerText}>
-              � 2025 BrainChip Holdings Ltd.
-            </Text>
-          </View>
         </View>
-      </ScrollView>
+      </View>
+
       <PowerModeModal
         visible={showPowerModal}
         onClose={() => setShowPowerModal(false)}
@@ -186,15 +157,17 @@ export default SettingsScreen;
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+
   header: {
-    width: '100%',
     flexDirection: 'row',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: `${Colors.border.light}`,
-    gap: 16,
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
 
   headerTitle: {
@@ -203,28 +176,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  scroll: { alignItems: 'center' },
-  container: {
-    alignSelf: 'center',
-    padding: 24,
-    width: CONTENT_WIDTH,
-  },
-
   sectionTitle: {
     fontFamily: 'Sora',
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
-    marginLeft: 8,
-    marginRight: 8,
   },
 
   card: {
     backgroundColor: `${Colors.white}`,
     borderWidth: 1,
     borderColor: `${Colors.border.light}`,
-    marginLeft: 8,
-    marginRight: 8,
   },
 
   secondCard: {
@@ -232,15 +194,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${Colors.border.light}`,
     marginTop: 10,
-    marginLeft: 8,
-    marginRight: 8,
-  },
-
-  secondcardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
   },
 
   cardRow: {
@@ -249,6 +202,7 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
   },
+
   cardText: { flex: 1 },
   cardTitle: {
     fontFamily: 'Sora',
@@ -266,8 +220,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
-    marginLeft: 8,
-    marginRight: 8,
   },
 
   dangerCard: {
@@ -291,15 +243,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 12,
     color: `${Colors.error}`,
-  },
-
-  footer: {
-    marginTop: 32,
-    alignItems: 'center',
-    paddingBottom: 24,
-  },
-  footerText: {
-    fontSize: 12,
-    fontFamily: 'Inter',
   },
 });
