@@ -356,7 +356,6 @@ const PermissionsScreen: React.FC = () => {
               onPress={handleGrantPermissions}
               disabled={!canProceed || isGranting}
               loading={isGranting}
-              contentStyle={{ height: 58 }}
               style={{
                 borderRadius: 0,
                 backgroundColor: canProceed ? '#0061ED' : '#E5E7EB',
@@ -375,7 +374,6 @@ const PermissionsScreen: React.FC = () => {
               mode="outlined"
               onPress={() => navigation.goBack()}
               disabled={isGranting}
-              contentStyle={{ height: 48 }}
               style={{
                 borderRadius: 0,
                 borderColor: '#E5E7EB',

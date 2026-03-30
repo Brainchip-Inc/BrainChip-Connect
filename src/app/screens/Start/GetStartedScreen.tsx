@@ -102,7 +102,6 @@ const GetStartedScreen: React.FC = () => {
             <Button
               mode="contained"
               onPress={() => navigation.navigate('Permissions')}
-              contentStyle={{ height: 56 }}
               style={styles.button}
               labelStyle={styles.buttonLabel}
             >
@@ -120,6 +119,7 @@ export default GetStartedScreen;
 const styles = StyleSheet.create({
   logoBlock: {
     alignItems: 'center',
+    paddingTop: 32,
   },
 
   logo: {
