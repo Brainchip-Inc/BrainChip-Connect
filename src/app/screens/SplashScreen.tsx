@@ -58,7 +58,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
       {/* Logo with shadow */}
       <View style={styles.logoContainer}>
         <Image
-          source={require('../assets/images/00_Start/Logo.png')}
+          source={require('../assets/images/00_Start/NeuronLogo.png')}
           resizeMode="contain"
           style={styles.logo}
         />
@@ -66,7 +66,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
 
       {/* App Title */}
       <Text style={[styles.title, { color: theme.colors.primary }]}>
-        Akida Mobile Connect
+        BrainChip Connect
       </Text>
 
       {/* Subtitle */}

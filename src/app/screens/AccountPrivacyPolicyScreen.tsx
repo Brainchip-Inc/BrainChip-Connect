@@ -198,14 +198,12 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
 
   header: {
-    width: '100%',
     flexDirection: 'row',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: `${Colors.border.light}`,
-    gap: 16,
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
 
   headerTitle: {
@@ -214,10 +212,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  scroll: { alignItems: 'center' },
+  scroll: {},
   container: {
-    alignSelf: 'center',
-    padding: 24,
+    paddingHorizontal: 20,
   },
 
   sectionTitle: {

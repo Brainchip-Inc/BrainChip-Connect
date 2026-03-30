@@ -9,16 +9,12 @@ import {
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ChevronLeft } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import { useBleStore } from '../store/useBleStore';
 import { useAboutStore } from '../store/useAboutStore';
 import { Colors } from '../theme/theme';
 import { RouteName, ROUTES } from '../../types/routes';
-
-const CONTENT_WIDTH = 400;
 
 const Section = ({ title, children }: any) => (
   <View style={{ marginBottom: 20 }}>
@@ -36,7 +32,6 @@ const Bullet = ({ children }: any) => (
 
 const AboutScreen = ({ navigation }: any) => {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { connectedDevice } = useBleStore();
   const { version, build, sections } = useAboutStore();
 
@@ -48,11 +43,8 @@ const AboutScreen = ({ navigation }: any) => {
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <DeviceHeader deviceName={deviceName} showConnectionStatus />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
-      >
-        {/* HEADER */}
+      <View style={styles.content}>
+        {/* HEADER - FIXED */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <ChevronLeft size={28} />
@@ -60,14 +52,20 @@ const AboutScreen = ({ navigation }: any) => {
           <Text style={styles.headerTitle}>About</Text>
         </View>
 
-        <View style={styles.container}>
+        {/* SCROLLABLE CONTENT */}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        >
           {/* APP HEADER */}
           <View style={styles.appHeader}>
             <Image
-              source={require('../assets/images/00_Start/Logo.png')}
+              source={require('../assets/images/00_Start/BrainChipLogo.png')}
               resizeMode="contain"
               style={styles.logo}
             />
+            <Text style={styles.connectLabel}>Connect</Text>
             <Text style={styles.aboutTitle}>About the App</Text>
             <Text style={styles.meta}>Version {version}</Text>
             <Text style={styles.meta}>Build {build}</Text>
@@ -123,8 +121,8 @@ const AboutScreen = ({ navigation }: any) => {
               brainchip.com
             </Text>
           </Text>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <BottomNavigationBar
         activeRoute={activeRoute}
@@ -135,18 +133,21 @@ const AboutScreen = ({ navigation }: any) => {
 };
 
 export default AboutScreen;
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+
   header: {
-    width: '100%',
     flexDirection: 'row',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
-    gap: 16,
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
 
   headerTitle: {
@@ -155,28 +156,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  container: {
-    alignSelf: 'center',
-    padding: 24,
-    width: CONTENT_WIDTH,
-  },
-
   appHeader: {
     alignItems: 'center',
     marginBottom: 24,
-  },
-
-  subtitle: {
-    fontFamily: 'Inter',
-    fontSize: 14,
-    marginBottom: 10,
   },
 
   aboutTitle: {
     fontFamily: 'Sora',
     fontSize: 20,
     fontWeight: '700',
-    marginTop: -40,
+    marginTop: 12,
   },
 
   meta: {
@@ -189,7 +178,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
-    marginLeft: 8,
   },
 
   card: {
@@ -197,7 +185,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.light,
     padding: 16,
-    marginHorizontal: 8,
   },
 
   body: {
@@ -238,7 +225,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   logo: {
-    width: 140,
-    height: 140,
+    width: 200,
+    height: 54,
+  },
+
+  connectLabel: {
+    fontFamily: 'Sora-Bold',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0061ED',
+    marginTop: 2,
   },
 });
