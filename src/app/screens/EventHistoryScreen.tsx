@@ -22,8 +22,6 @@ import { useEventsStore } from '../store/useEventStore';
 import { Colors } from '../theme/theme';
 import { useBleCommandStore } from '../store/useBleCommandStore';
 
-const CONTENT_WIDTH = 382;
-
 const EventHistoryScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.PROFILE);
@@ -66,13 +64,10 @@ const EventHistoryScreen = ({ navigation }: any) => {
   };
 
   const filteredEvents = eventsData
-    // 1️⃣ Sort dates newest first
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .map(section => {
-      // 2️⃣ Filter by active app
       const filteredItems = section.items
         .filter(item => item.appId === activeApp)
-        // 3️⃣ Sort newest first inside each section
         .sort((a, b) => b.timestamp - a.timestamp)
         .map(item => ({
           ...item,
@@ -84,7 +79,6 @@ const EventHistoryScreen = ({ navigation }: any) => {
         items: filteredItems,
       };
     })
-    // 4️⃣ Remove empty sections
     .filter(section => section.items.length > 0);
 
   useEffect(() => {
@@ -95,45 +89,29 @@ const EventHistoryScreen = ({ navigation }: any) => {
     <View style={styles.root}>
       <DeviceHeader deviceName={deviceName} showConnectionStatus={true} />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + 140,
-          flexGrow: 1,
-        }}
-      >
-        {/* HEADER */}
-        <View style={styles.container}>
-          <View style={styles.header}>
-            {/* ROW 1 */}
-            <View style={styles.headerTopRow}>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <ChevronLeft size={30} />
-              </TouchableOpacity>
-
-              <Text style={styles.headerTitle}>Event History</Text>
-            </View>
-
-            {/* ROW 2 */}
-            <Text style={styles.muteText}>
-              All notifications and alerts from your{' '}
-              <Text style={styles.bold}>{activeApp ?? 'Application'}</Text> on{' '}
-              <Text style={styles.bold}>{deviceName}</Text>
-            </Text>
-          </View>
+      <View style={styles.content}>
+        {/* HEADER - FIXED */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <ChevronLeft size={28} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Event History</Text>
         </View>
 
-        {/* CONTENT */}
-        <View style={styles.container}>
+        <Text style={styles.subtitle}>
+          All notifications and alerts from your{' '}
+          <Text style={styles.bold}>{activeApp ?? 'Application'}</Text> on{' '}
+          <Text style={styles.bold}>{deviceName}</Text>
+        </Text>
+
+        {/* SCROLLABLE EVENT LIST */}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        >
           {filteredEvents.length === 0 && (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: 'center',
-                alignItems: 'center',
-                margin: 20,
-              }}
-            >
+            <View style={styles.emptyState}>
               <Card
                 style={{
                   width: '80%',
@@ -197,8 +175,8 @@ const EventHistoryScreen = ({ navigation }: any) => {
               ))}
             </View>
           ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* Bottom Navigation */}
       <BottomNavigationBar
@@ -213,50 +191,45 @@ export default EventHistoryScreen;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: `${Colors.background}` },
-  container: {
-    alignSelf: 'center',
-    width: CONTENT_WIDTH,
-    gap: 24,
-  },
-  header: {
-    gap: 16,
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: `${Colors.border.light}`,
+
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
 
-  headerTopRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
 
   headerTitle: {
-    marginLeft: 12,
-    fontSize: 22,
+    fontFamily: 'Sora',
+    fontSize: 24,
     fontWeight: '700',
   },
 
-  muteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 8,
-    gap: 8,
-  },
-
-  muteText: {
+  subtitle: {
     fontSize: 14,
     color: `${Colors.lightGrey}`,
+    marginBottom: 12,
   },
   bold: { fontWeight: '700' },
+
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 20,
+  },
 
   date: {
     fontFamily: 'Sora',
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: -0.13,
-    marginLeft: 24,
     marginBottom: 10,
   },
 
@@ -266,8 +239,6 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.border.light}`,
     marginBottom: 12,
     padding: 16,
-    marginLeft: 24,
-    marginRight: 24,
   },
 
   cardRow: {
