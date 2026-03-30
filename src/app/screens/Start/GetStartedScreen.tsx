@@ -60,12 +60,15 @@ const GetStartedScreen: React.FC = () => {
       >
         {/* CENTERED CONTENT COLUMN */}
         <View style={{ width: '100%', maxWidth }}>
-          {/* LOGO */}
-          <Image
-            source={require('../../assets/images/00_Start/Logo.png')}
-            resizeMode="contain"
-            style={styles.logo}
-          />
+          {/* LOGO + CONNECT */}
+          <View style={styles.logoBlock}>
+            <Image
+              source={require('../../assets/images/00_Start/BrainChipLogo.png')}
+              resizeMode="contain"
+              style={styles.logo}
+            />
+            <Text style={styles.connectText}>Connect</Text>
+          </View>
 
           {/* TEXT */}
           <View style={styles.textBlock}>
@@ -115,10 +118,21 @@ const GetStartedScreen: React.FC = () => {
 export default GetStartedScreen;
 
 const styles = StyleSheet.create({
+  logoBlock: {
+    alignItems: 'center',
+  },
+
   logo: {
     width: 229,
-    height: 80,
-    alignSelf: 'center',
+    height: 60,
+  },
+
+  connectText: {
+    fontFamily: 'Sora-Bold',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0061ED',
+    marginTop: 2,
   },
 
   textBlock: {

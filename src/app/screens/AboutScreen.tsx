@@ -64,10 +64,11 @@ const AboutScreen = ({ navigation }: any) => {
           {/* APP HEADER */}
           <View style={styles.appHeader}>
             <Image
-              source={require('../assets/images/00_Start/Logo.png')}
+              source={require('../assets/images/00_Start/BrainChipLogo.png')}
               resizeMode="contain"
               style={styles.logo}
             />
+            <Text style={styles.connectLabel}>Connect</Text>
             <Text style={styles.aboutTitle}>About the App</Text>
             <Text style={styles.meta}>Version {version}</Text>
             <Text style={styles.meta}>Build {build}</Text>
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora',
     fontSize: 20,
     fontWeight: '700',
-    marginTop: -40,
+    marginTop: 12,
   },
 
   meta: {
@@ -238,7 +239,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   logo: {
-    width: 140,
-    height: 140,
+    width: 200,
+    height: 54,
+  },
+
+  connectLabel: {
+    fontFamily: 'Sora-Bold',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0061ED',
+    marginTop: 2,
   },
 });
