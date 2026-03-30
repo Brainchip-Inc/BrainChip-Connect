@@ -53,19 +53,22 @@ const GetStartedScreen: React.FC = () => {
           flexGrow: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          paddingHorizontal: 24,
+          paddingHorizontal: 20,
           paddingVertical: 32,
         }}
         showsVerticalScrollIndicator={false}
       >
         {/* CENTERED CONTENT COLUMN */}
         <View style={{ width: '100%', maxWidth }}>
-          {/* LOGO */}
-          <Image
-            source={require('../../assets/images/00_Start/Logo.png')}
-            resizeMode="contain"
-            style={styles.logo}
-          />
+          {/* LOGO + CONNECT */}
+          <View style={styles.logoBlock}>
+            <Image
+              source={require('../../assets/images/00_Start/BrainChipLogo.png')}
+              resizeMode="contain"
+              style={styles.logo}
+            />
+            <Text style={styles.connectText}>Connect</Text>
+          </View>
 
           {/* TEXT */}
           <View style={styles.textBlock}>
@@ -99,7 +102,6 @@ const GetStartedScreen: React.FC = () => {
             <Button
               mode="contained"
               onPress={() => navigation.navigate('Permissions')}
-              contentStyle={{ height: 56 }}
               style={styles.button}
               labelStyle={styles.buttonLabel}
             >
@@ -115,10 +117,22 @@ const GetStartedScreen: React.FC = () => {
 export default GetStartedScreen;
 
 const styles = StyleSheet.create({
+  logoBlock: {
+    alignItems: 'center',
+    paddingTop: 32,
+  },
+
   logo: {
     width: 229,
-    height: 80,
-    alignSelf: 'center',
+    height: 60,
+  },
+
+  connectText: {
+    fontFamily: 'Sora-Bold',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0061ED',
+    marginTop: 2,
   },
 
   textBlock: {

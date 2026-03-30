@@ -3,45 +3,25 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, BellOff, ChevronLeft } from 'lucide-react-native';
+import { Card, Text } from 'react-native-paper';
+import { Bell } from 'lucide-react-native';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import { RouteName, ROUTES } from '../../types/routes';
 import { useBleStore } from '../store/useBleStore';
-import { useNotificationsStore } from '../store/useNotificationStore';
 import { Colors } from '../theme/theme';
 import { useEventsStore } from '../store/useEventStore';
 
-const CONTENT_WIDTH = 382;
-
-const NotificationsScreen = ({ navigation }: any) => {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
+const NotificationsScreen = () => {
   const [activeRoute, setActiveRoute] = useState<RouteName>(
     ROUTES.NOTIFICATIONS,
   );
   const { connectedDevice } = useBleStore();
-  // const notificationsData = useNotificationsStore(state => state.notifications);
   const eventsData = useEventsStore(state => state.events);
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
-  const { muteStatus, updateMuteStatus } = useNotificationsStore();
-
-  const handleMuteNotifications = () => {
-    const newMuteStatus = !muteStatus; // Toggle mute/unmute
-    updateMuteStatus(newMuteStatus);
-
-    Alert.alert(
-      newMuteStatus
-        ? 'Notifications are now muted.'
-        : 'Notifications are now enabled.',
-    );
-  };
 
   const handleMoreDetails = () => {
     Alert.alert('This feature will be implemented later.');
@@ -76,54 +56,20 @@ const NotificationsScreen = ({ navigation }: any) => {
     <View style={[styles.root, { backgroundColor: `${Colors.background}` }]}>
       <DeviceHeader deviceName={deviceName} showConnectionStatus={true} />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + 140,
-          flexGrow: 1,
-        }}
-      >
+      <View style={styles.content}>
         {/* HEADER */}
-        <View style={styles.container}>
-          <View style={styles.header}>
-            {/* ROW 1 */}
-            <View style={styles.headerTopRow}>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <ChevronLeft size={30} />
-              </TouchableOpacity>
-
-              <Text style={styles.headerTitle}>Notifications</Text>
-            </View>
-
-            {/* ROW 2 */}
-            <TouchableOpacity
-              style={styles.muteRow}
-              onPress={handleMuteNotifications}
-            >
-              {muteStatus ? (
-                <BellOff size={20} color={Colors.lightGrey} />
-              ) : (
-                <Bell size={20} color={Colors.lightGrey} />
-              )}
-
-              <Text style={styles.muteText}>
-                {muteStatus ? 'Unmute Notifications' : 'Mute Notifications'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Notifications</Text>
         </View>
 
-        {/* CONTENT */}
-        <View style={styles.container}>
+        {/* SCROLLABLE NOTIFICATIONS LIST */}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        >
           {notificationsData.length === 0 && (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: 'center',
-                alignItems: 'center',
-                margin: 20,
-              }}
-            >
+            <View style={styles.emptyState}>
               <Card
                 style={{
                   width: '80%',
@@ -160,7 +106,6 @@ const NotificationsScreen = ({ navigation }: any) => {
                       {/* Row 1: App + time */}
                       <View style={styles.cardHeader}>
                         <Text style={styles.cardTitle}>{item.appId}</Text>
-
                         <Text style={styles.time}>{item.time}</Text>
                       </View>
 
@@ -186,8 +131,8 @@ const NotificationsScreen = ({ navigation }: any) => {
               ))}
             </View>
           ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* Bottom Navigation */}
       <BottomNavigationBar
@@ -199,45 +144,34 @@ const NotificationsScreen = ({ navigation }: any) => {
 };
 
 export default NotificationsScreen;
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
-  header: {
-    gap: 16,
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: `${Colors.border.light}`,
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
 
-  headerTopRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
 
   headerTitle: {
-    marginLeft: 12,
-    fontSize: 22,
+    fontFamily: 'Sora',
+    fontSize: 24,
     fontWeight: '700',
   },
 
-  muteRow: {
-    flexDirection: 'row',
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
-    marginLeft: 8,
-    gap: 8,
-  },
-
-  muteText: {
-    fontSize: 14,
-    color: `${Colors.lightGrey}`,
-  },
-
-  container: {
-    alignSelf: 'center',
-    width: CONTENT_WIDTH,
-    gap: 24,
+    margin: 20,
   },
 
   section: { gap: 12 },
@@ -247,7 +181,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: -0.13,
-    marginLeft: 24,
     marginTop: 20,
   },
 
@@ -256,8 +189,6 @@ const styles = StyleSheet.create({
     backgroundColor: `${Colors.white}`,
     borderWidth: 1,
     borderColor: `${Colors.border.light}`,
-    marginLeft: 24,
-    marginRight: 24,
   },
 
   cardInner: {

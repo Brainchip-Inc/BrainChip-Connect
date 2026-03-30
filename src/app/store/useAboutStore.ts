@@ -46,7 +46,7 @@ export const useAboutStore = create<AboutState>(() => ({
         {
           type: 'text',
           content:
-            'Akida Mobile Connect is the official companion app for BrainChip Edge AI IoT devices powered by the Akida neuromorphic processor. Manage your edge AI devices, monitor real-time sensor data, deploy AI models, and receive intelligent notifications—all from your mobile device.',
+            'BrainChip Connect is the official companion app for BrainChip Edge AI IoT devices powered by the Akida neuromorphic processor. Manage your edge AI devices, monitor real-time sensor data, deploy AI models, and receive intelligent notifications—all from your mobile device.',
         },
       ],
     },

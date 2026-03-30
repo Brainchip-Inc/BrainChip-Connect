@@ -6,7 +6,6 @@ import {
   Alert,
   ScrollView,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { Device } from 'react-native-ble-plx';
@@ -21,7 +20,6 @@ const SCAN_TIMEOUT = 10000;
 
 const DeviceDiscoveryScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
-  const { width } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -36,11 +34,6 @@ const DeviceDiscoveryScreen: React.FC = () => {
 
   const scanCleanupRef = useRef<(() => void) | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const isSmallDevice = width < 375;
-  const spacing = isSmallDevice ? 12 : 16;
-  const horizontalPadding = isSmallDevice ? 16 : 20;
-  const maxWidth = width >= 768 ? 600 : width;
 
   const hasDevices = devices.length > 0;
   const privacyAccepted = useBleStore(state => state.privacyAccepted);
@@ -67,14 +60,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
     setScanTimeRemaining(0);
   }, []);
 
-  /**
-   * Service UUIDs to filter the device
-   */
-  const serviceUUIDs: Array<string> = [
-    // '0000fee7-0000-1000-8000-00805f9b34fb',
-    // '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
-    // '00001523-1212-efde-1523-785feabcd123',
-  ]; // testdevice, akida, akida tag
+  const serviceUUIDs: Array<string> = [];
 
   const startScanning = useCallback(async () => {
     stopScanning();
@@ -103,7 +89,6 @@ const DeviceDiscoveryScreen: React.FC = () => {
         });
       }, 1000);
 
-      // scanDevices now returns a cleanup function (no longer a Promise)
       scanCleanupRef.current = BleService.scanDevices(
         (device: Device) => {
           if (__DEV__) console.log('device discovered', device);
@@ -151,192 +136,195 @@ const DeviceDiscoveryScreen: React.FC = () => {
         paddingTop: insets.top,
       }}
     >
-      {/* HEADER */}
+      {/* HEADER - FIXED */}
       <View
         style={{
-          paddingHorizontal: horizontalPadding,
-          paddingVertical: spacing * 1.5,
+          paddingHorizontal: 20,
+          paddingVertical: 24,
           backgroundColor: theme.colors.surface,
           borderBottomWidth: 1,
           borderBottomColor: theme.colors.outline,
         }}
       >
-        <View style={{ maxWidth, width: '100%', alignSelf: 'center' }}>
-          <Text variant="headlineMedium" style={{ fontWeight: '700' }}>
-            Discover Devices
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onSurfaceVariant }}
-          >
-            Select a device to connect
-          </Text>
-        </View>
+        <Text variant="headlineMedium" style={{ fontWeight: '700' }}>
+          Discover Devices
+        </Text>
+        <Text
+          variant="bodyMedium"
+          style={{ color: theme.colors.onSurfaceVariant }}
+        >
+          Select a device to connect
+        </Text>
       </View>
 
+      {/* DEVICE LIST - SCROLLABLE */}
+      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
+        <View
+          style={{
+            flex: 1,
+            borderWidth: 1,
+            borderColor: Colors.border.light,
+            backgroundColor: theme.colors.background,
+          }}
+        >
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: horizontalPadding,
-          paddingTop: spacing * 2,
-          paddingBottom: insets.bottom + spacing * 2,
-          alignItems: 'center',
           flexGrow: 1,
+          gap: 12,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={{ width: '100%', maxWidth, flex: 1 }}>
-          {/* CENTER SCANNING STATE */}
-          {scanning && !hasDevices && (
-            <View
+        {/* CENTER SCANNING STATE */}
+        {scanning && !hasDevices && (
+          <View
+            style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text
+              variant="bodyMedium"
               style={{
-                flex: 1,
-                justifyContent: 'center',
-                alignItems: 'center',
+                marginTop: 16,
+                color: theme.colors.onSurfaceVariant,
               }}
             >
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text
-                variant="bodyMedium"
-                style={{
-                  marginTop: spacing,
-                  color: theme.colors.onSurfaceVariant,
-                }}
-              >
-                Scanning for devices...
-              </Text>
-            </View>
-          )}
+              Scanning for devices...
+            </Text>
+          </View>
+        )}
 
-          {/* DEVICE LIST */}
-          {hasDevices && (
-            <>
-              <View style={{ gap: spacing }}>
-                {devices.map(device => {
-                  const signalColor = getSignalColor(device.rssi);
+        {/* DEVICE LIST */}
+        {hasDevices && (
+          <View style={{ gap: 16 }}>
+            {devices.map(device => {
+              const signalColor = getSignalColor(device.rssi);
 
-                  return (
-                    <TouchableOpacity
-                      key={device.id}
-                      onPress={() => handleDevicePress(device)}
-                      activeOpacity={0.7}
-                      style={{
-                        backgroundColor: theme.colors.surface,
-                        padding: spacing,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outline,
-                      }}
+              return (
+                <TouchableOpacity
+                  key={device.id}
+                  onPress={() => handleDevicePress(device)}
+                  activeOpacity={0.7}
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: theme.colors.outline,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    {/* LEFT */}
+                    <View
+                      style={{ flexDirection: 'row', alignItems: 'center' }}
                     >
                       <View
                         style={{
-                          flexDirection: 'row',
+                          width: 44,
+                          height: 44,
+                          backgroundColor: 'rgba(0,97,237,0.08)',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
+                          justifyContent: 'center',
+                          marginRight: 16,
                         }}
                       >
-                        {/* LEFT */}
-                        <View
-                          style={{ flexDirection: 'row', alignItems: 'center' }}
-                        >
-                          <View
-                            style={{
-                              width: 44,
-                              height: 44,
-                              backgroundColor: 'rgba(0,97,237,0.08)',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginRight: spacing,
-                            }}
-                          >
-                            <Bluetooth
-                              size={22}
-                              color={theme.colors.primary}
-                              strokeWidth={1.5}
-                            />
-                          </View>
-
-                          <Text
-                            variant="titleMedium"
-                            style={{ fontWeight: '600' }}
-                          >
-                            {device.name || 'Unknown Device'}
-                          </Text>
-                        </View>
-
-                        {/* RIGHT */}
-                        {device.rssi !== null && (
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Wifi size={14} color={signalColor} />
-                            <Text
-                              variant="bodySmall"
-                              style={{ color: theme.colors.onSurfaceVariant }}
-                            >
-                              {device.rssi} dBm
-                            </Text>
-                          </View>
-                        )}
+                        <Bluetooth
+                          size={22}
+                          color={theme.colors.primary}
+                          strokeWidth={1.5}
+                        />
                       </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
 
-              {/* SCAN AGAIN */}
-              <Button
-                mode="contained"
-                onPress={startScanning}
-                style={{ marginTop: spacing * 2 }}
-                icon={() => <RefreshCw size={16} color={Colors.white} />}
-              >
-                Scan again
-              </Button>
+                      <Text
+                        variant="titleMedium"
+                        style={{ fontWeight: '600' }}
+                      >
+                        {device.name || 'Unknown Device'}
+                      </Text>
+                    </View>
 
-              {privacyAccepted && termsAccepted ? (
-                <Button
-                  mode="outlined"
-                  onPress={() => navigation.goBack()}
-                  style={{ marginTop: spacing }}
-                >
-                  Back
-                </Button>
-              ) : null}
-            </>
-          )}
+                    {/* RIGHT */}
+                    {device.rssi !== null && (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Wifi size={14} color={signalColor} />
+                        <Text
+                          variant="bodySmall"
+                          style={{ color: theme.colors.onSurfaceVariant }}
+                        >
+                          {device.rssi} dBm
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
-          {/* EMPTY STATE */}
-          {!scanning && !hasDevices && (
-            <>
-              <View
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  padding: spacing * 2,
-                  borderWidth: 1,
-                  borderColor: theme.colors.outline,
-                  alignItems: 'center',
-                }}
-              >
-                <Bluetooth size={48} color={theme.colors.outline} />
-                <Text style={{ marginTop: spacing }}>No devices found</Text>
-              </View>
-
-              <Button
-                mode="contained"
-                onPress={startScanning}
-                style={{ marginTop: spacing * 2 }}
-                icon={() => <RefreshCw size={16} color={Colors.white} />}
-              >
-                Scan again
-              </Button>
-
-              <Button
-                mode="outlined"
-                onPress={() => navigation.goBack()}
-                style={{ marginTop: spacing }}
-              >
-                Back
-              </Button>
-            </>
-          )}
-        </View>
+        {/* EMPTY STATE */}
+        {!scanning && !hasDevices && (
+          <View
+            style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: theme.colors.surface,
+                padding: 32,
+                borderWidth: 1,
+                borderColor: theme.colors.outline,
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
+              <Bluetooth size={48} color={theme.colors.outline} />
+              <Text style={{ marginTop: 16 }}>No devices found</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
+        </View>
+      </View>
+
+      {/* BUTTONS - FIXED AT BOTTOM */}
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          paddingBottom: insets.bottom + 20,
+          backgroundColor: theme.colors.background,
+        }}
+      >
+        <Button
+          mode="contained"
+          onPress={startScanning}
+          icon={() => <RefreshCw size={16} color={Colors.white} />}
+        >
+          Scan again
+        </Button>
+
+        {privacyAccepted && termsAccepted ? (
+          <Button
+            mode="outlined"
+            onPress={() => navigation.goBack()}
+            style={{ marginTop: 12 }}
+          >
+            Back
+          </Button>
+        ) : null}
+      </View>
     </View>
   );
 };

@@ -677,25 +677,21 @@ export default FirmwareUpdateScreen;
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
-  scroll: { alignItems: 'center' },
+  scroll: {},
   container: {
-    alignSelf: 'center',
-    padding: 24,
+    paddingHorizontal: 20,
   },
 
   header: {
-    width: '100%',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: `${Colors.border.light}`,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
 
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
 
   headerTitle: {
