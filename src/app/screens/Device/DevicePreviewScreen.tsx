@@ -161,7 +161,10 @@ const DevicePreviewScreen: React.FC = () => {
                   >
                     {item.label}
                   </Text>
-                  <Text variant="bodySmall" style={{ fontWeight: '600' }}>
+                  <Text
+                    variant="bodySmall"
+                    style={{ fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 8 }}
+                  >
                     {item.value}
                   </Text>
                 </View>

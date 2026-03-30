@@ -28,14 +28,21 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({
       ]}
     >
       <View style={styles.row}>
-        {/* LEFT LOGO ONLY */}
-        <Image
-          source={require('../../app/assets/images/00_Start/Logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        {/* LEFT: BRAINCHIP LOGO + CONNECT */}
+        <View style={styles.logoBlock}>
+          <Image
+            source={require('../../app/assets/images/00_Start/BrainChipLogo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text
+            style={[styles.connectText, { color: theme.colors.primary }]}
+          >
+            Connect
+          </Text>
+        </View>
 
-        {/* RIGHT DEVICE */}
+        {/* RIGHT: DEVICE NAME + STATUS */}
         {deviceName && (
           <View style={styles.rightBlock}>
             <Text variant="labelMedium" style={{ fontWeight: '600' }}>
@@ -67,7 +74,6 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
     paddingBottom: 10,
     borderBottomWidth: 1,
   },
@@ -75,16 +81,29 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+  },
+
+  logoBlock: {
+    alignItems: 'flex-start',
   },
 
   logo: {
     width: 120,
-    height: 60,
+    height: 32,
+  },
+
+  connectText: {
+    fontFamily: 'Sora-Bold',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
   },
 
   rightBlock: {
     alignItems: 'flex-end',
+    paddingBottom: 2,
   },
 
   statusRow: {
