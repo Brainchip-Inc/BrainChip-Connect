@@ -158,13 +158,20 @@ const DeviceDiscoveryScreen: React.FC = () => {
       </View>
 
       {/* DEVICE LIST - SCROLLABLE */}
+      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
+        <View
+          style={{
+            flex: 1,
+            borderWidth: 1,
+            borderColor: Colors.border.light,
+            backgroundColor: theme.colors.background,
+          }}
+        >
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingTop: 24,
-          paddingBottom: 20,
           flexGrow: 1,
+          gap: 12,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -288,6 +295,8 @@ const DeviceDiscoveryScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
+        </View>
+      </View>
 
       {/* BUTTONS - FIXED AT BOTTOM */}
       <View
