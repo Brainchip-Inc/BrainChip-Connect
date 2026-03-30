@@ -40,7 +40,7 @@ import { RootParamList } from '../../../App';
 import { useBleCommandStore } from '../store/useBleCommandStore';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CHART_WIDTH = SCREEN_WIDTH - 48 - 32; // margins + card padding
+const CHART_WIDTH = SCREEN_WIDTH - 40 - 32; // margins (20*2) + card padding
 const CHART_HEIGHT = 120;
 
 // ─── Reusable Section Row (same as SettingsScreen's SettingRow) ───────────────
@@ -569,7 +569,7 @@ const LiveSensorDataScreen = () => {
 
       {/* Streaming button*/}
       <View
-        style={[styles.container, { paddingHorizontal: 24, marginTop: 16 }]}
+        style={[styles.container, { marginTop: 16 }]}
       >
         <View style={styles.streamingButtonWrapper}>
           {!isStreaming ? (
@@ -622,14 +622,11 @@ const styles = StyleSheet.create({
 
   // ─── Header (matches SettingsScreen exactly) ────────────────────────────────
   header: {
-    width: '100%',
     flexDirection: 'row',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
-    gap: 16,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
     alignItems: 'center',
   },
   headerTitle: {
@@ -639,7 +636,7 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    padding: 24,
+    paddingHorizontal: 20,
   },
 
   // ─── App row (icon + title like SettingRow) ──────────────────────────────────

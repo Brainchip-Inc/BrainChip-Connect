@@ -82,11 +82,7 @@ const PermissionsScreen: React.FC = () => {
   const isLargeDevice = width >= 768;
 
   const spacing = isSmallDevice ? 10 : isMediumDevice ? 12 : 20;
-  const horizontalPadding = isSmallDevice
-    ? 16
-    : isMediumDevice
-    ? 20
-    : Math.min(width * 0.1, 80);
+  const horizontalPadding = 20;
   const maxWidth = isLargeDevice ? 600 : width;
 
   const canProceed = privacyAccepted && termsAccepted;

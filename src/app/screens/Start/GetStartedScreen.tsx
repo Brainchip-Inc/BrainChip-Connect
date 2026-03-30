@@ -53,7 +53,7 @@ const GetStartedScreen: React.FC = () => {
           flexGrow: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          paddingHorizontal: 24,
+          paddingHorizontal: 20,
           paddingVertical: 32,
         }}
         showsVerticalScrollIndicator={false}
