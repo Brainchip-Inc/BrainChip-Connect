@@ -35,7 +35,9 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
-  const [installingId, setInstallingId] = useState<string | number | null>(null);
+  const [installingId, setInstallingId] = useState<string | number | null>(
+    null,
+  );
   const [progress, setProgress] = useState(0);
   const { connectedDevice } = useBleStore();
   const [selectedFile, setSelectedFile] = useState<{
@@ -206,7 +208,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const localBuild =
     selectedFile && isLocalFile
       ? {
-          id: 'local',
+          id: -1,
           title: selectedFile.name,
           description: 'Local firmware selected from device',
           version: 'Local',
@@ -330,12 +332,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         return;
       }
 
-      await runFirmwareUpdate(
-        connectedDevice.id,
-        filePath,
-        build.id,
-        build,
-      );
+      await runFirmwareUpdate(connectedDevice.id, filePath, build.id, build);
     } catch (error: any) {
       if (__DEV__) console.error('[downloadFile] error:', error);
       Alert.alert(
