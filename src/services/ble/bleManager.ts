@@ -8,6 +8,8 @@ import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
 import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
+import { unzip } from 'react-native-zip-archive';
+import yaml from 'js-yaml';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -512,7 +514,10 @@ class BleService {
     this.isProcessingQueue = false;
   };
 
-  sendCommand = (deviceId: string, command: BleCommand | String): Promise<void> => {
+  sendCommand = (
+    deviceId: string,
+    command: BleCommand | String,
+  ): Promise<void> => {
     return new Promise((resolve, reject) => {
       this.commandQueue.push(async () => {
         try {
@@ -602,7 +607,9 @@ class BleService {
     } catch (e) {
       if (__DEV__) console.warn('Failed to remove BLE subscription:', e);
     }
-    this.monitorSubscriptions = this.monitorSubscriptions.filter(s => s !== sub);
+    this.monitorSubscriptions = this.monitorSubscriptions.filter(
+      s => s !== sub,
+    );
   };
 
   private cleanupMonitors() {
@@ -839,7 +846,7 @@ class BleService {
         this.fotaCharUUID,
         packet.toString('base64'),
       );
-    }else{
+    } else {
       await this.bleManager.writeCharacteristicWithResponseForDevice(
         deviceId,
         this.fotaServiceUUID,
@@ -1012,24 +1019,24 @@ class BleService {
     const packet = this.buildSmpPacket(2, 0, 5, payload, 1);
 
     try {
-        if (Platform.OS === 'ios') {
-          await this.bleManager.writeCharacteristicWithoutResponseForDevice(
-            deviceId,
-            this.fotaServiceUUID,
-            this.fotaCharUUID,
-            packet.toString('base64'),
-          );
-          // 🔥 important for iOS flush
-          await new Promise(r => setTimeout(r, 300));
-        } else {
-          // keep Android behavior unchanged
-          await this.bleManager.writeCharacteristicWithResponseForDevice(
-            deviceId,
-            this.fotaServiceUUID,
-            this.fotaCharUUID,
-            packet.toString('base64'),
-          );
-        }
+      if (Platform.OS === 'ios') {
+        await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+          deviceId,
+          this.fotaServiceUUID,
+          this.fotaCharUUID,
+          packet.toString('base64'),
+        );
+        // 🔥 important for iOS flush
+        await new Promise(r => setTimeout(r, 300));
+      } else {
+        // keep Android behavior unchanged
+        await this.bleManager.writeCharacteristicWithResponseForDevice(
+          deviceId,
+          this.fotaServiceUUID,
+          this.fotaCharUUID,
+          packet.toString('base64'),
+        );
+      }
     } catch (e) {}
   }
 
@@ -1062,7 +1069,9 @@ class BleService {
     onLog?: (msg: string) => void,
   ): Promise<void> {
     if (this.otaInProgress) {
-      throw new Error(`Cannot start firmware update — ${this.otaInProgress} update in progress`);
+      throw new Error(
+        `Cannot start firmware update — ${this.otaInProgress} update in progress`,
+      );
     }
     this.otaInProgress = 'firmware';
 
@@ -1155,41 +1164,125 @@ class BleService {
   /*                         MODEL TRANSFER UUID CONFIG                          */
   /* -------------------------------------------------------------------------- */
 
+  // Service
   private modelServiceUUID = 'f000aa00-0451-4000-b000-000000000000';
-  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000';
-  private ackUUID = 'f000aa02-0451-4000-b000-000000000000';
-  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000';
-  private fileSizeUUID = 'f000aa04-0451-4000-b000-000000000000';
-  private appUUID = 'f000aa05-0451-4000-b000-000000000000';
-  private crcUUID = 'f000aa06-0451-4000-b000-000000000000';
+
+  // Characteristics
+  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000'; // FILE_TRANSFER_CHAR_UUID  — write data chunks
+  private ackUUID = 'f000aa02-0451-4000-b000-000000000000'; // ACK_CHAR_UUID            — notify
+  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000'; // CTRL_CHAR_UUID           — control
+  private fileSizeUUID = 'f000aa04-0451-4000-b000-000000000000'; // FILE_SIZE_CHAR_UUID       — this file's size (32-bit LE)
+  private appUUID = 'f000aa05-0451-4000-b000-000000000000'; // APP_CHAR_UUID             — app index
+  private crcUUID = 'f000aa06-0451-4000-b000-000000000000'; // FILE_CRC_CHAR_UUID        — combined/data CRC32 (32-bit LE)
+  private transferTypeUUID = 'f000aa07-0451-4000-b000-000000000000'; // TRANSFER_TYPE_CHAR_UUID   — 0=INFO, 1=DATA
+  private modelInputShapeUUID = 'f000aa08-0451-4000-b000-000000000000'; // MODEL_INPUT_SHAPE_CHAR_UUID
+  private modelOutputShapeUUID = 'f000aa09-0451-4000-b000-000000000000'; // MODEL_OUTPUT_SHAPE_CHAR_UUID
+  private flashAddressUUID = 'f000aa0a-0451-4000-b000-000000000000'; // FLASH_ADDRESS_CHAR_UUID   — target flash address (32-bit LE)
+  private totalLengthUUID = 'f000aa0b-0451-4000-b000-000000000000'; // TOTAL_LENGTH_CHAR_UUID    — info+data combined bytes (32-bit LE)
+  private isEdgeLearnedUUID = 'f000aa0c-0451-4000-b000-000000000000'; // IS_EDGE_LEARNED_CHAR_UUID — 1 = edge-learned model (32-bit LE)
+  private numEdgeClassesUUID = 'f000aa0d-0451-4000-b000-000000000000'; // NUM_EDGE_CLASSES_CHAR_UUID — neurons<<16 | classes (32-bit LE)
+  private fsNameUUID = 'f000aa0e-0451-4000-b000-000000000000'; // FS_NAME_CHAR_UUID         — LittleFS metadata path (UTF-8)
+
+  // Edge-learning service/chars
   private edgeCommandServiceUUID = 'f000bb11-0111-9000-c000-000000000000';
   private edgeCharUUID = 'f000bb10-0111-9000-c000-000000000000';
   private edgeAckUUID = 'f000bb12-0111-9000-c000-000000000000';
 
+  // Transfer type bytes
+  private readonly TRANSFER_TYPE_INFO = 0x00;
+  private readonly TRANSFER_TYPE_DATA = 0x01;
+
+  // ACK codes
   private readonly ACK_FLASH_ERASE_DONE = 0xee;
   private readonly ACK_FLASH_WRITE_DONE = 0xcc;
-  private readonly BUFFER_SIZE = 102236;
+  private readonly ACK_CRC_FAIL = 0xbb;
+  private readonly BUFFER_SIZE = 102236; // 419 * 244 chunks
   private readonly ACK_EDGE_COMMAND = 0xa7;
 
-  //Model OTA Updation
+  // Max dims/name length — must match firmware model_meta_t layout
+  private readonly MAX_DIMS = 3;
+  private readonly MAX_FS_NAME_LEN = 64;
 
-  private ackQueue: Array<{
-    resolve: () => void;
-    reject: (e: Error) => void;
-    timer: ReturnType<typeof setTimeout>;
-  }> = [];
+  // Model OTA Updation
+  private ackResolver: (() => void) | null = null;
 
-  private computeCRC32 = async (filePath: string): Promise<number> => {
+  /**
+   * CRC32 over raw file bytes.
+   *   crc = 0xFFFFFFFF → zlib.crc32(chunks, crc) → crc ^ 0xFFFFFFFF
+   */
+  private computeDataCRC32 = async (filePath: string): Promise<number> => {
     const base64 = await RNFS.readFile(filePath, 'base64');
     const buffer = Buffer.from(base64, 'base64');
-
-    // Initial CRC value matches Python
     let crc = 0xffffffff;
-
-    // Update CRC in chunks
     crc = CRC32.buf(buffer, crc);
+    return (crc ^ 0xffffffff) >>> 0;
+  };
 
-    // Final XOR to match Python
+  /**
+   * CRC32 over header fields + info file bytes.
+   *
+   * Struct layout (all uint32_t little-endian):
+   *   total_length, input_shape[3], output_shape[3],
+   *   flash_address, is_edge_learned, num_edge_classes, info_data_len
+   *   + model_name[64] null-padded
+   * Then the raw info binary bytes are appended to the CRC stream.
+   */
+  private computeCombinedCRC32 = async (
+    totalLength: number,
+    inputShape: number[],
+    outputShape: number[],
+    flashAddress: number,
+    isEdgeLearned: boolean,
+    numEdgeClasses: number,
+    infoFilePath: string,
+    modelName: string = '',
+  ): Promise<number> => {
+    const infoStat = await RNFS.stat(infoFilePath);
+    const infoDataLen = infoStat.size;
+
+    // Zero-pad shapes to MAX_DIMS (3) elements each
+    const inPad = [
+      ...inputShape,
+      ...Array(this.MAX_DIMS - inputShape.length).fill(0),
+    ];
+    const outPad = [
+      ...outputShape,
+      ...Array(this.MAX_DIMS - outputShape.length).fill(0),
+    ];
+
+    // Pack: total_length, input_shape[3], output_shape[3],
+    //       flash_address, is_edge_learned, num_edge_classes, info_data_len
+    // = 1 + 3 + 3 + 4 = 11 uint32_t values -> 44 bytes
+    const numFields = 1 + this.MAX_DIMS + this.MAX_DIMS + 4;
+    const headerBuf = Buffer.alloc(numFields * 4);
+    const fields = [
+      totalLength,
+      ...inPad,
+      ...outPad,
+      flashAddress,
+      isEdgeLearned ? 1 : 0,
+      numEdgeClasses,
+      infoDataLen,
+    ];
+    fields.forEach((v, i) => headerBuf.writeUInt32LE(v >>> 0, i * 4));
+
+    // Append model_name null-padded to MAX_FS_NAME_LEN (64) bytes
+    const nameBytes = Buffer.alloc(this.MAX_FS_NAME_LEN, 0);
+    const encoded = Buffer.from(modelName, 'utf8').slice(
+      0,
+      this.MAX_FS_NAME_LEN,
+    );
+    encoded.copy(nameBytes);
+
+    const fullHeader = Buffer.concat([headerBuf, nameBytes]);
+
+    // CRC over header then over raw info file bytes
+    let crc = 0xffffffff;
+    crc = CRC32.buf(fullHeader, crc);
+    const infoBase64 = await RNFS.readFile(infoFilePath, 'base64');
+    const infoBuffer = Buffer.from(infoBase64, 'base64');
+    crc = CRC32.buf(infoBuffer, crc);
+
     return (crc ^ 0xffffffff) >>> 0;
   };
 
@@ -1202,23 +1295,25 @@ class BleService {
     throw new Error("Filename must contain 'mnist' or 'kws'");
   };
 
+  // private waitForAck = (timeoutMs = 5000): Promise<void> => {
+  //   return new Promise((resolve, reject) => {
+  //     this.ackResolver = resolve;
+  //     setTimeout(() => reject(new Error('ACK timeout')), timeoutMs);
+  //   });
+  // };
   private waitForAck = (timeoutMs = 5000): Promise<void> => {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.ackQueue = this.ackQueue.filter(e => e.timer !== timer);
+      const timeout = setTimeout(() => {
+        this.ackResolver = null;
         reject(new Error('ACK timeout'));
       }, timeoutMs);
 
-      this.ackQueue.push({ resolve, reject, timer });
+      this.ackResolver = () => {
+        clearTimeout(timeout);
+        this.ackResolver = null;
+        resolve();
+      };
     });
-  };
-
-  private resolveNextAck = () => {
-    const entry = this.ackQueue.shift();
-    if (entry) {
-      clearTimeout(entry.timer);
-      entry.resolve();
-    }
   };
 
   subscribeToModelAck = (deviceId: string, callback: (ack: number) => void) => {
@@ -1251,11 +1346,23 @@ class BleService {
         if (ack === this.ACK_FLASH_ERASE_DONE) {
           // console.log('ACK_FLASH_ERASE_DONE');
           callback(ack);
+          // Erase done — unblock waitForAck so transfer can proceed
+          this.ackResolver?.();
+          this.ackResolver = null;
         }
 
         if (ack === this.ACK_FLASH_WRITE_DONE) {
+          // console.log('ACK_FLASH_WRITE_DONE');
           callback(ack);
-          this.resolveNextAck();
+          this.ackResolver?.();
+          this.ackResolver = null;
+        }
+
+        if (ack === this.ACK_CRC_FAIL) {
+          // console.log('ACK_CRC_FAIL — peripheral rejected transfer');
+          callback(ack);
+          // Do not resolve — let waitForAck timeout so caller sees the failure
+          this.ackResolver = null;
         }
       },
     );
@@ -1264,104 +1371,304 @@ class BleService {
     return modelsubscription;
   };
 
-  sendModelFile = async (
+  /**
+   * Full model OTA transfer from a ZIP file.
+   *
+   *    *
+   *  ZIP must contain:
+   *    info.yaml              — model metadata
+   *    <name>_program_info.bin — info binary
+   *    <name>_program_data.bin — model data binary
+   *
+   *  Transfer sequence:
+   *    1. Write APP index
+   *    ── INFO transfer ──
+   *    2. Set TRANSFER_TYPE = INFO (0x00)
+   *    3. Write info file size → wait for ERASE ACK
+   *    4. Write combined CRC32 (header fields + info bytes)
+   *    5. Write total length (info + data)
+   *    6. Write input shape (N × uint32 LE)
+   *    7. Write output shape (N × uint32 LE)
+   *    8. Write flash address (uint32 LE)
+   *    9. Write is_edge_learned (uint32 LE, only if true)
+   *   10. Write num_edge_classes packed as (neurons<<16 | classes) (uint32 LE)
+   *   11. Write fs_name (UTF-8 string)
+   *   12. Stream info chunks → wait for WRITE ACK per BUFFER_SIZE window
+   *    ── DATA transfer ──
+   *   13. Set TRANSFER_TYPE = DATA (0x01)
+   *   14. Write data file size → wait for ERASE ACK
+   *   15. Write data CRC32 (uint32 LE)
+   *   16. Stream data chunks → wait for WRITE ACK per BUFFER_SIZE window
+   */
+  async sendModelZip(
     deviceId: string,
-    filePath: string,
-    writeToSram = false,
-    onProgress?: (percent: number) => void,
-  ) => {
+    zipPath: string,
+    onProgress?: (p: number) => void,
+  ): Promise<void> {
     if (this.otaInProgress) {
-      throw new Error(`Cannot start model update — ${this.otaInProgress} update in progress`);
+      throw new Error(
+        `Cannot start model update — ${this.otaInProgress} update in progress`,
+      );
     }
     this.otaInProgress = 'model';
 
     try {
-      const stat = await RNFS.stat(filePath);
-      const fileSize = stat.size;
+      // ── Unzip ──
+      const unzipPath = `${RNFS.TemporaryDirectoryPath}/model_${Date.now()}/`;
+      await unzip(zipPath, unzipPath);
+      const rootFiles = await RNFS.readDir(unzipPath);
 
-      const appIndex = this.detectAppIndex(filePath);
+      let files = rootFiles;
 
-      // console.log('Selected APP:', appIndex === 0 ? 'MNIST' : 'KWS');
+      if (rootFiles.length === 1 && rootFiles[0].isDirectory()) {
+        files = await RNFS.readDir(rootFiles[0].path);
+      }
+      if (__DEV__) console.log('files-models', files);
 
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
-        deviceId,
-        this.modelServiceUUID,
-        this.appUUID,
-        Buffer.from([appIndex]).toString('base64'),
+      const infoYamlFile = files.find(f => f.name === 'info.yaml');
+      const dataBinFile = files.find(
+        f =>
+          f.name.endsWith('_program_data.bin') || f.name.endsWith('_data.bin'),
+      );
+      const infoBinFile = files.find(
+        f =>
+          f.name.endsWith('_program_info.bin') || f.name.endsWith('_info.bin'),
       );
 
-      const sizeBuf = Buffer.alloc(4);
-      sizeBuf.writeUInt32LE(fileSize);
+      if (!infoYamlFile || !dataBinFile || !infoBinFile) {
+        throw new Error(
+          'Invalid ZIP: info.yaml, _program_info.bin or _program_data.bin missing',
+        );
+      }
 
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
-        deviceId,
-        this.modelServiceUUID,
-        this.fileSizeUUID,
-        sizeBuf.toString('base64'),
+      // ── Parse YAML ──
+      const yamlContent = await RNFS.readFile(infoYamlFile.path, 'utf8');
+      const meta: any = yaml.load(yamlContent);
+
+      const inputShape: number[] = meta?.input_shape ?? [];
+      const outputShape: number[] = meta?.output_shape ?? [];
+      const rawAddr = meta?.flash_address ?? '0x1000';
+      const flashAddress: number =
+        typeof rawAddr === 'string' ? parseInt(rawAddr, 16) : Number(rawAddr);
+      const modelName: string = String(meta?.model_name ?? '');
+
+      // Edge-learning fields
+      const elMeta = meta?.edge_learning ?? {};
+      const isEdgeLearned: boolean = Boolean(elMeta?.enabled ?? false);
+      const numClasses: number = Number(elMeta?.num_classes ?? 0);
+      const neuronsPerClass: number = Number(elMeta?.num_neurons ?? 1);
+
+      // packed num_edge_classes: upper 16 bits = neurons_per_class, lower 16 bits = num_classes
+      // Pack: upper 16 bits = neurons_per_class, lower 16 bits = num_classes
+      const packedClasses: number =
+        ((neuronsPerClass & 0xffff) << 16) | (numClasses & 0xffff);
+
+      // Derive fs_name: /model_meta/<prefix>
+      const prefix = infoBinFile.name
+        .replace('_program_info.bin', '')
+        .replace('_info.bin', '');
+      const fsName = `/model_meta/${prefix}`;
+
+      // ── File sizes & CRCs ──
+      const infoSize = (await RNFS.stat(infoBinFile.path)).size;
+      const dataSize = (await RNFS.stat(dataBinFile.path)).size;
+      const totalLength = infoSize + dataSize;
+
+      const dataCRC = await this.computeDataCRC32(dataBinFile.path);
+
+      const combinedCRC = await this.computeCombinedCRC32(
+        totalLength,
+        inputShape,
+        outputShape,
+        flashAddress,
+        isEdgeLearned,
+        packedClasses,
+        infoBinFile.path,
+        modelName,
       );
 
-      const crc32 = await this.computeCRC32(filePath);
-      // console.log('crc32', crc32);
-      const crcBuf = Buffer.alloc(4);
-      crcBuf.writeUInt32LE(crc32);
+      // ── Detect APP index ──
+      const appIndex = this.detectAppIndex(dataBinFile.path);
 
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
+      // =====================================================================
+      // 1. Send APP index
+      // =====================================================================
+      await this.writeU8(deviceId, this.appUUID, appIndex);
+
+      // =====================================================================
+      // ── INFO transfer ──
+      // =====================================================================
+
+      // 2. Set transfer type = INFO
+      await this.writeU8(
         deviceId,
-        this.modelServiceUUID,
-        this.crcUUID,
-        crcBuf.toString('base64'),
+        this.transferTypeUUID,
+        this.TRANSFER_TYPE_INFO,
       );
 
-      // console.log(`CRC32 sent: 0x${crc32.toString(16)}`);
+      // 3. Send info file size → triggers flash erase on firmware, wait for ERASE ACK
+      await this.writeU32LE(deviceId, this.fileSizeUUID, infoSize);
+      await this.waitForAck(10000); // erase can take a moment
 
-      const base64 = await RNFS.readFile(filePath, 'base64');
-      const fileBuffer = Buffer.from(base64, 'base64');
+      // 4. Combined CRC32 (header fields + info bytes)
+      await this.writeU32LE(deviceId, this.crcUUID, combinedCRC);
 
-      let sent = 0;
-      let sinceLastAck = 0;
-      const ackLimit = writeToSram ? this.BUFFER_SIZE : fileSize;
-      // console.log('ackLimit', ackLimit);
+      // 5. Total length (info + data)
+      await this.writeU32LE(deviceId, this.totalLengthUUID, totalLength);
 
-      while (sent < fileBuffer.length) {
-        const connected = await this.isDeviceConnected(deviceId);
-        if (!connected) {
-          throw new Error('Device disconnected during transfer');
-        }
-        const payloadSize = this.negotiatedMTU - 3;
-        // console.log('payloadSize', payloadSize);
-        const chunk = fileBuffer.slice(sent, sent + payloadSize);
-        // console.log('chunk', chunk);
-        await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+      // 6. Input shape (N × uint32 LE)
+      if (inputShape.length > 0) {
+        const buf = Buffer.alloc(inputShape.length * 4);
+        inputShape.forEach((v, i) => buf.writeUInt32LE(v >>> 0, i * 4));
+        await this.bleManager.writeCharacteristicWithResponseForDevice(
           deviceId,
           this.modelServiceUUID,
-          this.fileTransferUUID,
-          chunk.toString('base64'),
+          this.modelInputShapeUUID,
+          buf.toString('base64'),
         );
-
-        sent += chunk.length;
-        sinceLastAck += chunk.length;
-
-        onProgress?.((sent / fileSize) * 100);
-
-        // console.log('ackLimit', ackLimit, 'sinceLastAck', sinceLastAck);
-        if (sinceLastAck >= ackLimit) {
-          // console.log('Waiting for ACK...');
-          await this.waitForAck();
-          sinceLastAck = 0;
-        }
-
-        if (sent % (payloadSize * 10) === 0) {
-          await new Promise(r => setTimeout(r, 0));
-        }
-
-        await new Promise(r => setTimeout(r, 30));
       }
+
+      // 7. Output shape (N × uint32 LE)
+      if (outputShape.length > 0) {
+        const buf = Buffer.alloc(outputShape.length * 4);
+        outputShape.forEach((v, i) => buf.writeUInt32LE(v >>> 0, i * 4));
+        await this.bleManager.writeCharacteristicWithResponseForDevice(
+          deviceId,
+          this.modelServiceUUID,
+          this.modelOutputShapeUUID,
+          buf.toString('base64'),
+        );
+      }
+
+      // 8. Flash address
+      await this.writeU32LE(deviceId, this.flashAddressUUID, flashAddress);
+
+      // 9. is_edge_learned (only written when true)
+      if (isEdgeLearned) {
+        await this.writeU32LE(deviceId, this.isEdgeLearnedUUID, 1);
+      }
+
+      // 10. num_edge_classes packed (always written — firmware reads it even for non-EL)
+      await this.writeU32LE(deviceId, this.numEdgeClassesUUID, packedClasses);
+
+      // 11. fs_name (UTF-8 string)
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.fsNameUUID,
+        Buffer.from(fsName, 'utf8').toString('base64'),
+      );
+
+      // 12. Stream info binary chunks → wait for WRITE ACK
+      await this.sendFileChunksWithAck(deviceId, infoBinFile.path);
+
+      // =====================================================================
+      // ── DATA transfer ──
+      // =====================================================================
+
+      // 13. Set transfer type = DATA
+      await this.writeU8(
+        deviceId,
+        this.transferTypeUUID,
+        this.TRANSFER_TYPE_DATA,
+      );
+
+      // 14. Send data file size → triggers flash erase, wait for ERASE ACK
+      await this.writeU32LE(deviceId, this.fileSizeUUID, dataSize);
+      await this.waitForAck(10000);
+
+      // 15. Data CRC32
+      await this.writeU32LE(deviceId, this.crcUUID, dataCRC);
+
+      // 16. Stream data binary chunks → wait for WRITE ACK, report progress
+      await this.sendFileChunksWithAck(deviceId, dataBinFile.path, onProgress);
+
       BleConnectionHelper.setExpectedReboot(true);
-      this.cleanupMonitors();
-    } catch (error) {
-      throw error;
+    } catch (e) {
+      throw e;
     } finally {
       this.otaInProgress = null;
+    }
+  }
+
+  // ── Tiny write helpers (keep call-sites clean) ──
+
+  private writeU8 = async (
+    deviceId: string,
+    charUUID: string,
+    value: number,
+  ): Promise<void> => {
+    await this.bleManager.writeCharacteristicWithResponseForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      charUUID,
+      Buffer.from([value & 0xff]).toString('base64'),
+    );
+  };
+
+  private writeU32LE = async (
+    deviceId: string,
+    charUUID: string,
+    value: number,
+  ): Promise<void> => {
+    const buf = Buffer.alloc(4);
+    buf.writeUInt32LE(value >>> 0, 0);
+    await this.bleManager.writeCharacteristicWithResponseForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      charUUID,
+      buf.toString('base64'),
+    );
+  };
+
+  /**
+   * Stream file in MTU-sized chunks with ACK windowing.
+   *
+   *    *   - Sends chunks without waiting after each one
+   *   - After every BUFFER_SIZE bytes waits for a WRITE ACK
+   *   - Waits for a final WRITE ACK after the last chunk
+   *   - Returns false (throws here) if ACK_CRC_FAIL is received
+   */
+  private sendFileChunksWithAck = async (
+    deviceId: string,
+    filePath: string,
+    onProgress?: (p: number) => void,
+  ): Promise<void> => {
+    const base64 = await RNFS.readFile(filePath, 'base64');
+    const buffer = Buffer.from(base64, 'base64');
+    const total = buffer.length;
+
+    let sent = 0;
+    let sinceLastAck = 0;
+
+    while (sent < total) {
+      const payloadSize = this.negotiatedMTU - 3;
+      const chunk = buffer.slice(sent, sent + payloadSize);
+
+      await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.fileTransferUUID,
+        chunk.toString('base64'),
+      );
+
+      sent += chunk.length;
+      sinceLastAck += chunk.length;
+
+      onProgress?.((sent / total) * 100);
+
+      // Wait for WRITE ACK every BUFFER_SIZE bytes
+      if (sinceLastAck >= this.BUFFER_SIZE) {
+        await this.waitForAck(10000);
+        sinceLastAck = 0;
+      }
+
+      await new Promise(r => setTimeout(r, 5));
+    }
+
+    // Final ACK for any remaining bytes
+    if (sinceLastAck > 0) {
+      await this.waitForAck(10000);
     }
   };
 

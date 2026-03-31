@@ -5,7 +5,7 @@ import {
   Folder,
   RefreshCw,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -45,11 +45,14 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const [showServerModels, setShowServerModels] = useState(false);
   const [serverLoading, setServerLoading] = useState(false);
 
-  // useEffect(() => {
-  //   if (token) {
-  //     fetchModels(token);
-  //   }
-  // }, [token]);
+  // Keeps a ref to the ACK subscription so it can be cleaned up on unmount
+  const ackSubRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      ackSubRef.current?.remove();
+    };
+  }, []);
 
   const startUpdate = async (model: AIModel) => {
     if (screen === 'updating') return;
@@ -67,16 +70,14 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
     setScreen('updating');
     setProgress(0);
 
-    let ackSub: any = null;
-
     try {
-      let filePath = '';
+      let zipPath = '';
 
-      // 🔹 Local model
+      // Local model — user picked a .zip from device storage
       if (model.local) {
-        filePath = model.localPath!;
+        zipPath = model.localPath!;
       }
-      // 🔹 Server model
+      // Server model — download the zip first
       else {
         const downloaded = await downloadModel(
           model.id,
@@ -88,34 +89,40 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
           throw new Error('Download failed');
         }
 
-        filePath = downloaded;
+        zipPath = downloaded;
       }
 
-      ackSub = BleService.subscribeToModelAck(deviceId, ack => {
+      // Subscribe to raw ACK codes for progress feedback
+      ackSubRef.current = BleService.subscribeToModelAck(deviceId, ack => {
         if (ack === BleService.getAckFlashErase()) {
-          setProgress(50);
+          // Flash erase done — INFO file received, data transfer starting
+          setProgress(10);
         }
-
         if (ack === BleService.getAckFlashWrite()) {
-          setProgress(100);
+          // Flash write done — transfer chunk acknowledged
+          setProgress(prev => Math.min(prev + 5, 95));
         }
       });
 
-      await BleService.sendModelFile(deviceId, filePath, false, percent =>
-        setProgress(percent),
-      );
+      // Run the full INFO + DATA transfer from the zip
+      await BleService.sendModelZip(deviceId, zipPath, percent => {
+        setProgress(Math.round(percent));
+      });
 
       setScreen('completed');
     } catch (error) {
       Alert.alert('Update Failed', String(error));
       setScreen('list');
     } finally {
-      ackSub?.remove();
+      ackSubRef.current?.remove();
+      ackSubRef.current = null;
     }
   };
 
   /* ---------------- STOP UPDATE ---------------- */
   const stopUpdate = () => {
+    ackSubRef.current?.remove();
+    ackSubRef.current = null;
     setProgress(0);
     setScreen('list');
   };
@@ -123,10 +130,6 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const browseLocalModel = async () => {
     try {
       setShowServerModels(false);
-      // const [result] = await pick({
-      //   type: ['*/*'],
-      //   copyTo: 'cachesDirectory',
-      // });
 
       const results = await pick({
         allowMultiSelection: false,
@@ -138,24 +141,20 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
       });
 
       const result = results[0];
-
       const sourceUri = (result as any).fileCopyUri ?? result.uri;
-
       if (!sourceUri) return;
 
       const cleanUri = sourceUri.replace('file://', '');
+      const fileName = result.name ?? 'model.zip';
 
-      const fileName = result.name ?? 'model.bin';
-
-      if (!fileName.toLowerCase().endsWith('.bin')) {
-        Alert.alert('Invalid File', 'Please select a .bin model file');
+      // Only accept .zip files — the transfer requires the full zip bundle
+      if (!fileName.toLowerCase().endsWith('.zip')) {
+        Alert.alert('Invalid File', 'Please select a .zip model package');
         return;
       }
 
       const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
-
       await RNFS.copyFile(cleanUri, localPath);
-
       const stat = await RNFS.stat(localPath);
 
       const model: AIModel = {
@@ -185,10 +184,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: insets.bottom + 32 },
-        ]}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + 32 }]}
       >
         {/* HEADER – FULL WIDTH */}
         <View style={styles.header}>
@@ -200,11 +196,13 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
             <Text style={styles.headerTitle}>AI Model Update</Text>
           </View>
         </View>
+
         <View style={styles.container}>
           <View style={styles.card}>
             <Text style={styles.title}>Current Version</Text>
             <Text style={styles.version}>Not Found</Text>
           </View>
+
           <View
             style={{
               flexDirection: 'column',
@@ -241,23 +239,20 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               Download From Server
             </Button>
           </View>
-          {/* ---------------- SCREEN 1 ---------------- */}
+
+          {/* ---------------- SCREEN 1 : local model card ---------------- */}
           {screen === 'list' && localModel && (
             <View style={styles.card}>
               <View style={styles.versionHeaderRow}>
                 <Text style={styles.title}>Available Version</Text>
-
                 <View style={styles.newBadge}>
                   <Text style={styles.newBadgeText}>LOCAL</Text>
                 </View>
               </View>
 
               <Text style={styles.newVersion}>{localModel.filename}</Text>
-
               <Text style={styles.releaseTitle}>Description</Text>
-
               <Text style={styles.bullet}>• {localModel.description}</Text>
-
               <Text style={styles.title}>Size: {localModel.size_kb} KB</Text>
 
               <Button
@@ -269,6 +264,8 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               </Button>
             </View>
           )}
+
+          {/* ---------------- SCREEN 1 : server models loading ---------------- */}
           {screen === 'list' && showServerModels && serverLoading && (
             <View style={styles.card}>
               <RefreshCw size={24} color={Colors.primary} />
@@ -277,17 +274,18 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               </Text>
             </View>
           )}
+
+          {/* ---------------- SCREEN 1 : server model list ---------------- */}
           {screen === 'list' &&
             showServerModels &&
             !serverLoading &&
             models.map((model, index) => {
-              const isNew = index === 0; // first item is newest
+              const isNew = index === 0;
 
               return (
                 <View key={model.id} style={styles.card}>
                   <View style={styles.versionHeaderRow}>
                     <Text style={styles.title}>Available Version</Text>
-
                     {isNew && (
                       <View style={styles.newBadge}>
                         <Text style={styles.newBadgeText}>NEW</Text>
@@ -296,7 +294,6 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
                   </View>
 
                   <Text style={styles.newVersion}>{model.version}</Text>
-
                   <Text style={styles.releaseTitle}>Release Notes</Text>
 
                   {model.release_notes
@@ -322,7 +319,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               );
             })}
 
-          {/* ---------------- SCREEN 2 ---------------- */}
+          {/* ---------------- SCREEN 2 : transfer in progress ---------------- */}
           {screen === 'updating' && (
             <View style={styles.card}>
               <RefreshCw size={36} color={Colors.warning} />
@@ -334,7 +331,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
                 style={styles.progress}
               />
 
-              <Text style={styles.percent}>{progress.toFixed(2)}%</Text>
+              <Text style={styles.percent}>{progress.toFixed(0)}%</Text>
 
               <Button
                 mode="outlined"
@@ -354,14 +351,14 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
             </View>
           )}
 
-          {/* ---------------- SCREEN 3 ---------------- */}
+          {/* ---------------- SCREEN 3 : completed ---------------- */}
           {screen === 'completed' && (
             <View style={styles.card}>
               <CheckCircle size={42} color={Colors.success} />
               <Text style={styles.centerTitle}>Update complete!</Text>
 
               <Text style={styles.subText}>
-                Your device has been successfully updated to v2.5.0
+                Your device has been successfully updated to the new model.
               </Text>
 
               <Button
@@ -387,10 +384,10 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 };
 
 export default AIModelUpdateScreen;
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
-  scroll: {},
   container: {
     paddingHorizontal: 20,
   },
@@ -520,7 +517,7 @@ const styles = StyleSheet.create({
   },
 
   newBadge: {
-    backgroundColor: Colors.primary, // blue like screenshot
+    backgroundColor: Colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
