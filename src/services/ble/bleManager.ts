@@ -1116,7 +1116,29 @@ class BleService {
 
       // 6. Upload firmware
       log('Uploading firmware...');
-      await this.sendFirmwareFile(deviceId, filePath, onProgress);
+
+      let finalPath = filePath;
+
+      if (filePath.endsWith('.zip')) {
+        const unzipPath = `${
+          RNFS.TemporaryDirectoryPath
+        }/firmware_${Date.now()}/`;
+        await unzip(filePath, unzipPath);
+        const rootFiles = await RNFS.readDir(unzipPath);
+
+        let files = rootFiles;
+
+        if (rootFiles.length === 1 && rootFiles[0].isDirectory()) {
+          files = await RNFS.readDir(rootFiles[0].path);
+        }
+        if (__DEV__) console.log('files-models', files);
+        const binFile = files.find(f => f.name.endsWith('.bin'));
+        if (!binFile) {
+          throw new Error('Invalid ZIP:.bin missing');
+        }
+        finalPath = binFile.path;
+      }
+      await this.sendFirmwareFile(deviceId, finalPath, onProgress);
       log('Upload complete');
 
       // 7. Get updated image list for slot 1 hash
