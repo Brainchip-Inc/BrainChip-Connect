@@ -35,9 +35,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
-  const [installingId, setInstallingId] = useState<string | number | null>(
-    null,
-  );
+  const [installingId, setInstallingId] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
   const { connectedDevice } = useBleStore();
   const [selectedFile, setSelectedFile] = useState<{
@@ -94,7 +92,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const runFirmwareUpdate = async (
     deviceId: string,
     filePath: string,
-    buildId: string | number,
+    buildId: number,
     build?: FirmwareBuild,
   ) => {
     try {
@@ -166,8 +164,14 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
 
       const fileName = result.name ?? 'firmware.bin';
 
-      if (!fileName.toLowerCase().endsWith('.bin')) {
-        Alert.alert('Invalid File', 'Please select a .bin firmware file');
+      if (
+        !fileName.toLowerCase().endsWith('.bin') ||
+        !fileName.toLowerCase().endsWith('.zip')
+      ) {
+        Alert.alert(
+          'Invalid File',
+          'Please select a .bin or .zip firmware file',
+        );
         return;
       }
 
@@ -230,55 +234,9 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     await runFirmwareUpdate(
       connectedDevice.id,
       selectedFile.uri,
-      'local',
+      -1,
       localBuild!,
     );
-    // try {
-    //   if (!selectedFile || !connectedDevice?.id) {
-    //     Alert.alert(
-    //       'Installation Failed',
-    //       'No Device Connected or firmware selected',
-    //     );
-    //     return;
-    //   }
-
-    //   const deviceId = connectedDevice.id;
-
-    //   const connected = await bleService.isDeviceConnected(deviceId);
-
-    //   if (!connected) {
-    //     Alert.alert('Device disconnected');
-    //     return;
-    //   }
-
-    //   setInstallingId('local');
-    //   setProgress(0);
-
-    //   const exists = await RNFS.exists(selectedFile.uri);
-
-    //   if (!exists) {
-    //     Alert.alert('Firmware file not found');
-    //     return;
-    //   }
-
-    //   // useBleCommandStore.getState().stopNotifications();
-
-    //   await bleService.performFota(
-    //     deviceId,
-    //     selectedFile.uri,
-    //     percent => setProgress(percent),
-    //     msg => console.log('[LOCAL FOTA]', msg),
-    //   );
-
-    //   Alert.alert('Success', 'Firmware updated successfully');
-
-    //   setSelectedFile(null);
-    // } catch (error: any) {
-    //   Alert.alert('Firmware Update Failed', error?.message ?? 'Update failed');
-    // } finally {
-    //   setInstallingId(null);
-    //   setProgress(0);
-    // }
   };
 
   const downloadFile = async (build: FirmwareBuild) => {
@@ -487,7 +445,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                 <Text style={styles.meta}>Size: {localBuild.size}</Text>
               </View>
 
-              {installingId === 'local' && (
+              {installingId === -1 && (
                 <>
                   <View style={styles.progressBar}>
                     <View
@@ -507,9 +465,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                 disabled={installingId !== null}
                 onPress={startLocalUpdate}
               >
-                {installingId === 'local'
-                  ? 'Installing…'
-                  : 'Install This Build'}
+                {installingId === -1 ? 'Installing…' : 'Install This Build'}
               </Button>
             </View>
           )}

@@ -117,7 +117,9 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const getAppInfo = (appId: string | null) => {
     setInfoAppId(appId);
-    requestAppInfo(appId!);
+    if (appId) {
+      requestAppInfo(appId);
+    }
   };
 
   useEffect(() => {
@@ -132,7 +134,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
   }, [latestDetection, confidence, muteStatus, activeApp]);
 
-  const renderAppCard = (app: AppsList, isFromAppsList = false) => {
+  const renderAppCard = (app: AppsList) => {
     const isActive = activeApp === app.id;
     const isInfoVisible = infoAppId === app.id;
 
@@ -180,14 +182,14 @@ const DeviceApplicationsScreen: React.FC = () => {
             {isInfoVisible ? (
               <View style={styles.infoBlock}>
                 {[
-                  ['Processor', (app as AppsList).processor],
-                  ['Model Name', (app as AppsList).modelName],
-                  ['Model Version', (app as AppsList).modelVersion],
-                  ['Model Size', (app as AppsList).modelSize],
-                  ['Input Shape', (app as AppsList).inputShape],
-                  ['No of Classes', (app as AppsList).noOfClasses],
-                  ['Akida Nodes', (app as AppsList).nodes],
-                  ['Power Consumption', (app as AppsList).powerConsumption],
+                  ['Processor', app.processor],
+                  ['Model Name', app.modelName],
+                  ['Model Version', app.modelVersion],
+                  ['Model Size', app.modelSize],
+                  ['Input Shape', app.inputShape],
+                  ['No of Classes', app.noOfClasses],
+                  ['Akida Nodes', app.nodes],
+                  ['Power Consumption', app.powerConsumption],
                 ].map(([label, value]) => (
                   <View key={label} style={styles.infoRow}>
                     <Text
@@ -375,8 +377,7 @@ const DeviceApplicationsScreen: React.FC = () => {
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ gap: 12 }}
           >
-            {/* {APPS_List.map(app => renderAppCard(app, false))} */}
-            {appList.map(app => renderAppCard(app, true))}
+            {appList.map(app => renderAppCard(app))}
           </ScrollView>
         </View>
 
@@ -444,7 +445,7 @@ const DeviceApplicationsScreen: React.FC = () => {
       {showNotification && (
         <View style={styles.notificationOverlay}>
           <NotificationCard
-            title={appList.find(a => a.id == activeApp)?.name ?? 'Application'}
+            title={appList.find(a => a.id === activeApp)?.name ?? 'Application'}
             description={`"${latestDetection}"`}
             confidence={confidence ?? 0}
             onSeeMore={() => {

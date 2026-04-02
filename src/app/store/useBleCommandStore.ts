@@ -20,12 +20,22 @@ const appTypeMapping: Record<string, AppType> = {
   vision: 'vision',
 };
 
-function formatFromKB(value: string) {
+export const formatFromKB = (value: string): string => {
   const kb = parseInt(value);
-  if (kb < 1024) return kb + ' KB';
-  if (kb < 1024 * 1024) return (kb / 1024).toFixed(2) + ' MB';
-  return (kb / (1024 * 1024)).toFixed(2) + ' GB';
-}
+  if (!kb || isNaN(kb)) return '0 KB';
+
+  if (kb < 1024) {
+    return `${kb} KB`;
+  }
+
+  const mb = kb / 1024;
+  if (mb < 1024) {
+    return `${mb.toFixed(2)} MB`;
+  }
+
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+};
 
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
@@ -280,6 +290,8 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                   return { appsList: updatedAppsList };
                 });
               }
+
+              break;
 
             default:
               break;
