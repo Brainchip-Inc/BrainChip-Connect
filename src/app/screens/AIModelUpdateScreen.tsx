@@ -104,6 +104,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
         }
       });
 
+      await new Promise(r => setTimeout(r, 200));
       // Run the full INFO + DATA transfer from the zip
       await BleService.sendModelZip(deviceId, zipPath, percent => {
         setProgress(Math.round(percent));
@@ -123,6 +124,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const stopUpdate = () => {
     ackSubRef.current?.remove();
     ackSubRef.current = null;
+    BleService.stopModelTransfer();
     setProgress(0);
     setScreen('list');
   };
@@ -242,7 +244,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
           {/* ---------------- SCREEN 1 : local model card ---------------- */}
           {screen === 'list' && localModel && (
-            <View style={styles.card}>
+            <View style={[styles.card, { alignItems: 'center' }]}>
               <View style={styles.versionHeaderRow}>
                 <Text style={styles.title}>Available Version</Text>
                 <View style={styles.newBadge}>
@@ -321,7 +323,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
           {/* ---------------- SCREEN 2 : transfer in progress ---------------- */}
           {screen === 'updating' && (
-            <View style={styles.card}>
+            <View style={[styles.card, { alignItems: 'center' }]}>
               <RefreshCw size={36} color={Colors.warning} />
               <Text style={styles.centerTitle}>Rebooting device...</Text>
 
@@ -353,7 +355,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
           {/* ---------------- SCREEN 3 : completed ---------------- */}
           {screen === 'completed' && (
-            <View style={styles.card}>
+            <View style={[styles.card, { alignItems: 'center' }]}>
               <CheckCircle size={42} color={Colors.success} />
               <Text style={styles.centerTitle}>Update complete!</Text>
 

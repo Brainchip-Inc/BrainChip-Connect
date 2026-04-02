@@ -1205,6 +1205,7 @@ class BleService {
 
   // Model OTA Updation
   private ackResolver: (() => void) | null = null;
+  private cancelModelTransfer = false;
 
   /**
    * CRC32 over raw file bytes.
@@ -1289,8 +1290,8 @@ class BleService {
   private detectAppIndex = (filePath: string): number => {
     const name = filePath.toLowerCase();
 
-    if (name.includes('mnist')) return 0;
-    if (name.includes('kws')) return 1;
+    if (name.includes('mnist')) return 1;
+    if (name.includes('kws')) return 0;
 
     throw new Error("Filename must contain 'mnist' or 'kws'");
   };
@@ -1411,6 +1412,7 @@ class BleService {
       );
     }
     this.otaInProgress = 'model';
+    this.cancelModelTransfer = false;
 
     try {
       // ── Unzip ──
@@ -1642,6 +1644,9 @@ class BleService {
     let sinceLastAck = 0;
 
     while (sent < total) {
+      if (this.cancelModelTransfer) {
+        throw new Error('Transfer cancelled');
+      }
       const payloadSize = this.negotiatedMTU - 3;
       const chunk = buffer.slice(sent, sent + payloadSize);
 
@@ -1670,6 +1675,10 @@ class BleService {
     if (sinceLastAck > 0) {
       await this.waitForAck(10000);
     }
+  };
+
+  public stopModelTransfer = () => {
+    this.cancelModelTransfer = true;
   };
 
   public getAckFlashErase() {
