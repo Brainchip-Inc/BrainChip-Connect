@@ -165,7 +165,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       const fileName = result.name ?? 'firmware.bin';
 
       if (
-        !fileName.toLowerCase().endsWith('.bin') ||
+        !fileName.toLowerCase().endsWith('.bin') &&
         !fileName.toLowerCase().endsWith('.zip')
       ) {
         Alert.alert(

@@ -281,7 +281,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                   inputShape: parsedInfoData[4],
                   noOfClasses: parsedInfoData[5],
                   nodes: parsedInfoData[6],
-                  powerConsumption: parseInt(parsedInfoData[7]).toFixed(2),
+                  powerConsumption: (parseInt(parsedInfoData[7], 10) || 0).toFixed(2),
                 };
 
                 set(state => {
