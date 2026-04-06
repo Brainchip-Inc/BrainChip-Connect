@@ -9,6 +9,7 @@ export interface BleData {
     | 'STREAMSTART'
     | 'DEPLOYSTOP'
     | 'STREAMSTOP'
-    | 'APPS';
+    | 'APPS'
+    | 'APPS_INFO';
   data: number | string | DeviceInfo | Object | number[]; // depending on what your data contains
 }

@@ -20,6 +20,23 @@ const appTypeMapping: Record<string, AppType> = {
   vision: 'vision',
 };
 
+export const formatFromKB = (value: string): string => {
+  const kb = parseInt(value);
+  if (!kb || isNaN(kb)) return '0 KB';
+
+  if (kb < 1024) {
+    return `${kb} KB`;
+  }
+
+  const mb = kb / 1024;
+  if (mb < 1024) {
+    return `${mb.toFixed(2)} MB`;
+  }
+
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+};
+
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
 
@@ -60,6 +77,10 @@ interface BleCommandState {
   // 🔹 Streaming
   startStreaming: (appId: string) => Promise<void>;
   stopStreaming: (appId: string) => Promise<void>;
+
+  // 🔹 App Info
+  requestAppInfo: (appId: string) => Promise<void>;
+  selectedAppId: string | null;
 }
 
 export const useBleCommandStore = create<BleCommandState>((set, get) => ({
@@ -82,6 +103,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   resetError: null,
 
   appsList: [],
+  selectedAppId: null,
 
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
@@ -187,19 +209,21 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
               const appType = appTypeMapping[appKeyword] || 'keyword';
 
+              const sizeInKB = formatFromKB(parsedData[2]);
+
               const appsData: AppsList = {
                 id: appType,
                 name: parsedData[0],
                 description: parsedData[1],
-                size: parsedData[2],
-                processor: parsedData[3],
-                modelName: parsedData[4],
-                modelVersion: parsedData[5],
-                modelSize: parsedData[6],
-                inputShape: parsedData[7],
-                noOfClasses: parsedData[8],
-                nodes: parsedData[9],
-                powerConsumption: parsedData[10],
+                size: sizeInKB,
+                processor: '-',
+                modelName: '-',
+                modelVersion: '-',
+                modelSize: '-',
+                inputShape: '-',
+                noOfClasses: '-',
+                nodes: '-',
+                powerConsumption: '-',
               };
 
               // Check if the app with the same id or name already exists in the appsList
@@ -231,6 +255,40 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 set(state => ({
                   appsList: [...state.appsList, appsData],
                 }));
+              }
+
+              break;
+
+            case 'APPS_INFO':
+              if (__DEV__) console.log('APPS_INFO', data.data);
+              const rcvdInfoData = String(data.data);
+              const parsedInfoData = rcvdInfoData.split(',');
+
+              const existAppIndex = get().appsList.findIndex(
+                app => app.id === get().selectedAppId,
+              );
+
+              if (existAppIndex !== -1) {
+                // If the app exists, check if any other key has changed
+                const existingApp = get().appsList[existAppIndex];
+
+                const appsInfoData: AppsList = {
+                  ...existingApp,
+                  processor: parsedInfoData[0],
+                  modelName: parsedInfoData[1],
+                  modelVersion: parsedInfoData[2],
+                  modelSize: parsedInfoData[3],
+                  inputShape: parsedInfoData[4],
+                  noOfClasses: parsedInfoData[5],
+                  nodes: parsedInfoData[6],
+                  powerConsumption: (parseInt(parsedInfoData[7], 10) || 0).toFixed(2),
+                };
+
+                set(state => {
+                  const updatedAppsList = [...state.appsList];
+                  updatedAppsList[existAppIndex] = appsInfoData;
+                  return { appsList: updatedAppsList };
+                });
               }
 
               break;
@@ -371,6 +429,17 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   },
   setResetLoading: loading => set({ resetLoading: loading }),
   setResetError: error => set({ resetError: error }),
+
+  requestAppInfo: async (appId: string) => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return;
+
+    await BleService.sendCommand(deviceId, `${BleCommand.APPS_INFO}:${appId}`);
+
+    set({
+      selectedAppId: appId,
+    });
+  },
 }));
 
 /**

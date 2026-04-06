@@ -29,69 +29,6 @@ type DeviceApplicationsRouteProp = RouteProp<
 >;
 type NavigationProp = NativeStackNavigationProp<RootParamList>;
 
-interface AppItem {
-  id: AppType;
-  name: string;
-  description: string;
-  size: string;
-  active?: boolean;
-  latestDetection?: string;
-  confidence?: number;
-  processor: string;
-  modelName: string;
-  modelVersion: string;
-  nodes: string;
-  power: string;
-}
-
-const APPS_List: AppItem[] = [
-  {
-    id: 'keyword',
-    name: 'Keyword Spotting',
-    description: 'Voice-activated wake word detection using microphone input',
-    size: '128 kB',
-    processor: 'AKD1500',
-    modelName: 'DS-CNN-KWS',
-    modelVersion: 'v1.0.0',
-    nodes: '512 nodes',
-    power: '2.3 mW',
-  },
-  {
-    id: 'anomaly',
-    name: 'Anomaly Detection',
-    description:
-      'Real-time anomaly detection from vibration and acoustic patterns',
-    size: '96 kB',
-    processor: 'AKD1500',
-    modelName: 'AnomalyNet',
-    modelVersion: 'v2.1.0',
-    nodes: '384 nodes',
-    power: '3.1 mW',
-  },
-  {
-    id: 'imu',
-    name: 'IMU Gesture',
-    description: 'Motion gesture recognition using 6-axis IMU sensor data',
-    size: '112 kB',
-    processor: 'AKD1500',
-    modelName: 'IMU-GestureNet',
-    modelVersion: 'v1.3.2',
-    nodes: '256 nodes',
-    power: '1.9 mW',
-  },
-  {
-    id: 'vision',
-    name: 'Vision Lite',
-    description: 'Lightweight image classification for object detection',
-    size: '256 kB',
-    processor: 'AKD1500',
-    modelName: 'VisionLite-CNN',
-    modelVersion: 'v3.0.0',
-    nodes: '768 nodes',
-    power: '4.5 mW',
-  },
-];
-
 const DeviceApplicationsScreen: React.FC = () => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
@@ -105,6 +42,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     stopApp,
     latestDetection,
     confidence,
+    requestAppInfo,
   } = useBleCommandStore();
 
   const { connectedDevice } = useBleStore();
@@ -137,7 +75,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     };
   }, [deviceId, connectedDevice]);
 
-  const handleDeploy = async (app: AppItem | AppsList) => {
+  const handleDeploy = async (app: AppsList) => {
     if (!deviceId) {
       Alert.alert('Error', 'Device not connected');
       return;
@@ -151,7 +89,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
   };
 
-  const handleStop = async (app: AppItem | AppsList) => {
+  const handleStop = async (app: AppsList) => {
     if (!deviceId) return;
 
     try {
@@ -162,7 +100,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
   };
 
-  const navigateToLiveSensor = (app: AppItem | AppsList) => {
+  const navigateToLiveSensor = (app: AppsList) => {
     navigation.navigate('LiveSensorData', {
       appType: app.id,
       title: app.name,
@@ -177,6 +115,13 @@ const DeviceApplicationsScreen: React.FC = () => {
     updateMuteStatus(false);
   };
 
+  const getAppInfo = (appId: string | null) => {
+    setInfoAppId(appId);
+    if (appId) {
+      requestAppInfo(appId);
+    }
+  };
+
   useEffect(() => {
     if (!muteStatus && activeApp) {
       if (latestDetection && confidence !== undefined) {
@@ -189,7 +134,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     }
   }, [latestDetection, confidence, muteStatus, activeApp]);
 
-  const renderAppCard = (app: AppItem | AppsList, isFromAppsList = false) => {
+  const renderAppCard = (app: AppsList) => {
     const isActive = activeApp === app.id;
     const isInfoVisible = infoAppId === app.id;
 
@@ -200,20 +145,13 @@ const DeviceApplicationsScreen: React.FC = () => {
           styles.appCard,
           {
             backgroundColor: theme.colors.surface,
-            borderColor: isActive
-              ? theme.colors.primary
-              : Colors.border.light,
+            borderColor: isActive ? theme.colors.primary : Colors.border.light,
           },
         ]}
       >
         {/* Header */}
         <View style={styles.appHeader}>
-          <View
-            style={[
-              styles.iconBox,
-              { borderColor: theme.colors.outline },
-            ]}
-          >
+          <View style={[styles.iconBox, { borderColor: theme.colors.outline }]}>
             <Cpu size={18} color={theme.colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
@@ -243,32 +181,19 @@ const DeviceApplicationsScreen: React.FC = () => {
 
             {isInfoVisible ? (
               <View style={styles.infoBlock}>
-                {(isFromAppsList
-                  ? [
-                      ['Processor', (app as AppsList).processor],
-                      ['Model Name', (app as AppsList).modelName],
-                      ['Model Version', (app as AppsList).modelVersion],
-                      ['Model Size', (app as AppsList).modelSize],
-                      ['Input Shape', (app as AppsList).inputShape],
-                      ['No of Classes', (app as AppsList).noOfClasses],
-                      ['Akida Nodes', (app as AppsList).nodes],
-                      ['Power Consumption', (app as AppsList).powerConsumption],
-                    ]
-                  : [
-                      ['Processor', (app as AppItem).processor],
-                      ['Model Name', (app as AppItem).modelName],
-                      ['Model Version', (app as AppItem).modelVersion],
-                      ['Model Size', (app as AppItem).size],
-                      ['Akida Nodes', (app as AppItem).nodes],
-                      ['Power Consumption', (app as AppItem).power],
-                    ]
-                ).map(([label, value]) => (
+                {[
+                  ['Processor', app.processor],
+                  ['Model Name', app.modelName],
+                  ['Model Version', app.modelVersion],
+                  ['Model Size', app.modelSize],
+                  ['Input Shape', app.inputShape],
+                  ['No of Classes', app.noOfClasses],
+                  ['Akida Nodes', app.nodes],
+                  ['Power Consumption', app.powerConsumption],
+                ].map(([label, value]) => (
                   <View key={label} style={styles.infoRow}>
                     <Text
-                      style={[
-                        styles.bullet,
-                        { color: theme.colors.primary },
-                      ]}
+                      style={[styles.bullet, { color: theme.colors.primary }]}
                     >
                       ✱
                     </Text>
@@ -317,10 +242,7 @@ const DeviceApplicationsScreen: React.FC = () => {
             </Text>
             <View style={styles.activeRow}>
               <Text
-                style={[
-                  styles.activeValue,
-                  { color: theme.colors.primary },
-                ]}
+                style={[styles.activeValue, { color: theme.colors.primary }]}
               >
                 {latestDetection || 'Waiting...'}
               </Text>
@@ -341,7 +263,7 @@ const DeviceApplicationsScreen: React.FC = () => {
           <Button
             mode="outlined"
             style={{ flex: 1, borderColor: theme.colors.primary }}
-            onPress={() => setInfoAppId(isInfoVisible ? null : app.id)}
+            onPress={() => getAppInfo(isInfoVisible ? null : app.id)}
           >
             <Text
               variant="labelSmall"
@@ -455,8 +377,7 @@ const DeviceApplicationsScreen: React.FC = () => {
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ gap: 12 }}
           >
-            {APPS_List.map(app => renderAppCard(app, false))}
-            {appList.map(app => renderAppCard(app, true))}
+            {appList.map(app => renderAppCard(app))}
           </ScrollView>
         </View>
 
@@ -485,7 +406,9 @@ const DeviceApplicationsScreen: React.FC = () => {
         ) : batteryLevel ? (
           <View style={styles.statusCard}>
             <View style={styles.statusRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              >
                 <BatteryMedium size={18} color={Colors.black} />
                 <Text style={styles.statusLabel}>Battery</Text>
               </View>
@@ -498,11 +421,20 @@ const DeviceApplicationsScreen: React.FC = () => {
               style={styles.progress}
             />
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 2,
+              }}
+            >
               <Text variant="labelMedium" style={{ fontWeight: '600' }}>
                 {deviceName}:{' '}
               </Text>
-              <Text variant="labelSmall" style={{ color: Colors.success, fontWeight: '600' }}>
+              <Text
+                variant="labelSmall"
+                style={{ color: Colors.success, fontWeight: '600' }}
+              >
                 Connected
               </Text>
             </View>
@@ -513,7 +445,7 @@ const DeviceApplicationsScreen: React.FC = () => {
       {showNotification && (
         <View style={styles.notificationOverlay}>
           <NotificationCard
-            title={APPS_List.find(a => a.active)?.name ?? 'Application'}
+            title={appList.find(a => a.id === activeApp)?.name ?? 'Application'}
             description={`"${latestDetection}"`}
             confidence={confidence ?? 0}
             onSeeMore={() => {
