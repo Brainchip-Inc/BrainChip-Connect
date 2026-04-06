@@ -88,6 +88,7 @@ class BleConnectionHelper {
           text: 'Reconnect',
           onPress: () => {
             this.disconnectHandled = false;
+            this.isExpectedReboot = false;
 
             this.navigationRef?.reset({
               index: 0,

@@ -6,14 +6,13 @@ export enum BleCommand {
   APPS, // 2
   NOTIFY, // 3
   CONFIG, // 4
-  FWOTA, // 5
-  MOTA, // 6
-  UNINSTALL, // 7
-  RESET, // 8
-  DEPLOYSTART, // 9
-  STREAMSTART, //10
-  DEPLOYSTOP, // 11
-  STREAMSTOP, //12
+  APPS_INFO, // 5
+  UNINSTALL, // 6
+  RESET, // 7
+  DEPLOYSTART, // 8
+  STREAMSTART, //9
+  DEPLOYSTOP, // 10
+  STREAMSTOP, //11
 }
 
 export const BleCommandMap: Record<BleCommand, string> = {
@@ -22,8 +21,7 @@ export const BleCommandMap: Record<BleCommand, string> = {
   [BleCommand.APPS]: 'CMD%APPS',
   [BleCommand.NOTIFY]: 'CMD%NOTIFY',
   [BleCommand.CONFIG]: 'CMD%CONFIG',
-  [BleCommand.FWOTA]: 'CMD%FWOTA',
-  [BleCommand.MOTA]: 'CMD%MOTA',
+  [BleCommand.APPS_INFO]: 'CMD%APPSINFO',
   [BleCommand.UNINSTALL]: 'CMD%UNINSTALL',
   [BleCommand.RESET]: 'CMD%RESET',
   [BleCommand.DEPLOYSTART]: 'CMD%DEPLOYSTART',
