@@ -32,7 +32,8 @@ export type ParsedResponse =
   | { type: 'STREAMSTART'; data: string }
   | { type: 'DEPLOYSTOP'; data: string }
   | { type: 'STREAMSTOP'; data: string }
-  | { type: 'APPS'; data: string };
+  | { type: 'APPS'; data: string }
+  | { type: 'APPS_INFO'; data: string };
 
 // Multi-frame buffer (keyed by command enum)
 const multiFrameBuffer: Record<number, string[]> = {};
@@ -63,15 +64,31 @@ export const parseBleMessage = (raw: string): ParsedResponse | null => {
     return buildResponse(cmd, data);
   }
 
-  // ---------- MULTI FRAME ----------
-  if (!multiFrameBuffer[cmd]) {
-    multiFrameBuffer[cmd] = [];
+  // ---------- MULTI FRAME ----------=
+
+  // START → begin new message
+  if (frameType === 1) {
+    multiFrameBuffer[cmd] = [data];
+    return null;
   }
 
-  multiFrameBuffer[cmd].push(data);
+  // MID → continue only if started
+  if (frameType === 2) {
+    if (multiFrameBuffer[cmd]) {
+      multiFrameBuffer[cmd].push(data);
+    }
+    return null;
+  }
 
-  // END frame ? emit assembled response
+  // END → finish only if started
   if (frameType === 3) {
+    if (!multiFrameBuffer[cmd]) {
+      // ❌ END without START → ignore
+      return null;
+    }
+
+    multiFrameBuffer[cmd].push(data);
+
     const fullData = multiFrameBuffer[cmd].join('');
     delete multiFrameBuffer[cmd];
 
@@ -134,6 +151,12 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
     case BleCommand.APPS:
       return {
         type: 'APPS',
+        data: `${data}`,
+      };
+
+    case BleCommand.APPS_INFO:
+      return {
+        type: 'APPS_INFO',
         data: `${data}`,
       };
 
