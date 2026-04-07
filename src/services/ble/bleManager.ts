@@ -10,6 +10,7 @@ import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
 import { unzip } from 'react-native-zip-archive';
 import yaml from 'js-yaml';
+import { platform } from 'node:os';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -1123,6 +1124,11 @@ class BleService {
         const unzipPath = `${
           RNFS.TemporaryDirectoryPath
         }/firmware_${Date.now()}/`;
+        // Remove old unzip folder if exists
+        if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
+
+        // Ensure folder exists
+        await RNFS.mkdir(unzipPath);
         await unzip(filePath, unzipPath);
         const rootFiles = await RNFS.readDir(unzipPath);
 
@@ -1220,6 +1226,7 @@ class BleService {
   private readonly ACK_CRC_FAIL = 0xbb;
   private readonly BUFFER_SIZE = 102236; // 419 * 244 chunks
   private readonly ACK_EDGE_COMMAND = 0xa7;
+  private readonly ACK_EDGE_START_COMMAND = 0xa6;
 
   // Max dims/name length — must match firmware model_meta_t layout
   private readonly MAX_DIMS = 3;
@@ -1228,6 +1235,7 @@ class BleService {
   // Model OTA Updation
   private ackResolver: (() => void) | null = null;
   private cancelModelTransfer = false;
+  private pendingAck: number | null = null;
 
   /**
    * CRC32 over raw file bytes.
@@ -1326,6 +1334,14 @@ class BleService {
   // };
   private waitForAck = (timeoutMs = 5000): Promise<void> => {
     return new Promise((resolve, reject) => {
+
+      // ✅ if ACK already came, consume it instantly
+      if (this.pendingAck !== null) {
+        this.pendingAck = null;
+        resolve();
+        return;
+      }
+
       const timeout = setTimeout(() => {
         this.ackResolver = null;
         reject(new Error('ACK timeout'));
@@ -1370,15 +1386,24 @@ class BleService {
           // console.log('ACK_FLASH_ERASE_DONE');
           callback(ack);
           // Erase done — unblock waitForAck so transfer can proceed
-          this.ackResolver?.();
-          this.ackResolver = null;
+          if(this.ackResolver){
+            this.ackResolver?.();
+            this.ackResolver = null;
+          } else{
+            this.pendingAck = ack;
+          }
+          
         }
 
         if (ack === this.ACK_FLASH_WRITE_DONE) {
           // console.log('ACK_FLASH_WRITE_DONE');
           callback(ack);
-          this.ackResolver?.();
-          this.ackResolver = null;
+          if(this.ackResolver){
+            this.ackResolver?.();
+            this.ackResolver = null;
+          } else{
+            this.pendingAck = ack;
+          }
         }
 
         if (ack === this.ACK_CRC_FAIL) {
@@ -1439,6 +1464,12 @@ class BleService {
     try {
       // ── Unzip ──
       const unzipPath = `${RNFS.TemporaryDirectoryPath}/model_${Date.now()}/`;
+      // Remove old unzip folder if exists
+      if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
+
+      // Ensure folder exists
+      await RNFS.mkdir(unzipPath);
+
       await unzip(zipPath, unzipPath);
       const rootFiles = await RNFS.readDir(unzipPath);
 
@@ -1513,7 +1544,7 @@ class BleService {
 
       // ── Detect APP index ──
       const appIndex = this.detectAppIndex(dataBinFile.path);
-
+      if (__DEV__) console.log("appindex", appIndex)
       // =====================================================================
       // 1. Send APP index
       // =====================================================================
@@ -1532,6 +1563,7 @@ class BleService {
 
       // 3. Send info file size → triggers flash erase on firmware, wait for ERASE ACK
       await this.writeU32LE(deviceId, this.fileSizeUUID, infoSize);
+
       await this.waitForAck(10000); // erase can take a moment
 
       // 4. Combined CRC32 (header fields + info bytes)
@@ -1539,6 +1571,7 @@ class BleService {
 
       // 5. Total length (info + data)
       await this.writeU32LE(deviceId, this.totalLengthUUID, totalLength);
+      if (__DEV__) console.log("length", totalLength)
 
       // 6. Input shape (N × uint32 LE)
       if (inputShape.length > 0) {
@@ -1551,6 +1584,7 @@ class BleService {
           buf.toString('base64'),
         );
       }
+      if (__DEV__) console.log("inputshape", inputShape.length)
 
       // 7. Output shape (N × uint32 LE)
       if (outputShape.length > 0) {
@@ -1563,14 +1597,19 @@ class BleService {
           buf.toString('base64'),
         );
       }
+      if (__DEV__) console.log("outputShape", outputShape.length)
 
       // 8. Flash address
       await this.writeU32LE(deviceId, this.flashAddressUUID, flashAddress);
+
+      if (__DEV__) console.log("flashAddress", flashAddress)
 
       // 9. is_edge_learned (only written when true)
       if (isEdgeLearned) {
         await this.writeU32LE(deviceId, this.isEdgeLearnedUUID, 1);
       }
+
+      if (__DEV__) console.log("isEdgeLearned", isEdgeLearned)
 
       // 10. num_edge_classes packed (always written — firmware reads it even for non-EL)
       await this.writeU32LE(deviceId, this.numEdgeClassesUUID, packedClasses);
@@ -1583,8 +1622,15 @@ class BleService {
         Buffer.from(fsName, 'utf8').toString('base64'),
       );
 
+      if (__DEV__) console.log("fsName", fsName)
+
+
+      if (__DEV__) console.log("Streming start")
+
       // 12. Stream info binary chunks → wait for WRITE ACK
       await this.sendFileChunksWithAck(deviceId, infoBinFile.path);
+
+      if (__DEV__) console.log("Streming end")
 
       // =====================================================================
       // ── DATA transfer ──
@@ -1672,12 +1718,22 @@ class BleService {
       const payloadSize = this.negotiatedMTU - 3;
       const chunk = buffer.slice(sent, sent + payloadSize);
 
-      await this.bleManager.writeCharacteristicWithoutResponseForDevice(
-        deviceId,
-        this.modelServiceUUID,
-        this.fileTransferUUID,
-        chunk.toString('base64'),
-      );
+      if (Platform.OS === 'ios') {
+
+        await this.bleManager.writeCharacteristicWithResponseForDevice(
+          deviceId,
+          this.modelServiceUUID,
+          this.fileTransferUUID,
+          chunk.toString('base64'),
+        );
+      }else{
+        await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+          deviceId,
+          this.modelServiceUUID,
+          this.fileTransferUUID,
+          chunk.toString('base64'),
+        );
+      }
 
       sent += chunk.length;
       sinceLastAck += chunk.length;
@@ -1713,6 +1769,10 @@ class BleService {
 
   public getAckEdgeMode() {
     return this.ACK_EDGE_COMMAND;
+  }
+
+  public getAckEdgeStartMode() {
+    return this.ACK_EDGE_START_COMMAND;
   }
 
   /* ===============================
@@ -1760,12 +1820,13 @@ class BleService {
 
         const ack = Buffer.from(characteristic.value, 'base64')[0];
 
-        if (ack === this.ACK_EDGE_COMMAND) {
-          // console.log('ACK_FLASH_WRITE_DONE');
+        if (ack === this.ACK_EDGE_COMMAND || ack === this.ACK_EDGE_START_COMMAND) {
           callback(ack);
           this.edgeAckResolver?.();
           this.edgeAckResolver = null;
         }
+
+
       },
     );
     this.monitorSubscriptions.push(edgeSubscription);

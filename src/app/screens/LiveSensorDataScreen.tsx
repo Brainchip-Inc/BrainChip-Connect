@@ -162,9 +162,15 @@ const LiveSensorDataScreen = () => {
     const sub = BleService.subscribeToEdgeLearningAck(deviceId, ack => {
       if (ack === BleService.getAckEdgeMode()) {
         Alert.alert(
-          'Activated',
-          'Edge Learning Mode is activated successfully',
+          'Completed',
+          'Edge Learning is completed',
         );
+      }
+      if (ack === BleService.getAckEdgeStartMode()) {
+         Alert.alert(
+            'Ready to Speak',
+            'Edge Learning Mode is active. Please start speaking now.',
+         );
       }
     });
 
@@ -181,7 +187,7 @@ const LiveSensorDataScreen = () => {
 
       Alert.alert('Command Failed', 'Unable to send command to the device.');
     }
-    Alert.alert('Command Send', 'Command Send successfully');
+    if(value === 2 || value === 3) Alert.alert('Command Send', 'Command Send successfully');
   };
 
   const handleMode = () => {
