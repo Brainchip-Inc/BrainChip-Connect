@@ -26,6 +26,7 @@ import { AIModel, useModelStore } from '../store/useModelStore';
 import { Colors } from '../theme/theme';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
+import { useBleCommandStore } from '../store/useBleCommandStore';
 
 type ScreenState = 'list' | 'updating' | 'completed';
 
@@ -44,6 +45,8 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const [localModel, setLocalModel] = useState<AIModel | null>(null);
   const [showServerModels, setShowServerModels] = useState(false);
   const [serverLoading, setServerLoading] = useState(false);
+  const appList = useBleCommandStore(state => state.appsList);
+  const currentVersion = appList[0]?.modelVersion
 
   // Keeps a ref to the ACK subscription so it can be cleaned up on unmount
   const ackSubRef = useRef<any>(null);
@@ -156,6 +159,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
       }
 
       const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+      if (await RNFS.exists(localPath)) await RNFS.unlink(localPath);
       await RNFS.copyFile(cleanUri, localPath);
       const stat = await RNFS.stat(localPath);
 
@@ -174,6 +178,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
       setLocalModel(model);
     } catch (err: any) {
+      if (__DEV__) console.log('File picker error:', err?.message);
       if (err?.message !== 'User cancelled the picker') {
         Alert.alert('File selection failed');
       }
@@ -202,7 +207,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
         <View style={styles.container}>
           <View style={styles.card}>
             <Text style={styles.title}>Current Version</Text>
-            <Text style={styles.version}>Not Found</Text>
+            <Text style={styles.version}>{currentVersion ? currentVersion : "Not Found"}</Text>
           </View>
 
           <View
@@ -325,7 +330,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
           {screen === 'updating' && (
             <View style={[styles.card, { alignItems: 'center' }]}>
               <RefreshCw size={36} color={Colors.warning} />
-              <Text style={styles.centerTitle}>Rebooting device...</Text>
+              <Text style={styles.centerTitle}>Flashing model...</Text>
 
               <ProgressBar
                 progress={progress / 100}

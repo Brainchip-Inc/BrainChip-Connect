@@ -189,6 +189,8 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       // Copy to stable path inside app cache
       const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
 
+      if (await RNFS.exists(localPath)) await RNFS.unlink(localPath);
+
       await RNFS.copyFile(cleanUri, localPath);
 
       const stat = await RNFS.stat(localPath);
