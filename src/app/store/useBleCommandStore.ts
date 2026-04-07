@@ -257,6 +257,8 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 }));
               }
 
+              get().requestAppInfo(appType)
+
               break;
 
             case 'APPS_INFO':
