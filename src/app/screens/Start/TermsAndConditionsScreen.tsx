@@ -87,26 +87,29 @@ const TermsAndConditionsScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Banner */}
-        <View
-          style={{
-            marginTop: 20,
-            padding: 20,
-            borderRadius: 6,
-            marginBottom: 16,
-            backgroundColor: Colors.white,
-          }}
-        >
-          <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-            <FileText size={20} color={theme.colors.primary} />
-            <Text variant="titleMedium" style={{ marginLeft: 8 }}>
-              {content.banner.title}
+        {content.banners.map((banner, idx) => (
+          <View
+            style={{
+              marginTop: 20,
+              padding: 20,
+              borderRadius: 6,
+              marginBottom: 16,
+              backgroundColor: Colors.white,
+            }}
+            key={idx}
+          >
+            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+              <FileText size={20} color={theme.colors.primary} />
+              <Text variant="titleMedium" style={{ marginLeft: 8 }}>
+                {banner.title}
+              </Text>
+            </View>
+
+            <Text variant="bodyMedium" style={{ lineHeight: 20 }}>
+              {banner.content}
             </Text>
           </View>
-
-          <Text variant="bodyMedium" style={{ lineHeight: 20 }}>
-            {content.banner.content}
-          </Text>
-        </View>
+        ))}
 
         {/* Sections */}
         {content.sections.map((section, idx) => (
@@ -144,7 +147,7 @@ const TermsAndConditionsScreen = () => {
             marginBottom: 8,
           }}
         >
-          Last Updated: {content.effective_date}
+          Last Updated: {content.last_updated}
         </Text>
 
         <Text

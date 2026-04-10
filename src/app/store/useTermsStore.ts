@@ -15,17 +15,19 @@ export interface TermsSection {
 
 export interface TermsContent {
   title: string;
-  effective_date: string;
-  banner: {
-    title: string;
-    content: string;
-  };
+  last_updated: string;
+  banners: Banner[];
   sections: TermsSection[];
 }
 
 export interface TermsResponse {
   content: TermsContent;
   updated_at: string;
+}
+
+export interface Banner {
+  title: string;
+  content: string;
 }
 
 /* ================= STORE ================= */
@@ -51,12 +53,15 @@ export const useTermsStore = create<TermsState>(set => ({
     set({ loading: true, error: null });
 
     try {
-      const data = await apiService.get<TermsResponse>('/terms-conditions');
+      const data = await apiService.get<TermsContent>('/terms-conditions');
 
       // console.log('✅ Terms API response', data);
 
       set({
-        terms: data,
+        terms: {
+          content: data,
+          updated_at: new Date().toISOString(),
+        },
         loading: false,
       });
     } catch (err: any) {
