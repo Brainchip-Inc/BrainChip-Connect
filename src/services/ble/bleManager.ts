@@ -1,16 +1,15 @@
 import { decode, Encoder } from 'cbor-x';
 import CRC32 from 'crc-32';
+import yaml from 'js-yaml';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { BleManager, Device, State, Subscription } from 'react-native-ble-plx';
 import RNFS from 'react-native-fs';
+import { unzip } from 'react-native-zip-archive';
 import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
 import { parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
-import { unzip } from 'react-native-zip-archive';
-import yaml from 'js-yaml';
-import { platform } from 'node:os';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -1075,6 +1074,12 @@ class BleService {
       );
     }
     this.otaInProgress = 'firmware';
+    this.fotaSeq = 0;
+    this.smpBuffer = null;
+    this.smpExpectedLength = 0;
+    this.pendingFotaResponse = null;
+    this.fotaResolver = null;
+    this.fotaRejecter = null;
 
     const log = (msg: string) => {
       if (__DEV__) console.log('[FOTA]', msg);
@@ -1094,6 +1099,8 @@ class BleService {
     // Wait for subscription to stabilise (matches nRF Connect wait(300))
     await new Promise(r => setTimeout(r, 500));
 
+    let finalPath = '';
+    let unzipPath = '';
     try {
       // 2. SMP params — v0 handshake, MUST be before anything else
       log('Querying SMP params...');
@@ -1118,12 +1125,10 @@ class BleService {
       // 6. Upload firmware
       log('Uploading firmware...');
 
-      let finalPath = filePath;
+      finalPath = filePath;
 
       if (filePath.endsWith('.zip')) {
-        const unzipPath = `${
-          RNFS.TemporaryDirectoryPath
-        }/firmware_${Date.now()}/`;
+        unzipPath = `${RNFS.TemporaryDirectoryPath}/firmware_${Date.now()}/`;
         // Remove old unzip folder if exists
         if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
 
@@ -1169,6 +1174,10 @@ class BleService {
 
       this.removeSubscription(sub);
 
+      try {
+        await this.bleManager.cancelDeviceConnection(deviceId);
+      } catch {}
+
       // allow device reboot
       await new Promise(r => setTimeout(r, 2000));
 
@@ -1184,7 +1193,12 @@ class BleService {
       this.fotaRejecter = null;
       this.smpBuffer = null;
       this.smpExpectedLength = 0;
+      this.fotaSeq = 0;
+      this.pendingFotaResponse = null;
       BleConnectionHelper.setFotaRunning(false);
+      //remove the file once update is done
+      this.safeDelete(finalPath);
+      this.safeDelete(unzipPath);
     }
   }
 
@@ -1326,15 +1340,8 @@ class BleService {
     throw new Error("Filename must contain 'mnist' or 'kws'");
   };
 
-  // private waitForAck = (timeoutMs = 5000): Promise<void> => {
-  //   return new Promise((resolve, reject) => {
-  //     this.ackResolver = resolve;
-  //     setTimeout(() => reject(new Error('ACK timeout')), timeoutMs);
-  //   });
-  // };
   private waitForAck = (timeoutMs = 5000): Promise<void> => {
     return new Promise((resolve, reject) => {
-
       // ✅ if ACK already came, consume it instantly
       if (this.pendingAck !== null) {
         this.pendingAck = null;
@@ -1386,22 +1393,21 @@ class BleService {
           // console.log('ACK_FLASH_ERASE_DONE');
           callback(ack);
           // Erase done — unblock waitForAck so transfer can proceed
-          if(this.ackResolver){
+          if (this.ackResolver) {
             this.ackResolver?.();
             this.ackResolver = null;
-          } else{
+          } else {
             this.pendingAck = ack;
           }
-          
         }
 
         if (ack === this.ACK_FLASH_WRITE_DONE) {
           // console.log('ACK_FLASH_WRITE_DONE');
           callback(ack);
-          if(this.ackResolver){
+          if (this.ackResolver) {
             this.ackResolver?.();
             this.ackResolver = null;
-          } else{
+          } else {
             this.pendingAck = ack;
           }
         }
@@ -1460,10 +1466,14 @@ class BleService {
     }
     this.otaInProgress = 'model';
     this.cancelModelTransfer = false;
+    this.ackResolver = null;
+    this.pendingAck = null;
+
+    let unzipPath = '';
 
     try {
       // ── Unzip ──
-      const unzipPath = `${RNFS.TemporaryDirectoryPath}/model_${Date.now()}/`;
+      unzipPath = `${RNFS.TemporaryDirectoryPath}/model_${Date.now()}/`;
       // Remove old unzip folder if exists
       if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
 
@@ -1544,7 +1554,7 @@ class BleService {
 
       // ── Detect APP index ──
       const appIndex = this.detectAppIndex(dataBinFile.path);
-      if (__DEV__) console.log("appindex", appIndex)
+      if (__DEV__) console.log('appindex', appIndex);
       // =====================================================================
       // 1. Send APP index
       // =====================================================================
@@ -1571,7 +1581,7 @@ class BleService {
 
       // 5. Total length (info + data)
       await this.writeU32LE(deviceId, this.totalLengthUUID, totalLength);
-      if (__DEV__) console.log("length", totalLength)
+      if (__DEV__) console.log('length', totalLength);
 
       // 6. Input shape (N × uint32 LE)
       if (inputShape.length > 0) {
@@ -1584,7 +1594,7 @@ class BleService {
           buf.toString('base64'),
         );
       }
-      if (__DEV__) console.log("inputshape", inputShape.length)
+      if (__DEV__) console.log('inputshape', inputShape.length);
 
       // 7. Output shape (N × uint32 LE)
       if (outputShape.length > 0) {
@@ -1597,19 +1607,19 @@ class BleService {
           buf.toString('base64'),
         );
       }
-      if (__DEV__) console.log("outputShape", outputShape.length)
+      if (__DEV__) console.log('outputShape', outputShape.length);
 
       // 8. Flash address
       await this.writeU32LE(deviceId, this.flashAddressUUID, flashAddress);
 
-      if (__DEV__) console.log("flashAddress", flashAddress)
+      if (__DEV__) console.log('flashAddress', flashAddress);
 
       // 9. is_edge_learned (only written when true)
       if (isEdgeLearned) {
         await this.writeU32LE(deviceId, this.isEdgeLearnedUUID, 1);
       }
 
-      if (__DEV__) console.log("isEdgeLearned", isEdgeLearned)
+      if (__DEV__) console.log('isEdgeLearned', isEdgeLearned);
 
       // 10. num_edge_classes packed (always written — firmware reads it even for non-EL)
       await this.writeU32LE(deviceId, this.numEdgeClassesUUID, packedClasses);
@@ -1622,15 +1632,14 @@ class BleService {
         Buffer.from(fsName, 'utf8').toString('base64'),
       );
 
-      if (__DEV__) console.log("fsName", fsName)
+      if (__DEV__) console.log('fsName', fsName);
 
-
-      if (__DEV__) console.log("Streming start")
+      if (__DEV__) console.log('Streaming start');
 
       // 12. Stream info binary chunks → wait for WRITE ACK
       await this.sendFileChunksWithAck(deviceId, infoBinFile.path);
 
-      if (__DEV__) console.log("Streming end")
+      if (__DEV__) console.log('Streaming end');
 
       // =====================================================================
       // ── DATA transfer ──
@@ -1658,6 +1667,9 @@ class BleService {
       throw e;
     } finally {
       this.otaInProgress = null;
+      this.ackResolver = null;
+      this.pendingAck = null;
+      this.safeDelete(unzipPath);
     }
   }
 
@@ -1719,14 +1731,13 @@ class BleService {
       const chunk = buffer.slice(sent, sent + payloadSize);
 
       if (Platform.OS === 'ios') {
-
         await this.bleManager.writeCharacteristicWithResponseForDevice(
           deviceId,
           this.modelServiceUUID,
           this.fileTransferUUID,
           chunk.toString('base64'),
         );
-      }else{
+      } else {
         await this.bleManager.writeCharacteristicWithoutResponseForDevice(
           deviceId,
           this.modelServiceUUID,
@@ -1820,13 +1831,14 @@ class BleService {
 
         const ack = Buffer.from(characteristic.value, 'base64')[0];
 
-        if (ack === this.ACK_EDGE_COMMAND || ack === this.ACK_EDGE_START_COMMAND) {
+        if (
+          ack === this.ACK_EDGE_COMMAND ||
+          ack === this.ACK_EDGE_START_COMMAND
+        ) {
           callback(ack);
           this.edgeAckResolver?.();
           this.edgeAckResolver = null;
         }
-
-
       },
     );
     this.monitorSubscriptions.push(edgeSubscription);
@@ -1865,6 +1877,19 @@ class BleService {
       throw new Error(error?.message || 'Failed to send edge command');
     }
   }
+
+  private safeDelete = async (path?: string) => {
+    if (!path) return;
+
+    try {
+      const exists = await RNFS.exists(path);
+      if (!exists) return;
+
+      await RNFS.unlink(path);
+    } catch (e) {
+      if (__DEV__) console.warn('Delete failed:', e);
+    }
+  };
 }
 
 export default new BleService();
