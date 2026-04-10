@@ -18,17 +18,19 @@ export interface PolicySection {
 
 export interface PrivacyPolicyContent {
   title: string;
-  effective_date: string;
-  banner: {
-    title: string;
-    content: string;
-  };
+  last_updated: string;
+  banners: Banner[];
   sections: PolicySection[];
 }
 
 export interface PrivacyPolicyResponse {
   content: PrivacyPolicyContent;
   updated_at: string;
+}
+
+export interface Banner {
+  title: string;
+  content: string;
 }
 
 /* ================= STORE ================= */
@@ -49,12 +51,15 @@ export const usePolicyStore = create<PolicyState>(set => ({
     set({ loading: true, error: null });
 
     try {
-      const data = await apiService.get<PrivacyPolicyResponse>(
+      const data = await apiService.get<PrivacyPolicyContent>(
         '/privacy-policy',
       );
 
       set({
-        privacyPolicy: data,
+        privacyPolicy: {
+          content: data,
+          updated_at: new Date().toISOString(),
+        },
         loading: false,
       });
     } catch (err: any) {
