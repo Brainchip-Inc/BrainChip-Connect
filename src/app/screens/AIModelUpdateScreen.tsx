@@ -46,7 +46,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const [showServerModels, setShowServerModels] = useState(false);
   const [serverLoading, setServerLoading] = useState(false);
   const appList = useBleCommandStore(state => state.appsList);
-  const currentVersion = appList[0]?.modelVersion
+  const currentVersion = appList[0]?.modelVersion;
 
   // Keeps a ref to the ACK subscription so it can be cleaned up on unmount
   const ackSubRef = useRef<any>(null);
@@ -133,6 +133,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   };
 
   const browseLocalModel = async () => {
+    setScreen('list');
     try {
       setShowServerModels(false);
 
@@ -207,7 +208,9 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
         <View style={styles.container}>
           <View style={styles.card}>
             <Text style={styles.title}>Current Version</Text>
-            <Text style={styles.version}>{currentVersion ? currentVersion : "Not Found"}</Text>
+            <Text style={styles.version}>
+              {currentVersion ? currentVersion : 'Not Found'}
+            </Text>
           </View>
 
           <View
@@ -233,7 +236,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               )}
               onPress={async () => {
                 if (!token) return;
-
+                setScreen('list');
                 setLocalModel(null);
                 setShowServerModels(true);
                 setServerLoading(true);
@@ -249,7 +252,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
           {/* ---------------- SCREEN 1 : local model card ---------------- */}
           {screen === 'list' && localModel && (
-            <View style={[styles.card, { alignItems: 'center' }]}>
+            <View style={[styles.card]}>
               <View style={styles.versionHeaderRow}>
                 <Text style={styles.title}>Available Version</Text>
                 <View style={styles.newBadge}>
