@@ -987,9 +987,6 @@ class BleService {
 
       onProgress?.(Math.min((offset / totalSize) * 100, 100));
 
-      const elapsed = (Date.now() - t0) / 1000;
-      const speed = elapsed > 0 ? (offset / 1024 / elapsed).toFixed(1) : '?';
-
       await new Promise(r => setTimeout(r, 5));
     }
   }
@@ -1245,6 +1242,7 @@ class BleService {
   // Max dims/name length — must match firmware model_meta_t layout
   private readonly MAX_DIMS = 3;
   private readonly MAX_FS_NAME_LEN = 64;
+  private detectAppIndex = (): number => 0;
 
   // Model OTA Updation
   private ackResolver: (() => void) | null = null;
@@ -1329,15 +1327,6 @@ class BleService {
     crc = CRC32.buf(infoBuffer, crc);
 
     return (crc ^ 0xffffffff) >>> 0;
-  };
-
-  private detectAppIndex = (filePath: string): number => {
-    const name = filePath.toLowerCase();
-
-    if (name.includes('mnist')) return 1;
-    if (name.includes('kws')) return 0;
-
-    throw new Error("Filename must contain 'mnist' or 'kws'");
   };
 
   private waitForAck = (timeoutMs = 5000): Promise<void> => {
@@ -1515,12 +1504,12 @@ class BleService {
       const rawAddr = meta?.flash_address ?? '0x1000';
       const flashAddress: number =
         typeof rawAddr === 'string' ? parseInt(rawAddr, 16) : Number(rawAddr);
-      const modelName: string = String(meta?.model_name ?? '');
+      const modelName: string = String(meta?.app ?? meta?.model_name ?? '');
 
       // Edge-learning fields
       const elMeta = meta?.edge_learning ?? {};
       const isEdgeLearned: boolean = Boolean(elMeta?.enabled ?? false);
-      const numClasses: number = Number(elMeta?.num_classes ?? 0);
+      const numClasses: number = Number(elMeta?.num_el_classes ?? 0);
       const neuronsPerClass: number = Number(elMeta?.num_neurons ?? 1);
 
       // packed num_edge_classes: upper 16 bits = neurons_per_class, lower 16 bits = num_classes
@@ -1553,7 +1542,7 @@ class BleService {
       );
 
       // ── Detect APP index ──
-      const appIndex = this.detectAppIndex(dataBinFile.path);
+      const appIndex = this.detectAppIndex();
       if (__DEV__) console.log('appindex', appIndex);
       // =====================================================================
       // 1. Send APP index
@@ -1571,19 +1560,29 @@ class BleService {
         this.TRANSFER_TYPE_INFO,
       );
 
-      // 3. Send info file size → triggers flash erase on firmware, wait for ERASE ACK
+      // 3. fs_name (UTF-8 string)
+      if (__DEV__)
+        console.log('🚀 ~ BleService ~ sendModelZip ~ fsName:', fsName);
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.fsNameUUID,
+        Buffer.from(fsName, 'utf8').toString('base64'),
+      );
+
+      // 4. Send info file size → triggers flash erase on firmware, wait for ERASE ACK
       await this.writeU32LE(deviceId, this.fileSizeUUID, infoSize);
 
       await this.waitForAck(10000); // erase can take a moment
 
-      // 4. Combined CRC32 (header fields + info bytes)
+      // 5. Combined CRC32 (header fields + info bytes)
       await this.writeU32LE(deviceId, this.crcUUID, combinedCRC);
 
-      // 5. Total length (info + data)
+      // 6. Total length (info + data)
       await this.writeU32LE(deviceId, this.totalLengthUUID, totalLength);
       if (__DEV__) console.log('length', totalLength);
 
-      // 6. Input shape (N × uint32 LE)
+      // 7. Input shape (N × uint32 LE)
       if (inputShape.length > 0) {
         const buf = Buffer.alloc(inputShape.length * 4);
         inputShape.forEach((v, i) => buf.writeUInt32LE(v >>> 0, i * 4));
@@ -1596,7 +1595,7 @@ class BleService {
       }
       if (__DEV__) console.log('inputshape', inputShape.length);
 
-      // 7. Output shape (N × uint32 LE)
+      // 8. Output shape (N × uint32 LE)
       if (outputShape.length > 0) {
         const buf = Buffer.alloc(outputShape.length * 4);
         outputShape.forEach((v, i) => buf.writeUInt32LE(v >>> 0, i * 4));
@@ -1609,30 +1608,22 @@ class BleService {
       }
       if (__DEV__) console.log('outputShape', outputShape.length);
 
-      // 8. Flash address
+      // 9. Flash address
       await this.writeU32LE(deviceId, this.flashAddressUUID, flashAddress);
 
       if (__DEV__) console.log('flashAddress', flashAddress);
 
-      // 9. is_edge_learned (only written when true)
-      if (isEdgeLearned) {
-        await this.writeU32LE(deviceId, this.isEdgeLearnedUUID, 1);
-      }
+      // 10. is_edge_learned (only written when true)
+      await this.writeU32LE(
+        deviceId,
+        this.isEdgeLearnedUUID,
+        isEdgeLearned ? 1 : 0,
+      );
 
       if (__DEV__) console.log('isEdgeLearned', isEdgeLearned);
 
-      // 10. num_edge_classes packed (always written — firmware reads it even for non-EL)
+      // 11. num_edge_classes packed (always written — firmware reads it even for non-EL)
       await this.writeU32LE(deviceId, this.numEdgeClassesUUID, packedClasses);
-
-      // 11. fs_name (UTF-8 string)
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
-        deviceId,
-        this.modelServiceUUID,
-        this.fsNameUUID,
-        Buffer.from(fsName, 'utf8').toString('base64'),
-      );
-
-      if (__DEV__) console.log('fsName', fsName);
 
       if (__DEV__) console.log('Streaming start');
 
@@ -1640,6 +1631,9 @@ class BleService {
       await this.sendFileChunksWithAck(deviceId, infoBinFile.path);
 
       if (__DEV__) console.log('Streaming end');
+
+      this.pendingAck = null;
+      this.ackResolver = null;
 
       // =====================================================================
       // ── DATA transfer ──
