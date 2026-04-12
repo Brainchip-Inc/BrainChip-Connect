@@ -1,5 +1,6 @@
 import { NavigationContainerRef } from '@react-navigation/native';
 import { Alert } from 'react-native';
+import { useBleStore } from '../store/useBleStore';
 
 class BleConnectionHelper {
   private navigationRef: NavigationContainerRef<any> | null = null;
@@ -10,6 +11,7 @@ class BleConnectionHelper {
   private disconnectHandled = false;
 
   private isExpectedReboot = false;
+  
 
   /* ---------------------------------- */
   /* Navigation                         */
@@ -89,6 +91,9 @@ class BleConnectionHelper {
           onPress: () => {
             this.disconnectHandled = false;
             this.isExpectedReboot = false;
+            const { setConnectedDevice, setConnectionState } = useBleStore.getState();
+            setConnectedDevice(null);
+            setConnectionState('disconnected');
 
             this.navigationRef?.reset({
               index: 0,
@@ -116,6 +121,9 @@ class BleConnectionHelper {
           onPress: () => {
             this.disconnectHandled = false;
             this.isExpectedReboot = false;
+            const { setConnectedDevice, setConnectionState } = useBleStore.getState();
+            setConnectedDevice(null);
+            setConnectionState('disconnected');
             // Redirect to the device discovery or the same screen after reboot
             this.navigationRef?.reset({
               index: 0,

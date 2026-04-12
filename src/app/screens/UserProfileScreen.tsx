@@ -45,7 +45,7 @@ const ProfileRow = ({ icon, title, subtitle, onPress }: any) => (
 const UserProfileScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.PROFILE);
-  const { connectedDevice } = useBleStore();
+  const { connectedDevice,setConnectedDevice,setConnectionState } = useBleStore();
 
   const [unpairModal, setUnpairModal] = useState(false);
 
@@ -87,6 +87,8 @@ const UserProfileScreen = ({ navigation }: any) => {
               );
             } finally {
               setUnpairModal(false);
+              setConnectedDevice(null);
+              setConnectionState("disconnected")
             }
           },
         },
