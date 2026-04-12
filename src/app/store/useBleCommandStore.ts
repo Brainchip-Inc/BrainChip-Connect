@@ -257,6 +257,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 }));
               }
 
+              (async () => {
+                try {
+                  await get().requestAppInfo(appType);
+                } catch (e) {
+                  if (__DEV__) console.warn('requestAppInfo failed', e);
+                }
+              })();
+
               break;
 
             case 'APPS_INFO':
@@ -281,7 +289,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                   inputShape: parsedInfoData[4],
                   noOfClasses: parsedInfoData[5],
                   nodes: parsedInfoData[6],
-                  powerConsumption: (parseInt(parsedInfoData[7], 10) || 0).toFixed(2),
+                  powerConsumption: (
+                    parseInt(parsedInfoData[7], 10) || 0
+                  ).toFixed(2),
                 };
 
                 set(state => {
@@ -328,12 +338,18 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
     try {
       await BleService.sendCommand(deviceId, BleCommand.BATTERY);
-      await BleService.sendCommand(deviceId, BleCommand.APPS);
-      // buildResponse 0,0,132,2:Keyword Spotting,Voice-activated wake word detection using microphone input,128 kb,ADK1500,DS-CNN-KWS,v1.0.0,65 Kb,Input shape,31
     } catch (error) {
       set({
         batteryError: 'Battery request failed',
         batteryLoading: false,
+      });
+    }
+    await new Promise(r => setTimeout(r, 300));
+    try {
+      await BleService.sendCommand(deviceId, BleCommand.APPS);
+    } catch (error) {
+      set({
+        appsList: [],
       });
     }
   },

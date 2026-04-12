@@ -417,7 +417,7 @@ const DeviceApplicationsScreen: React.FC = () => {
 
             <ProgressBar
               progress={Number(batteryLevel) / 100}
-              color={Colors.success}
+              color={Colors.lightGrey}
               style={styles.progress}
             />
 
