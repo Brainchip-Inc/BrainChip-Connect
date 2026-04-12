@@ -1,13 +1,15 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Bluetooth, Shield } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ScrollView, useWindowDimensions, View } from 'react-native';
 import base64 from 'react-native-base64';
 import { Base64 } from 'react-native-ble-plx';
 import { Button, Divider, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootParamList } from '../../../../App';
+import { useBleCommandStore } from '../../store/useBleCommandStore';
+import { useBleStore } from '../../store/useBleStore';
 
 type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
 
@@ -17,7 +19,8 @@ const DevicePreviewScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-
+  const { parsedDeviceInfo, setParsedDeviceInfo} = useBleStore();
+  
   const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs } = route.params;
 
   const parseManufacturerData = (mfData: Base64) => {
@@ -34,22 +37,26 @@ const DevicePreviewScreen: React.FC = () => {
     };
 
     const deviceType = manufacturerInfo.slice(5, 12);
-    return {
+    const deviceInfoObj = {
       deviceType: deviceType,
       firmwareVersion: `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
       bleVersion: `BLE ${bleVersion.major}.${bleVersion.minor}`,
-    };
+    }
+    setParsedDeviceInfo(deviceInfoObj)
   };
 
-  const parsedDeviceInfo = deviceInfo
-    ? parseManufacturerData(deviceInfo)
-    : {
-        deviceType: 'Unknown',
-        firmwareVersion: 'Unknown',
-        bleVersion: 'Unknown',
-      };
 
-  const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo;
+  useEffect(()=>{
+    if(deviceInfo){
+      parseManufacturerData(deviceInfo);
+    }
+  },[deviceInfo, setParsedDeviceInfo])
+
+  const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo || {
+    deviceType: 'Unknown',
+    firmwareVersion: 'Unknown',
+    bleVersion: 'Unknown',
+  };
   const macAddress = deviceId || '—';
 
   const spacing = width < 375 ? 12 : 16;

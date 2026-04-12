@@ -21,6 +21,7 @@
     "buffer": "^6.0.3",
     "cbor-x": "^1.6.0",
     "crc-32": "^1.2.2",
+    "js-yaml": "^4.1.1",
     "lottie-react-native": "^7.3.4",
     "lucide-react-native": "^0.562.0",
     "react": "19.2.0",
@@ -39,6 +40,7 @@
     "react-native-svg": "^15.15.1",
     "react-native-svg-transformer": "^1.5.2",
     "react-native-vector-icons": "^10.3.0",
+    "react-native-zip-archive": "^7.0.2",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
@@ -53,6 +55,7 @@
     "@react-native/metro-config": "0.83.1",
     "@react-native/typescript-config": "0.83.1",
     "@types/jest": "^29.5.13",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.0",
     "@types/react-native-base64": "^0.2.2",

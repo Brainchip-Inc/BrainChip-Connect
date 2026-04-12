@@ -9,6 +9,12 @@ export interface BLEDevice {
   serviceUUIDs: UUID[] | null;
 }
 
+interface DeviceInfo {
+  deviceType: string,
+  firmwareVersion: string,
+  bleVersion: string,
+}
+
 interface BleState {
   // Bluetooth adapter state
   isBluetoothEnabled: boolean;
@@ -45,6 +51,10 @@ interface BleState {
   termsAccepted: boolean;
   setPrivacyAccepted: (accepted: boolean) => void;
   setTermsAccepted: (accepted: boolean) => void;
+
+  //deviceInfo
+  parsedDeviceInfo : DeviceInfo;
+  setParsedDeviceInfo : (deviceInfo: DeviceInfo) => void;
 }
 
 export const useBleStore = create<BleState>(set => ({
@@ -87,4 +97,11 @@ export const useBleStore = create<BleState>(set => ({
   termsAccepted: false,
   setPrivacyAccepted: accepted => set({ privacyAccepted: accepted }),
   setTermsAccepted: accepted => set({ termsAccepted: accepted }),
+
+  parsedDeviceInfo: {
+        deviceType: 'Unknown',
+        firmwareVersion: 'Unknown',
+        bleVersion: 'Unknown',
+      },
+  setParsedDeviceInfo: deviceInfo => set ({ parsedDeviceInfo : deviceInfo })
 }));

@@ -44,9 +44,10 @@ const SettingsScreen = ({ navigation }: any) => {
   const [showPowerModal, setShowPowerModal] = useState(false);
   const [showSensorModal, setShowSensorModal] = useState(false);
   const [showReset, setShowReset] = useState(false);
-  const { connectedDevice } = useBleStore();
+  const { connectedDevice, parsedDeviceInfo } = useBleStore();
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
+  const currentYear = new Date().getFullYear();
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -123,6 +124,16 @@ const SettingsScreen = ({ navigation }: any) => {
               </View>
             </View>
           </TouchableOpacity>
+          {/* FOOTER */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>{deviceName}</Text>
+            <Text style={styles.footerText}>
+              Firmware v{parsedDeviceInfo?.firmwareVersion} � Serial: {parsedDeviceInfo?.deviceType}
+            </Text>
+            <Text style={styles.footerText}>
+              © {currentYear} BrainChip Holdings Ltd.
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -243,5 +254,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 12,
     color: `${Colors.error}`,
+  },
+  footer: {
+    marginTop: 32,
+    alignItems: 'center',
+    paddingBottom: 24,
+  },
+  footerText: {
+    fontSize: 12,
+    fontFamily: 'Inter',
   },
 });
