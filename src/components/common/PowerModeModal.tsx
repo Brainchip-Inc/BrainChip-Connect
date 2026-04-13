@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${Colors.white}`,
     marginHorizontal: 16,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 0,
     width: '90%',
     elevation: 5,
     shadowColor: `${Colors.black}`,

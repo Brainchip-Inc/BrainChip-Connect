@@ -201,7 +201,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               <ChevronLeft size={20} color={Colors.black} />
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>AI Model Update</Text>
+            <Text style={styles.headerTitle}>Model Update</Text>
           </View>
         </View>
 
