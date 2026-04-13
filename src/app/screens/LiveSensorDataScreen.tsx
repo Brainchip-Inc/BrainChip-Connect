@@ -538,7 +538,7 @@ const LiveSensorDataScreen = () => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <ChevronLeft size={30} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Live Sensor Data</Text>
+          <Text style={styles.headerTitle}>Application Dashboard</Text>
         </View>
 
         <View style={styles.container}>

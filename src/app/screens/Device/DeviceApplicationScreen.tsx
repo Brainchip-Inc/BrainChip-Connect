@@ -1,11 +1,14 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  Activity,
   BatteryCharging,
   BatteryMedium,
   BatteryWarning,
   Cpu,
-  Zap,
+  Eye,
+  LayoutDashboard,
+  Mic,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -17,16 +20,14 @@ import {
 } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { RootParamList } from '../../../../App';
+import DeviceInfoModal from '../../../components/common/DeviceInfoModal';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../../components/custom/DeviceHeader';
-import NotificationCard from '../../../components/custom/NotificationCard';
 import { AppsList } from '../../../services/ble/bleParser';
 import { BatteryStateStrings } from '../../../types/batteryStateEnum';
 import { RouteName, ROUTES } from '../../../types/routes';
 import { useBleCommandStore } from '../../store/useBleCommandStore';
 import { useBleStore } from '../../store/useBleStore';
-import { useFirmwareStore } from '../../store/useFirmwareStore';
-import { useNotificationsStore } from '../../store/useNotificationStore';
 import { Colors } from '../../theme/theme';
 
 type DeviceApplicationsRouteProp = RouteProp<
@@ -34,6 +35,13 @@ type DeviceApplicationsRouteProp = RouteProp<
   'DeviceApplications'
 >;
 type NavigationProp = NativeStackNavigationProp<RootParamList>;
+
+const APP_ICON_MAP: Record<string, typeof Cpu> = {
+  keyword: Mic,
+  anomaly: Activity,
+  vision: Eye,
+  imu: Activity,
+};
 
 const DeviceApplicationsScreen: React.FC = () => {
   const theme = useTheme();
@@ -64,13 +72,11 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const spacing = width < 375 ? 12 : 16;
 
-  const [showNotification, setShowNotification] = useState(false);
-  const { muteStatus, updateMuteStatus } = useNotificationsStore();
+  const [showDeviceInfo, setShowDeviceInfo] = useState(false);
 
   const activeApp = useBleCommandStore(state => state.activeApp);
   const appList = useBleCommandStore(state => state.appsList);
 
-  const installedBuild = useFirmwareStore(state => state.installedBuild);
 
   const shouldShowLabel =
     batteryStateLabel &&
@@ -166,32 +172,12 @@ const DeviceApplicationsScreen: React.FC = () => {
     });
   };
 
-  const navigateToNotification = () => {
-    navigation.navigate('Notifications');
-  };
-
-  const muteNotifiations = () => {
-    updateMuteStatus(false);
-  };
-
   const getAppInfo = (appId: string | null) => {
     setInfoAppId(appId);
     if (appId) {
       requestAppInfo(appId);
     }
   };
-
-  useEffect(() => {
-    if (!muteStatus && activeApp) {
-      if (latestDetection && confidence !== undefined) {
-        setShowNotification(true);
-        const timer = setTimeout(() => {
-          setShowNotification(false);
-        }, 5000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [latestDetection, confidence, muteStatus, activeApp]);
 
   const renderAppCard = (app: AppsList) => {
     const isActive = activeApp === app.id;
@@ -211,7 +197,10 @@ const DeviceApplicationsScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.appHeader}>
           <View style={[styles.iconBox, { borderColor: theme.colors.outline }]}>
-            <Cpu size={18} color={theme.colors.primary} />
+            {(() => {
+              const AppIcon = APP_ICON_MAP[app.id] ?? Cpu;
+              return <AppIcon size={18} color={theme.colors.primary} />;
+            })()}
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.titleRow}>
@@ -238,7 +227,7 @@ const DeviceApplicationsScreen: React.FC = () => {
               {app.description}
             </Text>
 
-            {isInfoVisible ? (
+            {isInfoVisible && (
               <View style={styles.infoBlock}>
                 {[
                   ['Processor', app.processor],
@@ -267,15 +256,6 @@ const DeviceApplicationsScreen: React.FC = () => {
                   </View>
                 ))}
               </View>
-            ) : (
-              <Text
-                style={{
-                  ...styles.sizeText,
-                  color: theme.colors.onSurfaceVariant,
-                }}
-              >
-                ◦ Size: {app.size}
-              </Text>
             )}
           </View>
         </View>
@@ -291,29 +271,32 @@ const DeviceApplicationsScreen: React.FC = () => {
               },
             ]}
           >
-            <Text
-              style={[
-                styles.activeLabel,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Latest Detection
-            </Text>
-            <View style={styles.activeRow}>
-              <Text
-                style={[styles.activeValue, { color: theme.colors.primary }]}
-              >
-                {latestDetection || 'Waiting...'}
-              </Text>
+            {latestDetection && latestDetection !== 'Waiting...' ? (
+              <View style={styles.activeRow}>
+                <Text
+                  style={[styles.activeValue, { color: theme.colors.primary }]}
+                >
+                  "{latestDetection}" detected
+                </Text>
+                <Text
+                  style={[
+                    styles.activePercent,
+                    { color: theme.colors.secondary },
+                  ]}
+                >
+                  {confidence ?? 0}% Confidence
+                </Text>
+              </View>
+            ) : (
               <Text
                 style={[
-                  styles.activePercent,
-                  { color: theme.colors.secondary },
+                  styles.activeValue,
+                  { color: theme.colors.onSurfaceVariant },
                 ]}
               >
-                {confidence ?? 0}%
+                No keyword detected
               </Text>
-            </View>
+            )}
           </View>
         )}
 
@@ -346,7 +329,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                   color: theme.colors.surface,
                 }}
               >
-                Deploy Application
+                Run Application
               </Text>
             </Button>
           ) : (
@@ -372,10 +355,10 @@ const DeviceApplicationsScreen: React.FC = () => {
           <Button
             mode="contained"
             style={{ marginTop: spacing }}
-            icon={() => <Zap size={16} color={Colors.white} />}
+            icon={() => <LayoutDashboard size={16} color={Colors.white} />}
             onPress={() => navigateToLiveSensor(app)}
           >
-            View Live Sensor Data
+            Application Dashboard
           </Button>
         )}
       </View>
@@ -388,44 +371,17 @@ const DeviceApplicationsScreen: React.FC = () => {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <DeviceHeader deviceName={deviceName} showConnectionStatus={true} />
+      <DeviceHeader
+        deviceName={deviceName}
+        showConnectionStatus={true}
+        onDeviceInfoPress={() => setShowDeviceInfo(true)}
+      />
 
       <View style={styles.content}>
         {/* Title - FIXED */}
         <Text style={[styles.title, { color: theme.colors.onBackground }]}>
           Select the Application
         </Text>
-
-        {/* Firmware Build Card - FIXED (only shown when a build is installed) */}
-        {installedBuild && (
-          <View
-            style={[
-              styles.defaultCard,
-              {
-                backgroundColor: theme.colors.primary,
-                borderColor: theme.colors.outline,
-              },
-            ]}
-          >
-            <View style={styles.defaultHeader}>
-              <Cpu size={16} color={theme.colors.surface} />
-              <Text
-                style={[styles.defaultTitle, { color: theme.colors.surface }]}
-              >
-                Current Firmware Build
-              </Text>
-            </View>
-            <Text
-              variant="displaySmall"
-              style={[{ color: theme.colors.surface, padding: 5 }]}
-            >
-              {installedBuild.title}
-            </Text>
-            <Text style={[styles.defaultDesc, { color: theme.colors.surface }]}>
-              {installedBuild.description}
-            </Text>
-          </View>
-        )}
 
         {/* Scrollable App Cards ONLY */}
         <View style={styles.scrollSection}>
@@ -537,20 +493,11 @@ const DeviceApplicationsScreen: React.FC = () => {
         ) : null}
       </View>
 
-      {showNotification && (
-        <View style={styles.notificationOverlay}>
-          <NotificationCard
-            title={appList.find(a => a.id === activeApp)?.name ?? 'Application'}
-            description={`"${latestDetection}"`}
-            confidence={confidence ?? 0}
-            onSeeMore={() => {
-              navigateToNotification();
-            }}
-            onMuteNotifications={muteNotifiations}
-            onClose={() => setShowNotification(false)}
-          />
-        </View>
-      )}
+      <DeviceInfoModal
+        visible={showDeviceInfo}
+        onClose={() => setShowDeviceInfo(false)}
+        deviceName={deviceName}
+      />
 
       {/* Bottom Navigation */}
       <BottomNavigationBar
@@ -578,16 +525,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
-  defaultCard: { padding: 12, borderWidth: 1, marginBottom: 16 },
-  defaultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  defaultTitle: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700' },
-  defaultDesc: {
-    fontFamily: 'Inter',
-    fontSize: 12,
-    fontWeight: '400',
-    marginTop: 8,
-    lineHeight: 18,
-  },
   scrollSection: {
     flex: 1,
     position: 'relative',
@@ -610,11 +547,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   appDesc: { fontSize: 13, lineHeight: 20, fontWeight: '400', marginTop: 4 },
-  sizeText: { fontSize: 12, marginTop: 6 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   activeBadge: { fontSize: 12, fontWeight: '600' },
   activeBlock: { marginTop: 12, padding: 12, borderWidth: 1 },
-  activeLabel: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
   activeRow: { flexDirection: 'row', justifyContent: 'space-between' },
   activeValue: { fontSize: 14, fontWeight: '600' },
   activePercent: { fontSize: 14, fontWeight: '600' },
@@ -671,13 +606,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  notificationOverlay: {
-    position: 'absolute',
-    top: 90,
-    left: 0,
-    right: 0,
-    zIndex: 999,
-  },
   progressContainer: {
     height: 10,
     width: '100%',
