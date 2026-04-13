@@ -8,6 +8,7 @@ import { useEventsStore } from './useEventStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 import { AppsList } from '../../services/ble/bleParser';
 import { AppType } from './useLiveSensorStore';
+import { BatteryState, getBatteryLabel } from '../../types/batteryStateEnum';
 
 let streamBuffer: number[] = [];
 let lastFlush = 0;
@@ -43,6 +44,7 @@ interface BleCommandState {
   batteryLevel: string | null;
   batteryLoading: boolean;
   batteryError: string | null;
+  batteryStateLabel: string | null;
 
   activeApp: string | null;
   latestDetection: string | undefined;
@@ -89,6 +91,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   batteryLevel: null,
   batteryLoading: false,
   batteryError: null,
+  batteryStateLabel: null,
 
   activeApp: null,
   latestDetection: 'Waiting',
@@ -124,6 +127,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       batteryLevel: null,
       batteryLoading: false,
       batteryError: null,
+      batteryStateLabel: null,
       activeApp: null,
       latestDetection: undefined,
       confidence: undefined,
@@ -144,10 +148,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
           switch (data.type) {
             case 'BATTERY':
+              const rcvdBatData = String(data.data);
+              const [batteryPercentage, batteryState] = rcvdBatData.split(',');
+              const stateNum = (Number(batteryState) as BatteryState) || null;
               set({
-                batteryLevel: String(data.data),
+                batteryLevel: batteryPercentage,
                 batteryLoading: false,
                 batteryError: null,
+                batteryStateLabel: getBatteryLabel(stateNum),
               });
               break;
 
@@ -342,6 +350,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       set({
         batteryError: 'Battery request failed',
         batteryLoading: false,
+        batteryStateLabel: null,
       });
     }
     await new Promise(r => setTimeout(r, 300));

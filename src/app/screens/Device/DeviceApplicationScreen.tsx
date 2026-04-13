@@ -1,6 +1,12 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BatteryMedium, Cpu, Zap } from 'lucide-react-native';
+import {
+  BatteryCharging,
+  BatteryMedium,
+  BatteryWarning,
+  Cpu,
+  Zap,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -9,19 +15,19 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Button, ProgressBar, Text, useTheme } from 'react-native-paper';
-import { RouteName, ROUTES } from '../../../types/routes';
-import { AppType } from '../../store/useLiveSensorStore';
-import { useBleCommandStore } from '../../store/useBleCommandStore';
+import { Button, Text, useTheme } from 'react-native-paper';
+import { RootParamList } from '../../../../App';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../../components/custom/DeviceHeader';
-import { Colors } from '../../theme/theme';
-import { RootParamList } from '../../../../App';
-import { useBleStore } from '../../store/useBleStore';
 import NotificationCard from '../../../components/custom/NotificationCard';
-import { useNotificationsStore } from '../../store/useNotificationStore';
 import { AppsList } from '../../../services/ble/bleParser';
+import { BatteryStateStrings } from '../../../types/batteryStateEnum';
+import { RouteName, ROUTES } from '../../../types/routes';
+import { useBleCommandStore } from '../../store/useBleCommandStore';
+import { useBleStore } from '../../store/useBleStore';
 import { useFirmwareStore } from '../../store/useFirmwareStore';
+import { useNotificationsStore } from '../../store/useNotificationStore';
+import { Colors } from '../../theme/theme';
 
 type DeviceApplicationsRouteProp = RouteProp<
   RootParamList,
@@ -43,6 +49,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     latestDetection,
     confidence,
     requestAppInfo,
+    batteryStateLabel,
   } = useBleCommandStore();
 
   const { connectedDevice } = useBleStore();
@@ -64,6 +71,49 @@ const DeviceApplicationsScreen: React.FC = () => {
   const appList = useBleCommandStore(state => state.appsList);
 
   const installedBuild = useFirmwareStore(state => state.installedBuild);
+
+  const isCharging = batteryStateLabel == BatteryStateStrings.Charging;
+  const shouldShowLabel =
+    batteryStateLabel &&
+    batteryStateLabel !== BatteryStateStrings.NotCharging &&
+    batteryStateLabel !== BatteryStateStrings.Unknown;
+
+  const getBatteryStateColors = (
+    batteryLevel: string | undefined | null,
+    batteryStateLabel: string | null,
+  ) => {
+    const level = batteryLevel ? parseInt(batteryLevel) : 100;
+
+    // Charging state has highest priority
+    if (batteryStateLabel === BatteryStateStrings.Charging) {
+      return {
+        borderColor: `${Colors.border.light}`,
+        textColor: `${Colors.success}`,
+        iconColor: `${Colors.success}`,
+      };
+    }
+
+    if (batteryStateLabel === BatteryStateStrings.Warning) {
+      return {
+        borderColor: `${Colors.border.light}`,
+        textColor: `${Colors.warning}`,
+        iconColor: `${Colors.warning}`,
+      };
+    }
+
+    if (batteryStateLabel === BatteryStateStrings.Fault) {
+      return {
+        borderColor: `${Colors.border.light}`,
+        textColor: `${Colors.error}`,
+        iconColor: `${Colors.error}`,
+      };
+    }
+
+    return {
+      borderColor: `${Colors.border.light}`,
+      backgroundColor: `${Colors.white}`,
+    };
+  };
 
   useEffect(() => {
     if (!deviceId) return;
@@ -323,6 +373,11 @@ const DeviceApplicationsScreen: React.FC = () => {
     );
   };
 
+  const { borderColor, textColor, iconColor } = getBatteryStateColors(
+    batteryLevel,
+    batteryStateLabel,
+  );
+
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
@@ -359,12 +414,7 @@ const DeviceApplicationsScreen: React.FC = () => {
             >
               {installedBuild.title}
             </Text>
-            <Text
-              style={[
-                styles.defaultDesc,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
+            <Text style={[styles.defaultDesc, { color: theme.colors.surface }]}>
               {installedBuild.description}
             </Text>
           </View>
@@ -404,41 +454,77 @@ const DeviceApplicationsScreen: React.FC = () => {
             </Text>
           </View>
         ) : batteryLevel ? (
-          <View style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <View
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-              >
-                <BatteryMedium size={18} color={Colors.black} />
-                <Text style={styles.statusLabel}>Battery</Text>
+          <>
+            <View style={[styles.statusCard, { borderColor }]}>
+              <View style={styles.statusRow}>
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
+                  <BatteryMedium size={18} />
+                  <Text style={styles.statusLabel}>Battery</Text>
+                </View>
+
+                <Text style={{ fontWeight: '700', opacity: 0.2 }}>
+                  {batteryLevel}%
+                </Text>
               </View>
-              <Text style={styles.statusValue}>{batteryLevel}%</Text>
-            </View>
 
-            <ProgressBar
-              progress={Number(batteryLevel) / 100}
-              color={Colors.lightGrey}
-              style={styles.progress}
-            />
+              <View style={styles.progressContainer}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      backgroundColor: `${Colors.veryLightGrey}`,
+                      opacity: 0.2,
+                    },
+                  ]}
+                />
+              </View>
 
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginTop: 2,
-              }}
-            >
-              <Text variant="labelMedium" style={{ fontWeight: '600' }}>
-                {deviceName}:{' '}
-              </Text>
-              <Text
-                variant="labelSmall"
-                style={{ color: Colors.success, fontWeight: '600' }}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginTop: 8,
+                }}
               >
-                Connected
-              </Text>
+                <Text variant="labelMedium" style={{ fontWeight: '600' }}>
+                  {deviceName}:{' '}
+                </Text>
+                <Text variant="labelSmall" style={{ color: Colors.success }}>
+                  Connected
+                </Text>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginLeft: 'auto',
+                  }}
+                >
+                  {batteryStateLabel === BatteryStateStrings.Charging ? (
+                    <BatteryCharging size={16} color={iconColor} />
+                  ) : batteryStateLabel === BatteryStateStrings.Warning ? (
+                    <BatteryWarning size={16} color={iconColor} />
+                  ) : batteryStateLabel === BatteryStateStrings.Fault ? (
+                    <BatteryWarning size={16} color={iconColor} />
+                  ) : null}
+
+                  {shouldShowLabel ? (
+                    <Text
+                      style={{
+                        marginLeft: 6,
+                        fontWeight: '600',
+                        color: textColor,
+                      }}
+                    >
+                      {batteryStateLabel}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
             </View>
-          </View>
+          </>
         ) : null}
       </View>
 
@@ -582,5 +668,26 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 999,
+  },
+  progressContainer: {
+    height: 10,
+    width: '100%',
+    backgroundColor: '#eee',
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+
+  progressFill: {
+    height: '100%',
+    borderRadius: 10,
+  },
+
+  shine: {
+    position: 'absolute',
+    height: '100%',
+    width: 80,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 10,
   },
 });
