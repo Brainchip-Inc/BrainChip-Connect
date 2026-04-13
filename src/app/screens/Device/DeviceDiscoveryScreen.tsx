@@ -36,8 +36,6 @@ const DeviceDiscoveryScreen: React.FC = () => {
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hasDevices = devices.length > 0;
-  const privacyAccepted = useBleStore(state => state.privacyAccepted);
-  const termsAccepted = useBleStore(state => state.termsAccepted);
 
   const getSignalColor = (rssi: number | null) => {
     if (!rssi) return theme.colors.outline;
@@ -303,7 +301,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
         style={{
           paddingHorizontal: 20,
           paddingTop: 12,
-          paddingBottom: insets.bottom + 20,
+          paddingBottom: insets.bottom + 48,
           backgroundColor: theme.colors.background,
         }}
       >
@@ -315,15 +313,13 @@ const DeviceDiscoveryScreen: React.FC = () => {
           Scan again
         </Button>
 
-        {privacyAccepted && termsAccepted ? (
-          <Button
-            mode="outlined"
-            onPress={() => navigation.goBack()}
-            style={{ marginTop: 12 }}
-          >
-            Back
-          </Button>
-        ) : null}
+        <Button
+          mode="outlined"
+          onPress={() => navigation.navigate('GetStarted')}
+          style={{ marginTop: 12 }}
+        >
+          Back
+        </Button>
       </View>
     </View>
   );

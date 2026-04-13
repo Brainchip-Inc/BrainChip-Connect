@@ -14,11 +14,13 @@ import { useBleCommandStore } from '../../store/useBleCommandStore';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
+// Total time we'll wait for connection + auth before giving up
+const CONNECTION_TIMEOUT_MS = 20000;
+
 const ConnectionSteps = [
-  { id: 1, label: 'Establishing connection', duration: 2000 },
-  { id: 2, label: 'Authenticating', duration: 2000 },
-  { id: 3, label: 'Reading device info', duration: 1500 },
-  { id: 4, label: 'Syncing configuration', duration: 1500 },
+  { id: 1, label: 'Authenticating' },
+  { id: 2, label: 'Establishing connection' },
+  { id: 3, label: 'Syncing configuration' },
 ];
 
 const DeviceConnectingScreen: React.FC = () => {
@@ -35,7 +37,6 @@ const DeviceConnectingScreen: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
 
-  const stepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
 
   const isSmallDevice = width < 375;
@@ -55,63 +56,77 @@ const DeviceConnectingScreen: React.FC = () => {
 
   useEffect(() => {
     isMountedRef.current = true;
-    let stepIndex = 0;
     const totalSteps = ConnectionSteps.length;
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    // Overall timeout covering auth + BLE connect. If the whole flow doesn't
+    // complete within CONNECTION_TIMEOUT_MS we abort and surface an error.
+    const overallTimeout = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        // Best-effort cancel of any in-flight BLE attempt
+        BleService.disconnectDevice(deviceId).catch(() => {});
+        reject(
+          new Error(
+            'Connection timed out. Please check your network and that the device is in range, then try again.',
+          ),
+        );
+      }, CONNECTION_TIMEOUT_MS);
+    });
+
+    const advanceStep = (stepIndex: number) => {
+      if (!isMountedRef.current) return;
+      setCurrentStep(stepIndex);
+      setProgress(stepIndex / totalSteps);
+    };
 
     const connectDevice = async () => {
       try {
         setConnectionState('connecting');
 
-        // ?? Authenticate with server
         const deviceUniqServiceId = serviceUUIDs![0];
-        await authenticateDevice(
-          deviceId,
-          deviceName,
-          deviceType,
-          deviceUniqServiceId!,
-        );
 
-        // Start connection process
-        const connectionPromise = BleService.connectDevice(deviceId, () => {
-          Alert.alert(
-            'Device Disconnected',
-            'The device connection was lost.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setConnectedDevice(null);
-                  setConnectionState('disconnected');
-                  navigation.replace('DeviceDiscovery');
-                },
-              },
-            ],
-            { cancelable: false },
-          );
-        });
+        // Race the entire auth + BLE connect flow against the overall timeout
+        await Promise.race([
+          (async () => {
+            // STEP 1: Authenticate with server
+            advanceStep(0);
+            await authenticateDevice(
+              deviceId,
+              deviceName,
+              deviceType,
+              deviceUniqServiceId!,
+            );
 
-        // Animate connection steps with progress
-        stepIntervalRef.current = setInterval(() => {
-          if (!isMountedRef.current) return;
-          if (stepIndex < totalSteps) {
-            setCurrentStep(stepIndex);
-            setProgress((stepIndex + 1) / totalSteps);
-            stepIndex++;
-          } else {
-            if (stepIntervalRef.current) {
-              clearInterval(stepIntervalRef.current);
-              stepIntervalRef.current = null;
-            }
-          }
-        }, 1800);
+            // STEP 2: Establish BLE connection
+            advanceStep(1);
+            await BleService.connectDevice(deviceId, () => {
+              Alert.alert(
+                'Device Disconnected',
+                'The device connection was lost.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setConnectedDevice(null);
+                      setConnectionState('disconnected');
+                      navigation.replace('DeviceDiscovery');
+                    },
+                  },
+                ],
+                { cancelable: false },
+              );
+            });
 
-        // Wait for actual connection
-        await connectionPromise;
+            // STEP 3: Sync configuration (start BLE notifications)
+            advanceStep(2);
+          })(),
+          overallTimeout,
+        ]);
 
-        // Clean up interval
-        if (stepIntervalRef.current) {
-          clearInterval(stepIntervalRef.current);
-          stepIntervalRef.current = null;
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+          timeoutHandle = null;
         }
 
         if (!isMountedRef.current) return;
@@ -140,11 +155,15 @@ const DeviceConnectingScreen: React.FC = () => {
           });
         }, 500);
       } catch (error: unknown) {
-        // Clean up interval on error
-        if (stepIntervalRef.current) {
-          clearInterval(stepIntervalRef.current);
-          stepIntervalRef.current = null;
+        // Clean up timeout on error
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+          timeoutHandle = null;
         }
+
+        // Best-effort cleanup of any partial connection
+        BleService.disconnectDevice(deviceId).catch(() => {});
+        setConnectedDevice(null);
 
         if (!isMountedRef.current) return;
 
@@ -156,7 +175,7 @@ const DeviceConnectingScreen: React.FC = () => {
         Alert.alert('Connection Failed', message, [
           {
             text: 'OK',
-            onPress: () => navigation.goBack(),
+            onPress: () => navigation.replace('DeviceDiscovery'),
           },
         ]);
       }
@@ -166,9 +185,9 @@ const DeviceConnectingScreen: React.FC = () => {
 
     return () => {
       isMountedRef.current = false;
-      if (stepIntervalRef.current) {
-        clearInterval(stepIntervalRef.current);
-        stepIntervalRef.current = null;
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
       }
     };
   }, [
