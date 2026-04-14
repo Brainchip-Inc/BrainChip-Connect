@@ -3,42 +3,37 @@ import { apiService } from '../../services/backend/api';
 
 /* ================= TYPES ================= */
 
+export interface Banner {
+  title: string;
+  content: string;
+}
+
 export interface TermsItem {
-  text: string;
+  title: string;
 }
 
 export interface TermsSection {
-  heading: string;
-  content: string;
+  title: string;
+  description: string;
   items: TermsItem[];
 }
 
 export interface TermsContent {
   title: string;
-  effective_date: string;
-  banner: {
-    title: string;
-    content: string;
-  };
+  last_updated: string;
+  banners: Banner[];
   sections: TermsSection[];
-}
-
-export interface TermsResponse {
-  content: TermsContent;
-  updated_at: string;
 }
 
 /* ================= STORE ================= */
 
 interface TermsState {
-  terms: TermsResponse | null;
+  terms: TermsContent | null;
   loading: boolean;
   error: string | null;
 
   fetchTerms: () => Promise<void>;
 }
-
-/* ================= STORE ================= */
 
 export const useTermsStore = create<TermsState>(set => ({
   terms: null,
@@ -46,22 +41,16 @@ export const useTermsStore = create<TermsState>(set => ({
   error: null,
 
   fetchTerms: async () => {
-    // console.log('🚀 Fetching Terms from API');
-
     set({ loading: true, error: null });
 
     try {
-      const data = await apiService.get<TermsResponse>('/terms-conditions');
-
-      // console.log('✅ Terms API response', data);
+      const data = await apiService.get<TermsContent>('/terms-conditions');
 
       set({
         terms: data,
         loading: false,
       });
     } catch (err: any) {
-      // console.log('❌ Terms API error', err);
-
       set({
         error: err?.message ?? 'Failed to fetch terms',
         loading: false,

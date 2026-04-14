@@ -29,7 +29,7 @@ const AccountPrivacyPolicyScreen = () => {
     fetchPrivacyPolicy();
   }, []);
 
-  const content = privacyPolicy?.content;
+  const content = privacyPolicy;
 
   /* ================= LOADING ================= */
   if (loading) {
@@ -102,25 +102,28 @@ const AccountPrivacyPolicyScreen = () => {
         </View>
         <View style={[styles.container]}>
           {/* BANNER */}
-          <View
-            style={{
-              marginTop: 20,
-              backgroundColor: Colors.primary,
-              padding: 20,
-              marginBottom: 16,
-            }}
-          >
-            <Text style={{ color: Colors.white, fontWeight: '700' }}>
-              {content.banner.title}
-            </Text>
-            <Text style={{ color: Colors.white, marginTop: 6 }}>
-              {content.banner.content}
-            </Text>
-          </View>
+          {content.banners?.map((banner, idx) => (
+            <View
+              style={{
+                marginTop: 20,
+                backgroundColor: Colors.primary,
+                padding: 20,
+                marginBottom: 16,
+              }}
+              key={idx}
+            >
+              <Text style={{ color: Colors.white, fontWeight: '700' }}>
+                {banner.title}
+              </Text>
+              <Text style={{ color: Colors.white, marginTop: 6 }}>
+                {banner.content}
+              </Text>
+            </View>
+          ))}
 
           {/* SECTIONS */}
           {content.sections?.map((section, idx) => (
-            <PrivacySectionCard key={idx} title={section.heading}>
+            <PrivacySectionCard key={idx} title={section.title}>
               {section.description && (
                 <Text
                   style={{
@@ -168,7 +171,7 @@ const AccountPrivacyPolicyScreen = () => {
               marginBottom: 8,
             }}
           >
-            Last Updated: {content.effective_date}
+            Last Updated: {content.last_updated}
           </Text>
 
           <Text
