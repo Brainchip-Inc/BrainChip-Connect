@@ -3,6 +3,11 @@ import { apiService } from '../../services/backend/api';
 
 /* ================= TYPES ================= */
 
+export interface Banner {
+  title: string;
+  content: string;
+}
+
 export interface PolicyItem {
   icon?: string;
   title: string;
@@ -10,7 +15,7 @@ export interface PolicyItem {
 }
 
 export interface PolicySection {
-  heading: string;
+  title: string;
   icon?: string;
   description?: string | null;
   items: PolicyItem[];
@@ -18,23 +23,15 @@ export interface PolicySection {
 
 export interface PrivacyPolicyContent {
   title: string;
-  effective_date: string;
-  banner: {
-    title: string;
-    content: string;
-  };
+  last_updated: string;
+  banners: Banner[];
   sections: PolicySection[];
-}
-
-export interface PrivacyPolicyResponse {
-  content: PrivacyPolicyContent;
-  updated_at: string;
 }
 
 /* ================= STORE ================= */
 
 interface PolicyState {
-  privacyPolicy: PrivacyPolicyResponse | null;
+  privacyPolicy: PrivacyPolicyContent | null;
   loading: boolean;
   error: string | null;
   fetchPrivacyPolicy: () => Promise<void>;
@@ -49,7 +46,7 @@ export const usePolicyStore = create<PolicyState>(set => ({
     set({ loading: true, error: null });
 
     try {
-      const data = await apiService.get<PrivacyPolicyResponse>(
+      const data = await apiService.get<PrivacyPolicyContent>(
         '/privacy-policy',
       );
 
