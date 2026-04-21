@@ -72,7 +72,6 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const installedBuild = useFirmwareStore(state => state.installedBuild);
 
-  const isCharging = batteryStateLabel == BatteryStateStrings.Charging;
   const shouldShowLabel =
     batteryStateLabel &&
     batteryStateLabel !== BatteryStateStrings.NotCharging &&
@@ -82,8 +81,6 @@ const DeviceApplicationsScreen: React.FC = () => {
     batteryLevel: string | undefined | null,
     batteryStateLabel: string | null,
   ) => {
-    const level = batteryLevel ? parseInt(batteryLevel) : 100;
-
     // Charging state has highest priority
     if (batteryStateLabel === BatteryStateStrings.Charging) {
       return {
@@ -113,6 +110,20 @@ const DeviceApplicationsScreen: React.FC = () => {
       borderColor: `${Colors.border.light}`,
       backgroundColor: `${Colors.white}`,
     };
+  };
+
+  const getProgressBarColor = (
+    batteryLevel: string | undefined | null,
+  ): string => {
+    const parsed = Number(batteryLevel);
+
+    if (!batteryLevel || Number.isNaN(parsed)) {
+      return Colors.veryLightGrey;
+    }
+
+    if (parsed <= 20) return Colors.error;
+    if (parsed <= 50) return Colors.warning;
+    return Colors.success;
   };
 
   useEffect(() => {
@@ -464,7 +475,12 @@ const DeviceApplicationsScreen: React.FC = () => {
                   <Text style={styles.statusLabel}>Battery</Text>
                 </View>
 
-                <Text style={{ fontWeight: '700', opacity: 0.2 }}>
+                <Text
+                  style={{
+                    fontWeight: '700',
+                    color: getProgressBarColor(batteryLevel),
+                  }}
+                >
                   {batteryLevel}%
                 </Text>
               </View>
@@ -474,8 +490,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                   style={[
                     styles.progressFill,
                     {
-                      backgroundColor: `${Colors.veryLightGrey}`,
-                      opacity: 0.2,
+                      backgroundColor: getProgressBarColor(batteryLevel),
                     },
                   ]}
                 />
