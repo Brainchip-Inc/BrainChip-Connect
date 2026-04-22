@@ -23,6 +23,7 @@ export interface AppsList {
   noOfClasses: string;
   nodes: string;
   powerConsumption: string;
+  keywords: string[];
 }
 export type ParsedResponse =
   | { type: 'BATTERY'; data: string }

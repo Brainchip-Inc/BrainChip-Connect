@@ -230,14 +230,9 @@ const DeviceApplicationsScreen: React.FC = () => {
             {isInfoVisible && (
               <View style={styles.infoBlock}>
                 {[
-                  ['Processor', app.processor],
                   ['Model Name', app.modelName],
-                  ['Model Version', app.modelVersion],
-                  ['Model Size', app.modelSize],
                   ['Input Shape', app.inputShape],
-                  ['No of Classes', app.noOfClasses],
-                  ['Akida Nodes', app.nodes],
-                  ['Power Consumption', app.powerConsumption],
+                  ['Classes', app.noOfClasses],
                 ].map(([label, value]) => (
                   <View key={label} style={styles.infoRow}>
                     <Text
@@ -255,6 +250,57 @@ const DeviceApplicationsScreen: React.FC = () => {
                     </Text>
                   </View>
                 ))}
+
+                <View style={styles.infoRow}>
+                  <Text
+                    style={[styles.bullet, { color: theme.colors.primary }]}
+                  >
+                    ✱
+                  </Text>
+                  <Text
+                    style={[
+                      styles.infoText,
+                      { color: theme.colors.onSurface },
+                    ]}
+                  >
+                    <Text style={styles.label}>Keywords:</Text>
+                  </Text>
+                </View>
+                {app.keywords?.length ? (
+                  <View style={styles.chipRow}>
+                    {app.keywords.map(kw => (
+                      <View
+                        key={kw}
+                        style={[
+                          styles.chip,
+                          {
+                            borderColor: theme.colors.primary,
+                            backgroundColor: 'rgba(0,97,237,0.03)',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: theme.colors.primary },
+                          ]}
+                        >
+                          {kw}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      styles.infoText,
+                      styles.keywordsEmpty,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    -
+                  </Text>
+                )}
               </View>
             )}
           </View>
@@ -551,13 +597,27 @@ const styles = StyleSheet.create({
   activeBadge: { fontSize: 12, fontWeight: '600' },
   activeBlock: { marginTop: 12, padding: 12, borderWidth: 1 },
   activeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  activeValue: { fontSize: 14, fontWeight: '600' },
-  activePercent: { fontSize: 14, fontWeight: '600' },
+  activeValue: { fontSize: 12, fontWeight: '600' },
+  activePercent: { fontSize: 12, fontWeight: '600' },
   infoBlock: { marginTop: 12 },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   bullet: { fontSize: 12, marginRight: 8 },
   infoText: { fontSize: 13 },
   label: { fontWeight: '700' },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginLeft: 20,
+    marginBottom: 8,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  chipText: { fontSize: 12, fontWeight: '500' },
+  keywordsEmpty: { marginLeft: 20, marginBottom: 8 },
   progress: {
     height: 8,
     marginBottom: 6,

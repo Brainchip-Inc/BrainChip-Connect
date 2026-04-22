@@ -235,6 +235,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 noOfClasses: '-',
                 nodes: '-',
                 powerConsumption: '-',
+                keywords: [],
               };
 
               // Check if the app with the same id or name already exists in the appsList
@@ -291,18 +292,19 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 // If the app exists, check if any other key has changed
                 const existingApp = get().appsList[existAppIndex];
 
+                // Firmware APPS_INFO burst (4 frames, positional):
+                //   0: modelName, 1: inputShape, 2: numClasses, 3: keywords (';' delimited)
+                const keywords = (parsedInfoData[3] ?? '')
+                  .split(';')
+                  .map(k => k.trim())
+                  .filter(Boolean);
+
                 const appsInfoData: AppsList = {
                   ...existingApp,
-                  processor: parsedInfoData[0],
-                  modelName: parsedInfoData[1],
-                  modelVersion: parsedInfoData[2],
-                  modelSize: parsedInfoData[3],
-                  inputShape: parsedInfoData[4],
-                  noOfClasses: parsedInfoData[5],
-                  nodes: parsedInfoData[6],
-                  powerConsumption: (
-                    parseInt(parsedInfoData[7], 10) || 0
-                  ).toFixed(2),
+                  modelName: parsedInfoData[0],
+                  inputShape: parsedInfoData[1],
+                  noOfClasses: parsedInfoData[2],
+                  keywords,
                 };
 
                 set(state => {
