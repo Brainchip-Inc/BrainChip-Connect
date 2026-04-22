@@ -150,7 +150,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
             case 'BATTERY':
               const rcvdBatData = String(data.data);
               const [batteryPercentage, batteryState] = rcvdBatData.split(',');
-              const stateNum = (Number(batteryState) as BatteryState) || null;
+              const parsed = batteryState ? Number(batteryState) : NaN;
+              const stateNum: BatteryState | null = Number.isNaN(parsed)
+                ? null
+                : (parsed as BatteryState);
               set({
                 batteryLevel: batteryPercentage,
                 batteryLoading: false,

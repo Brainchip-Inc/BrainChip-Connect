@@ -77,10 +77,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     batteryStateLabel !== BatteryStateStrings.NotCharging &&
     batteryStateLabel !== BatteryStateStrings.Unknown;
 
-  const getBatteryStateColors = (
-    batteryLevel: string | undefined | null,
-    batteryStateLabel: string | null,
-  ) => {
+  const getBatteryStateColors = (batteryStateLabel: string | null) => {
     // Charging state has highest priority
     if (batteryStateLabel === BatteryStateStrings.Charging) {
       return {
@@ -108,7 +105,8 @@ const DeviceApplicationsScreen: React.FC = () => {
 
     return {
       borderColor: `${Colors.border.light}`,
-      backgroundColor: `${Colors.white}`,
+      textColor: undefined,
+      iconColor: undefined,
     };
   };
 
@@ -384,10 +382,8 @@ const DeviceApplicationsScreen: React.FC = () => {
     );
   };
 
-  const { borderColor, textColor, iconColor } = getBatteryStateColors(
-    batteryLevel,
-    batteryStateLabel,
-  );
+  const { borderColor, textColor, iconColor } =
+    getBatteryStateColors(batteryStateLabel);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -465,81 +461,79 @@ const DeviceApplicationsScreen: React.FC = () => {
             </Text>
           </View>
         ) : batteryLevel ? (
-          <>
-            <View style={[styles.statusCard, { borderColor }]}>
-              <View style={styles.statusRow}>
-                <View
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                >
-                  <BatteryMedium size={18} />
-                  <Text style={styles.statusLabel}>Battery</Text>
-                </View>
-
-                <Text
-                  style={{
-                    fontWeight: '700',
-                    color: getProgressBarColor(batteryLevel),
-                  }}
-                >
-                  {batteryLevel}%
-                </Text>
+          <View style={[styles.statusCard, { borderColor }]}>
+            <View style={styles.statusRow}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              >
+                <BatteryMedium size={18} />
+                <Text style={styles.statusLabel}>Battery</Text>
               </View>
 
-              <View style={styles.progressContainer}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      backgroundColor: getProgressBarColor(batteryLevel),
-                    },
-                  ]}
-                />
-              </View>
+              <Text
+                style={{
+                  fontWeight: '700',
+                  color: getProgressBarColor(batteryLevel),
+                }}
+              >
+                {batteryLevel}%
+              </Text>
+            </View>
+
+            <View style={styles.progressContainer}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    backgroundColor: getProgressBarColor(batteryLevel),
+                  },
+                ]}
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 8,
+              }}
+            >
+              <Text variant="labelMedium" style={{ fontWeight: '600' }}>
+                {deviceName}:{' '}
+              </Text>
+              <Text variant="labelSmall" style={{ color: Colors.success }}>
+                Connected
+              </Text>
 
               <View
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  marginTop: 8,
+                  marginLeft: 'auto',
                 }}
               >
-                <Text variant="labelMedium" style={{ fontWeight: '600' }}>
-                  {deviceName}:{' '}
-                </Text>
-                <Text variant="labelSmall" style={{ color: Colors.success }}>
-                  Connected
-                </Text>
+                {batteryStateLabel === BatteryStateStrings.Charging ? (
+                  <BatteryCharging size={16} color={iconColor} />
+                ) : batteryStateLabel === BatteryStateStrings.Warning ? (
+                  <BatteryWarning size={16} color={iconColor} />
+                ) : batteryStateLabel === BatteryStateStrings.Fault ? (
+                  <BatteryWarning size={16} color={iconColor} />
+                ) : null}
 
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    marginLeft: 'auto',
-                  }}
-                >
-                  {batteryStateLabel === BatteryStateStrings.Charging ? (
-                    <BatteryCharging size={16} color={iconColor} />
-                  ) : batteryStateLabel === BatteryStateStrings.Warning ? (
-                    <BatteryWarning size={16} color={iconColor} />
-                  ) : batteryStateLabel === BatteryStateStrings.Fault ? (
-                    <BatteryWarning size={16} color={iconColor} />
-                  ) : null}
-
-                  {shouldShowLabel ? (
-                    <Text
-                      style={{
-                        marginLeft: 6,
-                        fontWeight: '600',
-                        color: textColor,
-                      }}
-                    >
-                      {batteryStateLabel}
-                    </Text>
-                  ) : null}
-                </View>
+                {shouldShowLabel ? (
+                  <Text
+                    style={{
+                      marginLeft: 6,
+                      fontWeight: '600',
+                      color: textColor,
+                    }}
+                  >
+                    {batteryStateLabel}
+                  </Text>
+                ) : null}
               </View>
             </View>
-          </>
+          </View>
         ) : null}
       </View>
 
@@ -695,14 +689,6 @@ const styles = StyleSheet.create({
 
   progressFill: {
     height: '100%',
-    borderRadius: 10,
-  },
-
-  shine: {
-    position: 'absolute',
-    height: '100%',
-    width: 80,
-    backgroundColor: 'rgba(255,255,255,0.4)',
     borderRadius: 10,
   },
 });
