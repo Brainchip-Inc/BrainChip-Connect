@@ -32,6 +32,13 @@ export interface WavePayload {
   samples: Int16Array;
 }
 
+// One current-monitor reading, one value per supply rail. The board samples
+// both rails together and sends them in a single frame.
+export interface CurrentSample {
+  rail08: number; // 0.8 V rail, mA
+  rail18: number; // 1.8 V rail, mA
+}
+
 export type ConfigSetReason = 'ID' | 'RANGE' | 'PARSE' | 'NVS' | string;
 
 // Firmware ACK_DONE payload for single-token "done" responses (0xAA = 170).
@@ -58,7 +65,11 @@ export type ParsedResponse =
       ok: false;
       reason: ConfigSetReason;
     }
-  | { type: 'CONFIG_RESET_ACK' };
+  | { type: 'CONFIG_RESET_ACK' }
+  // Current-monitor samples arrive under CMD_CURRENT_START (13); the board
+  // has no separate opcode for the stream itself.
+  | { type: 'CURRENT'; data: CurrentSample }
+  | { type: 'CURRENTSTOP'; data: string };
 
 // Binary mic-stream frame (first byte 0x42 'B', cmd 0x0C CMD_STREAM_WAVE).
 // Envelope mode: 134 bytes, n_samples=64 (32 min/max pairs).
@@ -250,6 +261,26 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
       }
       return { type: 'CONFIG_VALUE', paramId, rawValue: mid ?? '' };
     }
+
+    case BleCommand.CURRENTSTART: {
+      // Opcode 13 carries the sample stream, not a start ack: the firmware
+      // never acks CMD_CURRENT_START. Payload is "<rail_1_8>,<rail_0_8>"
+      // (send_current_value() in ble_initialization.c), 1.8 V rail first.
+      const [rail18, rail08] = data.split(',');
+      return {
+        type: 'CURRENT',
+        data: {
+          rail08: Number.parseFloat(rail08) || 0,
+          rail18: Number.parseFloat(rail18) || 0,
+        },
+      };
+    }
+
+    case BleCommand.CURRENTSTOP:
+      return {
+        type: 'CURRENTSTOP',
+        data: `${data}`,
+      };
 
     default:
       return {

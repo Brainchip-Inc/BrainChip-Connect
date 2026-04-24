@@ -22,6 +22,10 @@ import {
 // history at 16.67 fps × 64 samples/frame.
 const MIC_BUFFER_SIZE = 2048;
 
+// Current-monitor rolling window. The board's sampler runs at
+// CONFIG_CURRENT_DEFAULT_RATE_HZ (10 Hz by default), so 30 points is ~3 s.
+const CURRENT_BUFFER_SIZE = 30;
+
 const appTypeMapping: Record<string, AppType> = {
   keyword: 'keyword',
   anomaly: 'anomaly',
@@ -128,6 +132,13 @@ interface BleCommandState {
     failed: Array<{ id: KwsParamId; reason: string }>;
   }>;
   resetKwsConfig: () => Promise<void>;
+
+  // 🔹 Current monitoring (CMD_CURRENT_START / CMD_CURRENT_STOP)
+  startCurrentStreaming: () => Promise<void>;
+  stopCurrentStreaming: () => Promise<void>;
+  isCurrentStreaming: boolean;
+  currentRail08: number[];
+  currentRail18: number[];
 }
 
 export const useBleCommandStore = create<BleCommandState>((set, get) => ({
@@ -162,6 +173,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   isInferenceRunning: false,
   deployAckResolver: null,
 
+  isCurrentStreaming: false,
+  currentRail08: [],
+  currentRail18: [],
+
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
     // Firmware auto-starts the audio pipeline at boot — default to running
@@ -195,6 +210,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       kwsConfigAckResolver: null,
       isInferenceRunning: false,
       deployAckResolver: null,
+      isCurrentStreaming: false,
+      currentRail08: [],
+      currentRail18: [],
     });
   },
 
@@ -470,6 +488,23 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 });
               }
 
+              break;
+
+            case 'CURRENT': {
+              const { rail08, rail18 } = data.data;
+              set(state => ({
+                currentRail08: [...state.currentRail08, rail08].slice(
+                  -CURRENT_BUFFER_SIZE,
+                ),
+                currentRail18: [...state.currentRail18, rail18].slice(
+                  -CURRENT_BUFFER_SIZE,
+                ),
+              }));
+              break;
+            }
+
+            case 'CURRENTSTOP':
+              if (__DEV__) console.log('current stop ack', data.data);
               break;
 
             default:
@@ -792,5 +827,32 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
         set({ kwsConfigAckResolver: null });
       }
     }
+  },
+
+  // ── Current monitoring (CMD_CURRENT_START / CMD_CURRENT_STOP) ──────────────
+  // The board has no ack for CURRENT_START; readings themselves are the
+  // confirmation. Starting it disables the mic stream firmware-side, so the
+  // dashboard keeps the two controls mutually exclusive.
+  startCurrentStreaming: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return;
+
+    set({ currentRail08: [], currentRail18: [], isCurrentStreaming: true });
+
+    try {
+      await BleService.sendCommand(deviceId, `${BleCommand.CURRENTSTART}`);
+    } catch (err) {
+      set({ isCurrentStreaming: false });
+      throw err;
+    }
+  },
+
+  stopCurrentStreaming: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return;
+
+    await BleService.sendCommand(deviceId, `${BleCommand.CURRENTSTOP}`);
+
+    set({ currentRail08: [], currentRail18: [], isCurrentStreaming: false });
   },
 }));

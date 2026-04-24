@@ -13,6 +13,8 @@ export enum BleCommand {
   STREAMSTART, //9
   DEPLOYSTOP, // 10
   STREAMSTOP, //11
+  CURRENTSTART, //12
+  CURRENTSTOP, // 13
 }
 
 export const BleCommandMap: Record<BleCommand, string> = {
@@ -28,4 +30,6 @@ export const BleCommandMap: Record<BleCommand, string> = {
   [BleCommand.STREAMSTART]: 'CMD%STREAMSTART',
   [BleCommand.DEPLOYSTOP]: 'CMD%DEPLOYSTOP',
   [BleCommand.STREAMSTOP]: 'CMD%STREAMSTOP',
+  [BleCommand.CURRENTSTART]: 'CMD%CURRENTSTART',
+  [BleCommand.CURRENTSTOP]: 'CMD%CURRENTSTOP',
 };

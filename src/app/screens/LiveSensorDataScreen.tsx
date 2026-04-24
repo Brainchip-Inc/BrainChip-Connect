@@ -1,7 +1,4 @@
-import {
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Accessibility,
   Activity,
@@ -10,6 +7,7 @@ import {
   Mic,
   Play,
   Square,
+  Zap,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -20,7 +18,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Button, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
+import {
+  Button,
+  ProgressBar,
+  Switch,
+  Text,
+  useTheme,
+} from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
 import AppControlsSection from '../../components/custom/AppControlsSection';
@@ -56,13 +60,10 @@ const SectionHeader = ({
 // ─── Line Chart ───────────────────────────────────────────────────────────────
 type ChartData = ArrayLike<number>;
 
-// Straight-forward rescale used for the sensor (accel/gyro) charts — assumes a
-// small, already-normalized value range and maps evenly across the chart width.
-const legacyPoints = (data: ChartData) => {
+// Even spread across the chart width against an explicit y-window.
+const rangedPoints = (data: ChartData, min: number, max: number) => {
   const len = data.length;
   if (len < 2) return '';
-  const max = 5000;
-  const min = 0;
   const range = max - min || 1;
   const out: string[] = [];
   for (let i = 0; i < len; i++) {
@@ -71,6 +72,28 @@ const legacyPoints = (data: ChartData) => {
     out.push(`${x},${y}`);
   }
   return out.join(' ');
+};
+
+// Straight-forward rescale used for the sensor (accel/gyro) charts — assumes a
+// small, already-normalized value range and maps evenly across the chart width.
+const legacyPoints = (data: ChartData) => rangedPoints(data, 0, 5000);
+
+// Current readings are milliamps with no fixed range, so the window follows the
+// data. One range is computed across every series so the rails stay comparable
+// against each other rather than each filling the card on its own scale.
+const currentYRange = (series: number[][]) => {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of series) {
+    for (const v of s) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: 0, max: 1 };
+  // Pad so a flat trace sits mid-card instead of riding an edge.
+  const pad = Math.max((max - min) * 0.15, 1);
+  return { min: min - pad, max: max + pad };
 };
 
 // PCM path: dynamic y-range (clamped to a ±2000 minimum span so silence doesn't
@@ -117,11 +140,17 @@ const pcmPoints = (data: ChartData) => {
 const LineChart = ({
   datasets,
   pcm = false,
+  yRange,
 }: {
   datasets: { data: ChartData; color: string }[];
   pcm?: boolean;
+  yRange?: { min: number; max: number };
 }) => {
-  const toPoints = pcm ? pcmPoints : legacyPoints;
+  const toPoints = pcm
+    ? pcmPoints
+    : yRange
+    ? (data: ChartData) => rangedPoints(data, yRange.min, yRange.max)
+    : legacyPoints;
   return (
     <View style={styles.chartBox}>
       <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
@@ -180,6 +209,17 @@ const LiveSensorDataScreen = () => {
   const stopApp = useBleCommandStore(s => s.stopApp);
   const [isTogglingInference, setIsTogglingInference] = useState(false);
 
+  // Current monitoring reads straight from the BLE store, like micWave, so the
+  // chart follows the board's 10 Hz feed rather than the 1 Hz simulator tick.
+  const isCurrentStreaming = useBleCommandStore(s => s.isCurrentStreaming);
+  const currentRail08 = useBleCommandStore(s => s.currentRail08);
+  const currentRail18 = useBleCommandStore(s => s.currentRail18);
+  const startCurrentStreaming = useBleCommandStore(
+    s => s.startCurrentStreaming,
+  );
+  const stopCurrentStreaming = useBleCommandStore(s => s.stopCurrentStreaming);
+  const [isTogglingCurrent, setIsTogglingCurrent] = useState(false);
+
   const handleToggleInference = async () => {
     if (isTogglingInference) return;
     setIsTogglingInference(true);
@@ -199,6 +239,30 @@ const LiveSensorDataScreen = () => {
     }
   };
 
+  // Starting current monitoring makes the board drop the PDM stream
+  // (CMD_CURRENT_START clears pdm_stream_flag), so the two controls are
+  // mutually exclusive rather than silently fighting each other.
+  const handleToggleCurrent = async () => {
+    if (isTogglingCurrent) return;
+    setIsTogglingCurrent(true);
+    try {
+      if (isCurrentStreaming) {
+        await stopCurrentStreaming();
+      } else {
+        await startCurrentStreaming();
+      }
+    } catch (err) {
+      Alert.alert(
+        isCurrentStreaming
+          ? 'Stop Current Monitoring Failed'
+          : 'Start Current Monitoring Failed',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
+    } finally {
+      setIsTogglingCurrent(false);
+    }
+  };
+
   useEffect(() => {
     const interval = setInterval(() => {
       simulateData();
@@ -210,16 +274,13 @@ const LiveSensorDataScreen = () => {
   useEffect(() => {
     const sub = BleService.subscribeToEdgeLearningAck(deviceId, ack => {
       if (ack === BleService.getAckEdgeMode()) {
-        Alert.alert(
-          'Completed',
-          'Edge Learning is completed',
-        );
+        Alert.alert('Completed', 'Edge Learning is completed');
       }
       if (ack === BleService.getAckEdgeStartMode()) {
-         Alert.alert(
-            'Ready to Speak',
-            'Edge Learning Mode is active. Please start speaking now.',
-         );
+        Alert.alert(
+          'Ready to Speak',
+          'Edge Learning Mode is active. Please start speaking now.',
+        );
       }
     });
 
@@ -236,7 +297,8 @@ const LiveSensorDataScreen = () => {
 
       Alert.alert('Command Failed', 'Unable to send command to the device.');
     }
-    if(value === 2 || value === 3) Alert.alert('Command Send', 'Command Send successfully');
+    if (value === 2 || value === 3)
+      Alert.alert('Command Send', 'Command Send successfully');
   };
 
   const handleMode = () => {
@@ -261,10 +323,7 @@ const LiveSensorDataScreen = () => {
           {detectedWord && detectedWord !== 'Waiting...' ? (
             <View style={styles.detectionRow}>
               <Text
-                style={[
-                  styles.detectionValue,
-                  { color: theme.colors.primary },
-                ]}
+                style={[styles.detectionValue, { color: theme.colors.primary }]}
               >
                 "{detectedWord}" detected
               </Text>
@@ -471,6 +530,73 @@ const LiveSensorDataScreen = () => {
     return null;
   };
 
+  // ─── Current Measurement ────────────────────────────────────────────────────
+  const renderCurrentMeasurement = () => {
+    const hasSamples = currentRail08.length > 0 || currentRail18.length > 0;
+    const yRange = currentYRange([currentRail08, currentRail18]);
+    const latest = (series: number[]) =>
+      series.length > 0 ? `${series[series.length - 1].toFixed(2)} mA` : '-';
+
+    return (
+      <>
+        <SectionHeader icon={<Zap size={20} />} title="Current Measurement" />
+        <View style={styles.chartCard}>
+          {hasSamples ? (
+            <LineChart
+              yRange={yRange}
+              datasets={[
+                { data: currentRail18, color: '#22C55E' },
+                { data: currentRail08, color: '#3B82F6' },
+              ]}
+            />
+          ) : (
+            <View style={styles.chartPlaceholder}>
+              <Text style={styles.placeholderCenter}>
+                Start monitoring to see rail current
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: '#3B82F6' }]}
+              />
+              <Text style={styles.legendLabel}>
+                0.8 V rail {latest(currentRail08)}
+              </Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: '#22C55E' }]}
+              />
+              <Text style={styles.legendLabel}>
+                1.8 V rail {latest(currentRail18)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <Button
+          mode="outlined"
+          onPress={handleToggleCurrent}
+          loading={isTogglingCurrent}
+          disabled={isTogglingCurrent || isStreaming}
+          icon={() =>
+            isCurrentStreaming ? (
+              <Square size={16} color={Colors.primary} />
+            ) : (
+              <Play size={16} color={Colors.primary} />
+            )
+          }
+          style={{ marginTop: 8 }}
+        >
+          {isCurrentStreaming ? 'Stop Monitoring' : 'Start Monitoring'}
+        </Button>
+      </>
+    );
+  };
+
   const renderEdgeLearning = () => {
     return (
       <>
@@ -568,6 +694,7 @@ const LiveSensorDataScreen = () => {
             onPress={() =>
               isStreaming ? stopStreaming(appType) : startStreaming(appType)
             }
+            disabled={isCurrentStreaming}
             icon={() =>
               isStreaming ? (
                 <Square size={16} color={Colors.primary} />
@@ -579,6 +706,8 @@ const LiveSensorDataScreen = () => {
           >
             {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
           </Button>
+
+          {renderCurrentMeasurement()}
 
           <AppControlsSection appType={appType} />
         </View>
@@ -736,6 +865,10 @@ const styles = StyleSheet.create({
   },
   chartBox: {
     overflow: 'hidden',
+  },
+  chartPlaceholder: {
+    height: CHART_HEIGHT,
+    justifyContent: 'center',
   },
   legend: {
     flexDirection: 'row',
