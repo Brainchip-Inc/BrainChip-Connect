@@ -26,6 +26,9 @@ const MIC_BUFFER_SIZE = 2048;
 // CONFIG_CURRENT_DEFAULT_RATE_HZ (10 Hz by default), so 30 points is ~3 s.
 const CURRENT_BUFFER_SIZE = 30;
 
+// Matches the DEPLOYSTART/DEPLOYSTOP ack budget already used below.
+const STOP_ACK_TIMEOUT_MS = 3000;
+
 const appTypeMapping: Record<string, AppType> = {
   keyword: 'keyword',
   anomaly: 'anomaly',
@@ -61,6 +64,17 @@ type KwsAckResolver =
 
 type DeployAckResolver = {
   kind: 'start' | 'stop';
+  resolve: () => void;
+  reject: (err: Error) => void;
+};
+
+// CMD_STREAM_STOP and CMD_CURRENT_STOP both ack with ACK_DONE and carry no
+// identifier, so only one stop can be in flight at a time; `kind` is what tells
+// the two apart when the ack lands.
+type StopAckKind = 'stream' | 'current';
+
+type StopAckResolver = {
+  kind: StopAckKind;
   resolve: () => void;
   reject: (err: Error) => void;
 };
@@ -103,6 +117,12 @@ interface BleCommandState {
   // 🔹 Internal
   startNotifications: (deviceId: string) => Promise<void>;
   stopNotifications: () => void;
+  stopAckResolver: StopAckResolver | null;
+  sendStopAndAwaitAck: (
+    kind: StopAckKind,
+    command: string,
+    label: string,
+  ) => Promise<void>;
 
   // 🔹 Commands
   requestBattery: () => Promise<void>;
@@ -176,6 +196,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   isCurrentStreaming: false,
   currentRail08: [],
   currentRail18: [],
+  stopAckResolver: null,
 
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
@@ -213,6 +234,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       isCurrentStreaming: false,
       currentRail08: [],
       currentRail18: [],
+      stopAckResolver: null,
     });
   },
 
@@ -321,6 +343,17 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
             case 'STREAMSTOP':
               if (__DEV__) console.log('stop ack', data.data);
               break;
+
+            case 'STREAMSTOP_ACK': {
+              const resolver = get().stopAckResolver;
+              if (resolver && resolver.kind === 'stream') {
+                resolver.resolve();
+                if (get().stopAckResolver === resolver) {
+                  set({ stopAckResolver: null });
+                }
+              }
+              break;
+            }
             case 'APPS':
               if (__DEV__) console.log('apps', data.data);
               const rcvdData = String(data.data);
@@ -504,8 +537,22 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
             }
 
             case 'CURRENTSTOP':
-              if (__DEV__) console.log('current stop ack', data.data);
+              // Opcode 14 carrying anything other than ACK_DONE: the stop did
+              // not take. Leave the resolver pending so the caller times out.
+              if (__DEV__) console.log('current stop (no ack)', data.data);
               break;
+
+            case 'CURRENTSTOP_ACK': {
+              const resolver = get().stopAckResolver;
+              if (resolver && resolver.kind === 'current') {
+                resolver.resolve();
+                if (get().stopAckResolver === resolver) {
+                  set({ stopAckResolver: null });
+                }
+              }
+              set({ isCurrentStreaming: false });
+              break;
+            }
 
             default:
               break;
@@ -659,19 +706,23 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     });
   },
 
-  // ✅ Stop streaming
+  // ✅ Stop streaming — waits for the ACK_DONE (11:170) so a stop the board
+  // never applied surfaces to the caller instead of being assumed.
   stopStreaming: async (appId: string) => {
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
-    await BleService.sendCommand(
-      deviceId,
-      `${BleCommand.STREAMSTOP}:${appId},0`,
-    );
-
-    set({
-      micWave: new Int16Array(),
-    });
+    try {
+      await get().sendStopAndAwaitAck(
+        'stream',
+        `${BleCommand.STREAMSTOP}:${appId},0`,
+        'STREAMSTOP',
+      );
+    } finally {
+      set({
+        micWave: new Int16Array(),
+      });
+    }
   },
   requestDeviceReset: async () => {
     const deviceId = get().connectedDevice?.id;
@@ -851,8 +902,48 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
-    await BleService.sendCommand(deviceId, `${BleCommand.CURRENTSTOP}`);
+    try {
+      await get().sendStopAndAwaitAck(
+        'current',
+        `${BleCommand.CURRENTSTOP}`,
+        'CURRENTSTOP',
+      );
+    } finally {
+      set({ currentRail08: [], currentRail18: [], isCurrentStreaming: false });
+    }
+  },
 
-    set({ currentRail08: [], currentRail18: [], isCurrentStreaming: false });
+  // Shared by the stop commands the firmware acks with ACK_DONE (0xAA / 170):
+  // CMD_STREAM_STOP and CMD_CURRENT_STOP. Resolves when the matching *_ACK
+  // notification lands, rejects on a non-ack payload or on timeout, so a stop
+  // that did not take is visible to the caller instead of silently assumed.
+  sendStopAndAwaitAck: async (kind, command, label) => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let thisResolver: StopAckResolver | null = null;
+    try {
+      const ack = new Promise<void>((resolve, reject) => {
+        thisResolver = { kind, resolve, reject };
+        set({ stopAckResolver: thisResolver });
+      });
+
+      await BleService.sendCommand(deviceId, command);
+
+      const timeout = new Promise<void>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} ACK timeout`)),
+          STOP_ACK_TIMEOUT_MS,
+        );
+      });
+
+      await Promise.race([ack, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (thisResolver && get().stopAckResolver === thisResolver) {
+        set({ stopAckResolver: null });
+      }
+    }
   },
 }));

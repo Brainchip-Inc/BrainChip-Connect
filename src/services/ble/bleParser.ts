@@ -69,7 +69,9 @@ export type ParsedResponse =
   // Current-monitor samples arrive under CMD_CURRENT_START (13); the board
   // has no separate opcode for the stream itself.
   | { type: 'CURRENT'; data: CurrentSample }
-  | { type: 'CURRENTSTOP'; data: string };
+  | { type: 'CURRENTSTOP'; data: string }
+  | { type: 'CURRENTSTOP_ACK' }
+  | { type: 'STREAMSTOP_ACK' };
 
 // Binary mic-stream frame (first byte 0x42 'B', cmd 0x0C CMD_STREAM_WAVE).
 // Envelope mode: 134 bytes, n_samples=64 (32 min/max pairs).
@@ -225,6 +227,9 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
       };
 
     case BleCommand.STREAMSTOP:
+      if (data.trim() === ACK_DONE_TOKEN) {
+        return { type: 'STREAMSTOP_ACK' };
+      }
       return {
         type: 'STREAMSTOP',
         data: `${data}`,
@@ -277,6 +282,9 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
     }
 
     case BleCommand.CURRENTSTOP:
+      if (data.trim() === ACK_DONE_TOKEN) {
+        return { type: 'CURRENTSTOP_ACK' };
+      }
       return {
         type: 'CURRENTSTOP',
         data: `${data}`,

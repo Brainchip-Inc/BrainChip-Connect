@@ -17,8 +17,10 @@ interface SensorState {
   accel: { x: number[]; y: number[]; z: number[] };
   gyro: { x: number[]; y: number[]; z: number[] };
 
-  startStreaming: (type: AppType) => void;
-  stopStreaming: (type: AppType) => void;
+  // Stop resolves once the board acks (11:170), so callers can surface a stop
+  // that did not take.
+  startStreaming: (type: AppType) => Promise<void>;
+  stopStreaming: (type: AppType) => Promise<void>;
   simulateData: () => void;
 }
 
@@ -46,14 +48,14 @@ export const useLiveSensorStore = create<SensorState>((set, _get) => ({
     z: Array(30).fill(0.3),
   },
 
-  startStreaming: type => {
+  startStreaming: async type => {
     set({ isStreaming: true, appType: type });
-    useBleCommandStore.getState().startStreaming(type);
+    await useBleCommandStore.getState().startStreaming(type);
   },
 
-  stopStreaming: type => {
+  stopStreaming: async type => {
     set({ isStreaming: false });
-    useBleCommandStore.getState().stopStreaming(type);
+    await useBleCommandStore.getState().stopStreaming(type);
   },
 
   simulateData: () => {

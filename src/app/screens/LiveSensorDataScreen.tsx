@@ -219,6 +219,7 @@ const LiveSensorDataScreen = () => {
   );
   const stopCurrentStreaming = useBleCommandStore(s => s.stopCurrentStreaming);
   const [isTogglingCurrent, setIsTogglingCurrent] = useState(false);
+  const [isTogglingStream, setIsTogglingStream] = useState(false);
 
   const handleToggleInference = async () => {
     if (isTogglingInference) return;
@@ -260,6 +261,25 @@ const LiveSensorDataScreen = () => {
       );
     } finally {
       setIsTogglingCurrent(false);
+    }
+  };
+
+  const handleToggleStreaming = async () => {
+    if (isTogglingStream) return;
+    setIsTogglingStream(true);
+    try {
+      if (isStreaming) {
+        await stopStreaming(appType);
+      } else {
+        await startStreaming(appType);
+      }
+    } catch (err) {
+      Alert.alert(
+        isStreaming ? 'Stop Streaming Failed' : 'Start Streaming Failed',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
+    } finally {
+      setIsTogglingStream(false);
     }
   };
 
@@ -691,10 +711,9 @@ const LiveSensorDataScreen = () => {
 
           <Button
             mode="outlined"
-            onPress={() =>
-              isStreaming ? stopStreaming(appType) : startStreaming(appType)
-            }
-            disabled={isCurrentStreaming}
+            onPress={handleToggleStreaming}
+            loading={isTogglingStream}
+            disabled={isTogglingStream || isCurrentStreaming}
             icon={() =>
               isStreaming ? (
                 <Square size={16} color={Colors.primary} />
