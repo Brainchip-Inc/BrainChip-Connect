@@ -24,6 +24,7 @@ import {
 import { Button, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
+import AppControlsSection from '../../components/custom/AppControlsSection';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BleService from '../../services/ble/bleManager';
@@ -54,32 +55,74 @@ const SectionHeader = ({
 );
 
 // ─── Line Chart ───────────────────────────────────────────────────────────────
+type ChartData = ArrayLike<number>;
+
+// Straight-forward rescale used for the sensor (accel/gyro) charts — assumes a
+// small, already-normalized value range and maps evenly across the chart width.
+const legacyPoints = (data: ChartData) => {
+  const len = data.length;
+  if (len < 2) return '';
+  const max = 5000;
+  const min = 0;
+  const range = max - min || 1;
+  const out: string[] = [];
+  for (let i = 0; i < len; i++) {
+    const x = (i / (len - 1)) * CHART_WIDTH;
+    const y = CHART_HEIGHT - ((data[i] - min) / range) * CHART_HEIGHT;
+    out.push(`${x},${y}`);
+  }
+  return out.join(' ');
+};
+
+// PCM path: dynamic y-range (clamped to a ±2000 minimum span so silence doesn't
+// produce a nervous autoscale) with per-pixel min/max downsampling so the
+// polyline point count stays bounded even at 2048 samples.
+const pcmPoints = (data: ChartData) => {
+  const len = data.length;
+  if (len < 2) return '';
+
+  let dMin = Infinity;
+  let dMax = -Infinity;
+  for (let i = 0; i < len; i++) {
+    const v = data[i];
+    if (v < dMin) dMin = v;
+    if (v > dMax) dMax = v;
+  }
+  const MIN_SPAN = 2000;
+  const yTop = Math.max(dMax, MIN_SPAN);
+  const yBot = Math.min(dMin, -MIN_SPAN);
+  const yRange = yTop - yBot || 1;
+
+  const pixels = Math.max(2, Math.floor(CHART_WIDTH));
+  const points: string[] = [];
+  for (let p = 0; p < pixels; p++) {
+    const startIdx = Math.floor((p / pixels) * len);
+    const endIdx = Math.min(len, Math.floor(((p + 1) / pixels) * len));
+    if (startIdx >= endIdx) continue;
+
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = startIdx; i < endIdx; i++) {
+      const v = data[i];
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    const yMaxPx = CHART_HEIGHT - ((max - yBot) / yRange) * CHART_HEIGHT;
+    const yMinPx = CHART_HEIGHT - ((min - yBot) / yRange) * CHART_HEIGHT;
+    // Alternate top/bottom per column → zigzag envelope.
+    points.push(`${p},${yMaxPx}`, `${p},${yMinPx}`);
+  }
+  return points.join(' ');
+};
+
 const LineChart = ({
   datasets,
+  pcm = false,
 }: {
-  datasets: { data: number[]; color: string }[];
+  datasets: { data: ChartData; color: string }[];
+  pcm?: boolean;
 }) => {
-  const toPoints = (data: number[]) => {
-    const len = data.length;
-    if (len < 2) return '';
-
-    const max = 5000;
-    const min = 0;
-    const range = max - min || 1; // avoid divide by zero
-
-    return data
-      .map((v, i) => {
-        const x = (i / (len - 1)) * CHART_WIDTH;
-
-        // auto-scale based on actual data
-        const normalized = (v - min) / range;
-        const y = CHART_HEIGHT - normalized * CHART_HEIGHT;
-
-        return `${x},${y}`;
-      })
-      .join(' ');
-  };
-
+  const toPoints = pcm ? pcmPoints : legacyPoints;
   return (
     <View style={styles.chartBox}>
       <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
@@ -127,10 +170,35 @@ const LiveSensorDataScreen = () => {
   } = useLiveSensorStore();
 
   const isStreaming = useLiveSensorStore(s => s.isStreaming);
-  const micWave = useLiveSensorStore(s => s.micWave);
+  // Read PCM samples directly from the BLE command store so the chart updates
+  // at the ~16 fps cadence the firmware sends, instead of the 1 Hz simulator.
+  const micWave = useBleCommandStore(s => s.micWave);
   const [edgeLearningMode, setEdgeLearningMode] = useState(false);
 
   const activeApp = useBleCommandStore(state => state.activeApp);
+  const isInferenceRunning = useBleCommandStore(s => s.isInferenceRunning);
+  const deployApp = useBleCommandStore(s => s.deployApp);
+  const stopApp = useBleCommandStore(s => s.stopApp);
+  const [isTogglingInference, setIsTogglingInference] = useState(false);
+
+  const handleToggleInference = async () => {
+    if (isTogglingInference) return;
+    setIsTogglingInference(true);
+    try {
+      if (isInferenceRunning) {
+        await stopApp(appType);
+      } else {
+        await deployApp(appType);
+      }
+    } catch (err) {
+      Alert.alert(
+        isInferenceRunning ? 'Stop Inference Failed' : 'Start Inference Failed',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
+    } finally {
+      setIsTogglingInference(false);
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -276,6 +344,7 @@ const LiveSensorDataScreen = () => {
           <SectionHeader icon={<Mic size={20} />} title="Microphone" />
           <View style={[styles.chartCard, styles.dashedGrid]}>
             <LineChart
+              pcm
               datasets={[
                 {
                   data: isStreaming ? micWave : emptyMicData,
@@ -478,12 +547,12 @@ const LiveSensorDataScreen = () => {
 
           <Button
             mode="contained"
-            buttonColor={isStreaming ? Colors.error : undefined}
-            onPress={() =>
-              isStreaming ? stopStreaming(appType) : startStreaming(appType)
-            }
+            buttonColor={isInferenceRunning ? Colors.error : undefined}
+            onPress={handleToggleInference}
+            loading={isTogglingInference}
+            disabled={isTogglingInference}
             icon={() =>
-              isStreaming ? (
+              isInferenceRunning ? (
                 <Square fill={Colors.white} size={16} color={Colors.white} />
               ) : (
                 <Play fill={Colors.white} size={16} color={Colors.white} />
@@ -491,8 +560,27 @@ const LiveSensorDataScreen = () => {
             }
             style={{ marginTop: 12 }}
           >
+            {isInferenceRunning ? 'Stop Inference' : 'Start Inference'}
+          </Button>
+
+          <Button
+            mode="outlined"
+            onPress={() =>
+              isStreaming ? stopStreaming(appType) : startStreaming(appType)
+            }
+            icon={() =>
+              isStreaming ? (
+                <Square size={16} color={Colors.primary} />
+              ) : (
+                <Play size={16} color={Colors.primary} />
+              )
+            }
+            style={{ marginTop: 8 }}
+          >
             {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
           </Button>
+
+          <AppControlsSection appType={appType} />
         </View>
       </ScrollView>
 

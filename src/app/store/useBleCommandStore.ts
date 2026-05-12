@@ -6,13 +6,21 @@ import { BleData } from '../../types/bleData';
 import { BLEDevice } from './useBleStore';
 import { useEventsStore } from './useEventStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
-import { AppsList } from '../../services/ble/bleParser';
+import { AppsList, WavePayload } from '../../services/ble/bleParser';
 import { AppType } from './useLiveSensorStore';
 import { BatteryState, getBatteryLabel } from '../../types/batteryStateEnum';
+import {
+  KWS_PARAMS,
+  KwsConfig,
+  KwsParamId,
+  formatKwsValue,
+  parseKwsValue,
+} from '../../types/appConfig';
 
-let streamBuffer: number[] = [];
-let lastFlush = 0;
-const FLUSH_INTERVAL = 100; // 100ms = 10fps
+// Mic-stream buffer: rolling window of int16 PCM samples (envelope or decimation
+// mode, interleaved as the firmware delivers them). 2048 samples ≈ 1.9 s of
+// history at 16.67 fps × 64 samples/frame.
+const MIC_BUFFER_SIZE = 2048;
 
 const appTypeMapping: Record<string, AppType> = {
   keyword: 'keyword',
@@ -38,6 +46,16 @@ export const formatFromKB = (value: string): string => {
   return `${gb.toFixed(2)} GB`;
 };
 
+type KwsAckResolver =
+  | { kind: 'set'; paramId: KwsParamId; resolve: (ok: boolean) => void; reject: (err: Error) => void }
+  | { kind: 'reset'; resolve: () => void; reject: (err: Error) => void };
+
+type DeployAckResolver = {
+  kind: 'start' | 'stop';
+  resolve: () => void;
+  reject: (err: Error) => void;
+};
+
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
 
@@ -51,11 +69,23 @@ interface BleCommandState {
   confidence: number | undefined;
   receivedAt: Date | null;
 
-  micWave: number[];
+  micWave: Int16Array;
 
   subscription: Subscription | null;
 
   appsList: AppsList[];
+
+  // KWS runtime params (CMD_CONFIG / opcode 4).
+  kwsConfig: KwsConfig;                                      // live values from the device
+  kwsConfigDraft: KwsConfig;                                 // per-field edits staged in the UI
+  kwsConfigPending: ReadonlySet<KwsParamId>;                 // ids with an in-flight SET
+  kwsConfigError: Partial<Record<KwsParamId, string>>;       // last ERR reason per id
+  kwsConfigAckResolver: KwsAckResolver | null;
+
+  // Inference pipeline state (DEPLOYSTART / DEPLOYSTOP).
+  // Firmware auto-starts at boot, so we initialise true on connect.
+  isInferenceRunning: boolean;
+  deployAckResolver: DeployAckResolver | null;
 
   // 🔹 Session lifecycle
   startDeviceSession: (device: any) => Promise<void>;
@@ -83,6 +113,16 @@ interface BleCommandState {
   // 🔹 App Info
   requestAppInfo: (appId: string) => Promise<void>;
   selectedAppId: string | null;
+
+  // 🔹 KWS App Controls
+  requestKwsConfig: () => Promise<void>;
+  setKwsConfigDraft: (id: KwsParamId, value: number | undefined) => void;
+  sendKwsConfigParam: (id: KwsParamId, value: number) => Promise<boolean>;
+  applyKwsConfigDraft: () => Promise<{
+    ok: KwsParamId[];
+    failed: Array<{ id: KwsParamId; reason: string }>;
+  }>;
+  resetKwsConfig: () => Promise<void>;
 }
 
 export const useBleCommandStore = create<BleCommandState>((set, get) => ({
@@ -98,7 +138,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   confidence: 0,
   receivedAt: null,
 
-  micWave: [],
+  micWave: new Int16Array(),
 
   subscription: null,
 
@@ -108,9 +148,21 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   appsList: [],
   selectedAppId: null,
 
+  kwsConfig: {},
+  kwsConfigDraft: {},
+  kwsConfigPending: new Set<KwsParamId>(),
+  kwsConfigError: {},
+  kwsConfigAckResolver: null,
+
+  isInferenceRunning: false,
+  deployAckResolver: null,
+
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
-    set({ connectedDevice: device });
+    // Firmware auto-starts the audio pipeline at boot — default to running
+    // until the user explicitly stops it. If they want a different state,
+    // the dashboard's Start/Stop Inference control will drive it.
+    set({ connectedDevice: device, isInferenceRunning: true });
 
     await get().startNotifications(device.id);
 
@@ -131,6 +183,13 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       activeApp: null,
       latestDetection: undefined,
       confidence: undefined,
+      kwsConfig: {},
+      kwsConfigDraft: {},
+      kwsConfigPending: new Set<KwsParamId>(),
+      kwsConfigError: {},
+      kwsConfigAckResolver: null,
+      isInferenceRunning: false,
+      deployAckResolver: null,
     });
   },
 
@@ -184,26 +243,50 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               });
               break;
 
-            case 'STREAMSTART':
-              // Step 3: Convert the raw audio string to a single RMS value
-              const rmsValue = Number(data.data);
-
-              // Step 4: Update the micWave state with the RMS value (Store it as an array of RMS values)
-              streamBuffer.push(rmsValue);
-
-              const now = Date.now();
-
-              if (now - lastFlush > FLUSH_INTERVAL) {
-                lastFlush = now;
-
-                const valuesToAdd = [...streamBuffer];
-                streamBuffer = [];
-
-                set(prevState => ({
-                  micWave: [...prevState.micWave, ...valuesToAdd].slice(-30),
-                }));
+            case 'DEPLOYSTART_ACK': {
+              const resolver = get().deployAckResolver;
+              if (resolver && resolver.kind === 'start') {
+                resolver.resolve();
+                set({ deployAckResolver: null });
               }
+              set({ isInferenceRunning: true });
               break;
+            }
+
+            case 'DEPLOYSTOP_ACK': {
+              const resolver = get().deployAckResolver;
+              if (resolver && resolver.kind === 'stop') {
+                resolver.resolve();
+                set({ deployAckResolver: null });
+              }
+              set({ isInferenceRunning: false });
+              break;
+            }
+
+            case 'STREAMSTART':
+              // Firmware no longer sends RMS scalars here — mic samples now
+              // arrive as binary WAVE frames. Keep the case inert so any
+              // legacy-firmware echoes are ignored rather than mis-parsed.
+              break;
+
+            case 'WAVE': {
+              const wave = data.data as WavePayload;
+              const prev = get().micWave;
+              const incoming = wave.samples;
+              const total = prev.length + incoming.length;
+              const startCopy =
+                total > MIC_BUFFER_SIZE ? total - MIC_BUFFER_SIZE : 0;
+              const kept = total - startCopy;
+              const next = new Int16Array(kept);
+              // Copy the tail of prev that fits, then all of incoming.
+              const prevKeep = Math.max(0, prev.length - startCopy);
+              if (prevKeep > 0) {
+                next.set(prev.subarray(prev.length - prevKeep), 0);
+              }
+              next.set(incoming, prevKeep);
+              set({ micWave: next });
+              break;
+            }
 
             case 'DEPLOYSTOP':
               if (__DEV__) console.log('stop ack', data.data);
@@ -278,6 +361,60 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               })();
 
               break;
+
+            case 'CONFIG_VALUE': {
+              const meta = KWS_PARAMS.find(p => p.id === data.paramId);
+              if (!meta) break;
+              const parsed = parseKwsValue(meta, data.rawValue);
+              if (parsed === null) break;
+              const id = data.paramId as KwsParamId;
+              set(state => ({
+                kwsConfig: { ...state.kwsConfig, [id]: parsed },
+                kwsConfigDraft: { ...state.kwsConfigDraft, [id]: undefined },
+                kwsConfigError: { ...state.kwsConfigError, [id]: undefined },
+              }));
+              break;
+            }
+
+            case 'CONFIG_SET_ACK': {
+              const id = data.paramId as KwsParamId;
+              const resolver = get().kwsConfigAckResolver;
+              if (resolver && resolver.kind === 'set' && resolver.paramId === id) {
+                resolver.resolve(data.ok);
+                set({ kwsConfigAckResolver: null });
+              }
+              if (data.ok) {
+                set(state => {
+                  const next = { ...state.kwsConfig };
+                  const draftVal = state.kwsConfigDraft[id];
+                  if (draftVal !== undefined) next[id] = draftVal;
+                  return {
+                    kwsConfig: next,
+                    kwsConfigDraft: { ...state.kwsConfigDraft, [id]: undefined },
+                    kwsConfigError: { ...state.kwsConfigError, [id]: undefined },
+                  };
+                });
+              } else {
+                set(state => ({
+                  kwsConfigError: {
+                    ...state.kwsConfigError,
+                    [id]: data.reason || 'ERR',
+                  },
+                }));
+              }
+              break;
+            }
+
+            case 'CONFIG_RESET_ACK': {
+              const resolver = get().kwsConfigAckResolver;
+              if (resolver && resolver.kind === 'reset') {
+                resolver.resolve();
+                set({ kwsConfigAckResolver: null });
+              }
+              // The 6-frame burst that follows will overwrite kwsConfig via
+              // subsequent CONFIG_VALUE cases — nothing else to do here.
+              break;
+            }
 
             case 'APPS_INFO':
               if (__DEV__) console.log('APPS_INFO', data.data);
@@ -368,33 +505,80 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     }
   },
 
-  // ✅ Deploy app
+  // ✅ Deploy app — sends DEPLOY_START, waits for the ACK_DONE (8:170) before
+  // updating local state so the UI only flips to "running" once the firmware
+  // has actually started the pipeline.
   deployApp: async (appId: string) => {
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
-    await BleService.sendCommand(
-      deviceId,
-      `${BleCommand.DEPLOYSTART}:${appId},1`,
-    );
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const ack = new Promise<void>((resolve, reject) => {
+        set({ deployAckResolver: { kind: 'start', resolve, reject } });
+      });
 
-    set({
-      activeApp: appId,
-      latestDetection: 'Waiting...',
-      confidence: 0,
-      receivedAt: null,
-    });
+      await BleService.sendCommand(
+        deviceId,
+        `${BleCommand.DEPLOYSTART}:${appId},1`,
+      );
+
+      const timeout = new Promise<void>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('DEPLOYSTART ACK timeout')),
+          3000,
+        );
+      });
+
+      await Promise.race([ack, timeout]);
+
+      set({
+        activeApp: appId,
+        latestDetection: 'Waiting...',
+        confidence: 0,
+        receivedAt: null,
+        isInferenceRunning: true,
+      });
+    } finally {
+      if (timer) clearTimeout(timer);
+      const resolver = get().deployAckResolver;
+      if (resolver && resolver.kind === 'start') {
+        set({ deployAckResolver: null });
+      }
+    }
   },
 
-  // ✅ Stop app
+  // ✅ Stop app — sends DEPLOY_STOP, waits for the ACK_DONE (10:170).
   stopApp: async (appId: string) => {
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
-    await BleService.sendCommand(
-      deviceId,
-      `${BleCommand.DEPLOYSTOP}:${appId},0`,
-    );
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const ack = new Promise<void>((resolve, reject) => {
+        set({ deployAckResolver: { kind: 'stop', resolve, reject } });
+      });
+
+      await BleService.sendCommand(
+        deviceId,
+        `${BleCommand.DEPLOYSTOP}:${appId},0`,
+      );
+
+      const timeout = new Promise<void>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('DEPLOYSTOP ACK timeout')),
+          3000,
+        );
+      });
+
+      await Promise.race([ack, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      const resolver = get().deployAckResolver;
+      if (resolver && resolver.kind === 'stop') {
+        set({ deployAckResolver: null });
+      }
+    }
 
     set({
       activeApp: null,
@@ -409,16 +593,13 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
-    streamBuffer = [];
-    lastFlush = 0;
-
     await BleService.sendCommand(
       deviceId,
       `${BleCommand.STREAMSTART}:${appId},1`,
     );
 
     set({
-      micWave: [],
+      micWave: new Int16Array(),
     });
   },
 
@@ -433,7 +614,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     );
 
     set({
-      micWave: [],
+      micWave: new Int16Array(),
     });
   },
   requestDeviceReset: async () => {
@@ -470,30 +651,126 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       selectedAppId: appId,
     });
   },
+
+  // ── KWS App Controls (CMD_CONFIG / opcode 4) ───────────────────────────────
+  requestKwsConfig: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return;
+    await BleService.sendCommand(deviceId, `${BleCommand.CONFIG}:GET`);
+  },
+
+  setKwsConfigDraft: (id, value) => {
+    set(state => ({
+      kwsConfigDraft: { ...state.kwsConfigDraft, [id]: value },
+      kwsConfigError: { ...state.kwsConfigError, [id]: undefined },
+    }));
+  },
+
+  sendKwsConfigParam: async (id, value) => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) throw new Error('Device not connected');
+    const meta = KWS_PARAMS.find(p => p.id === id);
+    if (!meta) throw new Error(`Unknown KWS param id: ${id}`);
+
+    set(state => {
+      const pending = new Set(state.kwsConfigPending);
+      pending.add(id);
+      return {
+        kwsConfigPending: pending,
+        kwsConfigDraft: { ...state.kwsConfigDraft, [id]: value },
+      };
+    });
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const ack = new Promise<boolean>((resolve, reject) => {
+        set({
+          kwsConfigAckResolver: { kind: 'set', paramId: id, resolve, reject },
+        });
+      });
+
+      const wire = formatKwsValue(meta, value);
+      await BleService.sendCommand(
+        deviceId,
+        `${BleCommand.CONFIG}:${id}:${wire}`,
+      );
+
+      const timeout = new Promise<boolean>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`CONFIG ACK timeout for ${meta.name}`)),
+          2000,
+        );
+      });
+
+      const ok = await Promise.race([ack, timeout]);
+      return ok;
+    } finally {
+      if (timer) clearTimeout(timer);
+      const resolver = get().kwsConfigAckResolver;
+      if (resolver && resolver.kind === 'set' && resolver.paramId === id) {
+        set({ kwsConfigAckResolver: null });
+      }
+      set(state => {
+        const pending = new Set(state.kwsConfigPending);
+        pending.delete(id);
+        return { kwsConfigPending: pending };
+      });
+    }
+  },
+
+  applyKwsConfigDraft: async () => {
+    const draft = get().kwsConfigDraft;
+    const ok: KwsParamId[] = [];
+    const failed: Array<{ id: KwsParamId; reason: string }> = [];
+
+    for (const meta of KWS_PARAMS) {
+      const value = draft[meta.id];
+      if (value === undefined) continue;
+      try {
+        const success = await get().sendKwsConfigParam(meta.id, value);
+        if (success) {
+          ok.push(meta.id);
+        } else {
+          failed.push({
+            id: meta.id,
+            reason: get().kwsConfigError[meta.id] || 'ERR',
+          });
+        }
+      } catch (err) {
+        failed.push({
+          id: meta.id,
+          reason: err instanceof Error ? err.message : 'unknown',
+        });
+      }
+    }
+
+    return { ok, failed };
+  },
+
+  resetKwsConfig: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) throw new Error('Device not connected');
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const ack = new Promise<void>((resolve, reject) => {
+        set({ kwsConfigAckResolver: { kind: 'reset', resolve, reject } });
+      });
+      await BleService.sendCommand(deviceId, `${BleCommand.CONFIG}:RESET`);
+      const timeout = new Promise<void>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('CONFIG RESET ACK timeout')),
+          2000,
+        );
+      });
+      await Promise.race([ack, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      const resolver = get().kwsConfigAckResolver;
+      if (resolver && resolver.kind === 'reset') {
+        set({ kwsConfigAckResolver: null });
+      }
+    }
+  },
 }));
 
-/**
- * Converts the received ASCII string into an array of numbers to represent microphone waveform data.
- * @param asciiData The ASCII data received as a string.
- * @returns Array of numbers to be used for graphing or other purposes.
- */
-
-// Function to convert the raw audio string data into an RMS value
-const convertStringToRms = (rawDataString: string): number => {
-  // Step 1: Convert the string to an array of numbers (e.g., ASCII values)
-  const rawDataArray = Array.from(rawDataString).map(char =>
-    char.charCodeAt(0),
-  );
-
-  // Step 2: Calculate RMS for the entire dataset
-  const rms = Math.sqrt(
-    rawDataArray.reduce((acc, value) => acc + value ** 2, 0) /
-      rawDataArray.length,
-  );
-
-  // Step 3: Normalize the RMS value (optional)
-  // Normalize to a range of 0-100 (or 0-255 depending on your data)
-  const normalizedRms = Math.min(Math.max((rms / 255) * 100, 0), 100);
-
-  return normalizedRms;
-};

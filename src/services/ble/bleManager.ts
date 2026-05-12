@@ -8,7 +8,7 @@ import { unzip } from 'react-native-zip-archive';
 import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
-import { parseBleMessage } from './bleParser';
+import { parseBinaryFrame, parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
@@ -570,16 +570,20 @@ class BleService {
 
         if (!characteristic?.value) return;
 
-        // Decode Base64 to string
-        const decoded = Buffer.from(characteristic.value, 'base64').toString(
-          'utf-8',
-        );
+        const buf = Buffer.from(characteristic.value, 'base64');
 
-        // Parse BLE message
-        const parsed = parseBleMessage(decoded) as BleData;
+        // Binary mic-stream frames start with 0x42 'B'. All ASCII text frames
+        // start with '0'..'3' (frame-type digit), so the magic byte is
+        // unambiguous. Route binary → parseBinaryFrame, ASCII → parseBleMessage.
+        if (buf.length > 0 && buf[0] === 0x42) {
+          const parsed = parseBinaryFrame(buf);
+          if (parsed) onData(parsed);
+          return;
+        }
 
-        // Pass parsed data to callback
-        onData(parsed);
+        const decoded = buf.toString('utf-8');
+        const parsed = parseBleMessage(decoded);
+        if (parsed) onData(parsed);
       },
     );
 

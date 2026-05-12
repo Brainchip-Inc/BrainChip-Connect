@@ -1,15 +1,6 @@
-import { DeviceInfo } from '../services/ble/bleParser';
+import { ParsedResponse } from '../services/ble/bleParser';
 
-export interface BleData {
-  type:
-    | 'BATTERY'
-    | 'DEVICE_INFO'
-    | 'OTHER'
-    | 'DEPLOYSTART'
-    | 'STREAMSTART'
-    | 'DEPLOYSTOP'
-    | 'STREAMSTOP'
-    | 'APPS'
-    | 'APPS_INFO';
-  data: number | string | DeviceInfo | Object | number[]; // depending on what your data contains
-}
+// BleData is the discriminated union of everything parseBleMessage /
+// parseBinaryFrame can emit. The BLE notification callback narrows on
+// `data.type` to pick the right branch.
+export type BleData = ParsedResponse;
