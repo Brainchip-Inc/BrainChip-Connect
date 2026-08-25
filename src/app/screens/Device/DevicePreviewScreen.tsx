@@ -49,6 +49,7 @@ const DevicePreviewScreen: React.FC = () => {
     if(deviceInfo){
       parseManufacturerData(deviceInfo);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parseManufacturerData is re-created every render; the parse only needs to run when deviceInfo changes
   },[deviceInfo, setParsedDeviceInfo])
 
   const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo || {

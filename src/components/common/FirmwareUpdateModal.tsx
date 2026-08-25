@@ -73,6 +73,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
         [{ text: 'OK', onPress: onClose }],
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the alert should fire only when the modal opens unauthenticated; onClose and deviceName change identity on render and would re-fire it
   }, [visible, authtoken]);
 
   const FetchFromServer = async () => {

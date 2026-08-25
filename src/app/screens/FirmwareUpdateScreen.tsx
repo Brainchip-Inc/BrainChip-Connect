@@ -75,6 +75,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       );
       navigation.navigate('DeviceDiscovery');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on authtoken so the alert fires once per auth change; deviceName would re-fire it whenever the connected device is renamed
   }, [authtoken]);
 
   const FetchFromServer = async () => {

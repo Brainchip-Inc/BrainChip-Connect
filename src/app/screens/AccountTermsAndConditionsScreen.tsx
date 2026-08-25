@@ -25,7 +25,7 @@ const AccountTermsAndConditionsScreen = () => {
 
   useEffect(() => {
     fetchTerms();
-  }, []);
+  }, [fetchTerms]);
 
   const content = terms;
 

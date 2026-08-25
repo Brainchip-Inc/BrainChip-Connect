@@ -204,6 +204,7 @@ const LiveSensorDataScreen = () => {
       simulateData();
     }, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- simulateData is re-created every render, so adding it would restart the 1s tick on each one
   }, [activeApp]);
 
   useEffect(() => {

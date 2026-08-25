@@ -107,6 +107,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
       Alert.alert('Scan Error', 'Failed to scan for devices.');
       stopScanning();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- serviceUUIDs is a fresh empty array each render, so adding it would rebuild startScanning and restart the scan continuously
   }, [stopScanning, clearDiscoveredDevices, addDiscoveredDevice]);
 
   const handleDevicePress = (device: BLEDevice) => {

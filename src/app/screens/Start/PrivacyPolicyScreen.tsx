@@ -26,7 +26,7 @@ const PrivacyPolicyScreen = () => {
 
   useEffect(() => {
     fetchPrivacyPolicy();
-  }, []);
+  }, [fetchPrivacyPolicy]);
 
   const content = privacyPolicy;
 

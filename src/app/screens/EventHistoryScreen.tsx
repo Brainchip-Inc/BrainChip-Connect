@@ -79,7 +79,7 @@ const EventHistoryScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     loadEvents();
-  }, []);
+  }, [loadEvents]);
 
   return (
     <View style={styles.root}>
