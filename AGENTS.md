@@ -28,6 +28,26 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
+## Dependencies are locked, and two pins are load-bearing
+
+`package-lock.json` is committed and npm is the only supported package manager;
+CI installs with an unflagged `npm ci` (`.github/workflows/ci.yml`). Two
+constraints exist to keep that install working and must not be loosened casually:
+
+- `lottie-react-native` is `~7.3.5`. From 7.4.0 its react-native peer is
+  `>=0.84`, which this project does not meet, so a caret range breaks a clean
+  install with `ERESOLVE`. Taking newer lottie requires upgrading react-native
+  first.
+- The lockfile pins `react-native-ble-plx` to 3.5.0, the version
+  `patches/react-native-ble-plx+3.5.0.patch` targets. On a version mismatch
+  patch-package reports the failure but **exits 0**, so a drifted install
+  silently ships without the Android `SafePromise` patch. After any dependency
+  change, check the install log for `react-native-ble-plx@3.5.0 ✔`.
+
+Note that `npm ci` re-checks peer satisfiability, so a lockfile built with
+`--legacy-peer-deps` will not install. Peer conflicts have to be resolved in
+`package.json`, not hidden in the lockfile.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
