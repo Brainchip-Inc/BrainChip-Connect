@@ -43,6 +43,10 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 40 - 32; // margins (20*2) + card padding
 const CHART_HEIGHT = 120;
 
+// Current-monitor rail colours, shared by the chart traces and the legend.
+const RAIL_08_COLOR = '#3B82F6';
+const RAIL_18_COLOR = '#22C55E';
+
 // ─── Reusable Section Row (same as SettingsScreen's SettingRow) ───────────────
 const SectionHeader = ({
   icon,
@@ -167,6 +171,17 @@ const LineChart = ({
     </View>
   );
 };
+
+// Paper's `icon` prop takes a render function. Defined at module scope so each
+// render does not hand Button a brand-new component type.
+const playOnFilled = () => (
+  <Play fill={Colors.white} size={16} color={Colors.white} />
+);
+const stopOnFilled = () => (
+  <Square fill={Colors.white} size={16} color={Colors.white} />
+);
+const playOutlined = () => <Play size={16} color={Colors.primary} />;
+const stopOutlined = () => <Square size={16} color={Colors.primary} />;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 const LiveSensorDataScreen = () => {
@@ -565,8 +580,8 @@ const LiveSensorDataScreen = () => {
             <LineChart
               yRange={yRange}
               datasets={[
-                { data: currentRail18, color: '#22C55E' },
-                { data: currentRail08, color: '#3B82F6' },
+                { data: currentRail18, color: RAIL_18_COLOR },
+                { data: currentRail08, color: RAIL_08_COLOR },
               ]}
             />
           ) : (
@@ -579,17 +594,13 @@ const LiveSensorDataScreen = () => {
 
           <View style={styles.legend}>
             <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: '#3B82F6' }]}
-              />
+              <View style={[styles.legendDot, styles.legendDotRail08]} />
               <Text style={styles.legendLabel}>
                 0.8 V rail {latest(currentRail08)}
               </Text>
             </View>
             <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: '#22C55E' }]}
-              />
+              <View style={[styles.legendDot, styles.legendDotRail18]} />
               <Text style={styles.legendLabel}>
                 1.8 V rail {latest(currentRail18)}
               </Text>
@@ -602,14 +613,8 @@ const LiveSensorDataScreen = () => {
           onPress={handleToggleCurrent}
           loading={isTogglingCurrent}
           disabled={isTogglingCurrent || isStreaming}
-          icon={() =>
-            isCurrentStreaming ? (
-              <Square size={16} color={Colors.primary} />
-            ) : (
-              <Play size={16} color={Colors.primary} />
-            )
-          }
-          style={{ marginTop: 8 }}
+          icon={isCurrentStreaming ? stopOutlined : playOutlined}
+          style={styles.secondaryAction}
         >
           {isCurrentStreaming ? 'Stop Monitoring' : 'Start Monitoring'}
         </Button>
@@ -697,14 +702,8 @@ const LiveSensorDataScreen = () => {
             onPress={handleToggleInference}
             loading={isTogglingInference}
             disabled={isTogglingInference}
-            icon={() =>
-              isInferenceRunning ? (
-                <Square fill={Colors.white} size={16} color={Colors.white} />
-              ) : (
-                <Play fill={Colors.white} size={16} color={Colors.white} />
-              )
-            }
-            style={{ marginTop: 12 }}
+            icon={isInferenceRunning ? stopOnFilled : playOnFilled}
+            style={styles.primaryAction}
           >
             {isInferenceRunning ? 'Stop Inference' : 'Start Inference'}
           </Button>
@@ -714,14 +713,8 @@ const LiveSensorDataScreen = () => {
             onPress={handleToggleStreaming}
             loading={isTogglingStream}
             disabled={isTogglingStream || isCurrentStreaming}
-            icon={() =>
-              isStreaming ? (
-                <Square size={16} color={Colors.primary} />
-              ) : (
-                <Play size={16} color={Colors.primary} />
-              )
-            }
-            style={{ marginTop: 8 }}
+            icon={isStreaming ? stopOutlined : playOutlined}
+            style={styles.secondaryAction}
           >
             {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
           </Button>
@@ -904,6 +897,10 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 2,
   },
+  legendDotRail08: { backgroundColor: RAIL_08_COLOR },
+  legendDotRail18: { backgroundColor: RAIL_18_COLOR },
+  primaryAction: { marginTop: 12 },
+  secondaryAction: { marginTop: 8 },
   legendLabel: {
     fontFamily: 'Inter',
     fontSize: 12,
