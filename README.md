@@ -147,7 +147,12 @@ We ship a small patch to `react-native-ble-plx` using `patch-package` so this is
 
 - After cloning / pulling:
 
-  - `npm install          # or: yarn`
+  - `npm ci`
+    This project commits `package-lock.json`, so npm is the supported package
+    manager and `npm ci` installs exactly the locked tree. Use `npm install` only
+    when you intend to change a dependency, and commit the updated lockfile with
+    it. Do not use yarn: it would resolve its own tree and silently diverge from
+    what CI installs.
     The postinstall script runs patch-package and applies the BLE patch automatically.
 
   - If you ever need to regenerate the patch after modifying SafePromise.java:
