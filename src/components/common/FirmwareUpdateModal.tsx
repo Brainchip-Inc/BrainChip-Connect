@@ -1,11 +1,5 @@
 import { pick } from '@react-native-documents/picker';
-import {
-  CloudDownload,
-  Cpu,
-  Folder,
-  Loader,
-  X,
-} from 'lucide-react-native';
+import { CloudDownload, Cpu, Folder, Loader, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -270,9 +264,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
               <Cpu size={18} color={Colors.primary} />
               <View>
                 <Text style={styles.title}>Firmware Update</Text>
-                <Text style={styles.subtitle}>
-                  Manage device firmware
-                </Text>
+                <Text style={styles.subtitle}>Manage device firmware</Text>
               </View>
             </View>
 
@@ -363,10 +355,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
                   <>
                     <View style={styles.progressBar}>
                       <View
-                        style={[
-                          styles.progressFill,
-                          { width: `${progress}%` },
-                        ]}
+                        style={[styles.progressFill, { width: `${progress}%` }]}
                       />
                     </View>
                     <Text style={styles.progressText}>

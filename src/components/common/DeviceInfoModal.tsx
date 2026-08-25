@@ -111,10 +111,7 @@ const DeviceInfoModal: React.FC<DeviceInfoModalProps> = ({
                   if (item.type === 'kv') {
                     return (
                       <View key={index} style={styles.hardwareRow}>
-                        <Text
-                          style={styles.hardwareLabel}
-                          numberOfLines={1}
-                        >
+                        <Text style={styles.hardwareLabel} numberOfLines={1}>
                           {item.label}
                         </Text>
                         <Text

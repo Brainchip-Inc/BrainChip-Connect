@@ -207,9 +207,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
               <Download size={18} color={Colors.primary} />
               <View>
                 <Text style={styles.title}>Model Update</Text>
-                <Text style={styles.subtitle}>
-                  Manage AI models on device
-                </Text>
+                <Text style={styles.subtitle}>Manage AI models on device</Text>
               </View>
             </View>
 
@@ -286,9 +284,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
 
                 <Text style={styles.newVersion}>{localModel.filename}</Text>
                 <Text style={styles.subText}>{localModel.description}</Text>
-                <Text style={styles.label}>
-                  Size: {localModel.size_kb} KB
-                </Text>
+                <Text style={styles.label}>Size: {localModel.size_kb} KB</Text>
 
                 <Button
                   mode="contained"
@@ -340,9 +336,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
                         </Text>
                       ))}
 
-                    <Text style={styles.label}>
-                      Size: {model.size_kb} KB
-                    </Text>
+                    <Text style={styles.label}>Size: {model.size_kb} KB</Text>
 
                     <Button
                       mode="contained"

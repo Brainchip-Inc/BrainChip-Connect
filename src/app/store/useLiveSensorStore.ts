@@ -64,8 +64,7 @@ export const useLiveSensorStore = create<SensorState>((set, _get) => ({
       keywordConfidence: useBleCommandStore.getState().confidence,
       anomalyScore: Math.random() * 30,
 
-      micWave:
-        useBleCommandStore.getState().micWave ?? new Int16Array(),
+      micWave: useBleCommandStore.getState().micWave ?? new Int16Array(),
 
       accel: {
         x: Array(30)

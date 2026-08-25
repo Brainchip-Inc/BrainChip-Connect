@@ -77,7 +77,6 @@ const DeviceApplicationsScreen: React.FC = () => {
   const activeApp = useBleCommandStore(state => state.activeApp);
   const appList = useBleCommandStore(state => state.appsList);
 
-
   const shouldShowLabel =
     batteryStateLabel &&
     batteryStateLabel !== BatteryStateStrings.NotCharging &&
@@ -258,10 +257,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                     ✱
                   </Text>
                   <Text
-                    style={[
-                      styles.infoText,
-                      { color: theme.colors.onSurface },
-                    ]}
+                    style={[styles.infoText, { color: theme.colors.onSurface }]}
                   >
                     <Text style={styles.label}>Keywords:</Text>
                   </Text>

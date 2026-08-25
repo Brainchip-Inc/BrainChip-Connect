@@ -47,7 +47,12 @@ export const formatFromKB = (value: string): string => {
 };
 
 type KwsAckResolver =
-  | { kind: 'set'; paramId: KwsParamId; resolve: (ok: boolean) => void; reject: (err: Error) => void }
+  | {
+      kind: 'set';
+      paramId: KwsParamId;
+      resolve: (ok: boolean) => void;
+      reject: (err: Error) => void;
+    }
   | { kind: 'reset'; resolve: () => void; reject: (err: Error) => void };
 
 type DeployAckResolver = {
@@ -76,10 +81,10 @@ interface BleCommandState {
   appsList: AppsList[];
 
   // KWS runtime params (CMD_CONFIG / opcode 4).
-  kwsConfig: KwsConfig;                                      // live values from the device
-  kwsConfigDraft: KwsConfig;                                 // per-field edits staged in the UI
-  kwsConfigPending: ReadonlySet<KwsParamId>;                 // ids with an in-flight SET
-  kwsConfigError: Partial<Record<KwsParamId, string>>;       // last ERR reason per id
+  kwsConfig: KwsConfig; // live values from the device
+  kwsConfigDraft: KwsConfig; // per-field edits staged in the UI
+  kwsConfigPending: ReadonlySet<KwsParamId>; // ids with an in-flight SET
+  kwsConfigError: Partial<Record<KwsParamId, string>>; // last ERR reason per id
   kwsConfigAckResolver: KwsAckResolver | null;
 
   // Inference pipeline state (DEPLOYSTART / DEPLOYSTOP).
@@ -383,7 +388,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
             case 'CONFIG_SET_ACK': {
               const id = data.paramId as KwsParamId;
               const resolver = get().kwsConfigAckResolver;
-              if (resolver && resolver.kind === 'set' && resolver.paramId === id) {
+              if (
+                resolver &&
+                resolver.kind === 'set' &&
+                resolver.paramId === id
+              ) {
                 resolver.resolve(data.ok);
                 set({ kwsConfigAckResolver: null });
               }
@@ -394,8 +403,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                   if (draftVal !== undefined) next[id] = draftVal;
                   return {
                     kwsConfig: next,
-                    kwsConfigDraft: { ...state.kwsConfigDraft, [id]: undefined },
-                    kwsConfigError: { ...state.kwsConfigError, [id]: undefined },
+                    kwsConfigDraft: {
+                      ...state.kwsConfigDraft,
+                      [id]: undefined,
+                    },
+                    kwsConfigError: {
+                      ...state.kwsConfigError,
+                      [id]: undefined,
+                    },
                   };
                 });
               } else {
@@ -779,4 +794,3 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     }
   },
 }));
-

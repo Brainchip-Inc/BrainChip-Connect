@@ -174,7 +174,7 @@ const DeviceConnectingScreen: React.FC = () => {
         timeoutHandle = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect-once effect; deviceInfo/deviceType/serviceUUIDs are read from route params at connect time and adding them would re-run the whole BLE connect
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect-once effect; deviceInfo/deviceType/serviceUUIDs are read from route params at connect time and adding them would re-run the whole BLE connect
   }, [
     deviceId,
     deviceName,

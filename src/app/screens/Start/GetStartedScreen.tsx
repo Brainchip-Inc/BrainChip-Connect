@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Image,
-  StyleSheet,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Image, StyleSheet, useWindowDimensions } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';

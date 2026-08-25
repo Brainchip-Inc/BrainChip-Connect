@@ -28,7 +28,6 @@ import { useFirmwareStore } from '../store/useFirmwareStore';
 import { Colors } from '../theme/theme';
 import RNFS from 'react-native-fs';
 
-
 const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();

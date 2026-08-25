@@ -21,7 +21,6 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
   onMuteNotifications,
   onClose,
 }) => {
-
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>

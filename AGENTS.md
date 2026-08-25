@@ -15,8 +15,11 @@ the board or a model that loads with zeroed metadata.
 The authoritative counterparts, read-only from this repo, are
 `utils/send_model_via_ble.py` (working reference sender) and
 `core/interface/ble_services/file_transfer.c` in the spark firmware repo.
-`__tests__/bleModelInfoCrc.test.ts` pins the layout to an exact CRC, so a
-firmware protocol bump should update that expected value deliberately.
+Two tests pin the app to them, one per half of the contract:
+`__tests__/bleModelInfoCrc.test.ts` fixes the header layout to an exact CRC, and
+`__tests__/bleModelInfoTransfer.test.ts` replays a whole `sendModelZip` against
+a fake peripheral that rebuilds `model_meta_t` from the characteristics it
+actually received. A firmware protocol bump means updating both deliberately.
 
 The two sides also disagree on where `model_name` comes from: the app packs the
 CRC header's name from `info.yaml`'s `app`, while the firmware derives it from

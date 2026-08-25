@@ -52,7 +52,12 @@ export type ParsedResponse =
   | { type: 'WAVE'; data: WavePayload }
   | { type: 'CONFIG_VALUE'; paramId: number; rawValue: string }
   | { type: 'CONFIG_SET_ACK'; paramId: number; ok: true }
-  | { type: 'CONFIG_SET_ACK'; paramId: number; ok: false; reason: ConfigSetReason }
+  | {
+      type: 'CONFIG_SET_ACK';
+      paramId: number;
+      ok: false;
+      reason: ConfigSetReason;
+    }
   | { type: 'CONFIG_RESET_ACK' };
 
 // Binary mic-stream frame (first byte 0x42 'B', cmd 0x0C CMD_STREAM_WAVE).

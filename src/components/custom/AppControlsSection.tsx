@@ -23,10 +23,7 @@ const rangeHint = (meta: KwsParamMeta) => {
   return `≥ ${meta.min}`;
 };
 
-const displayValue = (
-  meta: KwsParamMeta,
-  live: number | undefined,
-): string => {
+const displayValue = (meta: KwsParamMeta, live: number | undefined): string => {
   if (live === undefined) return '';
   return formatKwsValue(meta, live);
 };
@@ -166,7 +163,7 @@ const AppControlsSection: React.FC<{ appType: AppType }> = ({ appType }) => {
           const draft = kwsConfigDraft[meta.id];
           const focused = inputs[meta.id] !== undefined;
           const value = focused
-            ? (inputs[meta.id] ?? '')
+            ? inputs[meta.id] ?? ''
             : draft !== undefined
             ? formatKwsValue(meta, draft)
             : displayValue(meta, live);
@@ -178,10 +175,7 @@ const AppControlsSection: React.FC<{ appType: AppType }> = ({ appType }) => {
                 <Text style={styles.rowHint}>{rangeHint(meta)}</Text>
               </View>
               <View
-                style={[
-                  styles.inputWrap,
-                  !!error && styles.inputWrapError,
-                ]}
+                style={[styles.inputWrap, !!error && styles.inputWrapError]}
               >
                 <TextInput
                   style={styles.input}
@@ -191,9 +185,7 @@ const AppControlsSection: React.FC<{ appType: AppType }> = ({ appType }) => {
                   keyboardType={
                     meta.kind === 'float' ? 'decimal-pad' : 'number-pad'
                   }
-                  onChangeText={t =>
-                    setInputs(s => ({ ...s, [meta.id]: t }))
-                  }
+                  onChangeText={t => setInputs(s => ({ ...s, [meta.id]: t }))}
                   onBlur={() => {
                     handleBlur(meta);
                     setInputs(s => {
