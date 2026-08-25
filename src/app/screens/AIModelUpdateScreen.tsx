@@ -46,7 +46,9 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const [showServerModels, setShowServerModels] = useState(false);
   const [serverLoading, setServerLoading] = useState(false);
   const appList = useBleCommandStore(state => state.appsList);
-  const currentVersion = appList[0]?.modelVersion;
+  const reportedVersion = appList[0]?.modelVersion;
+  const currentVersion =
+    reportedVersion && reportedVersion !== '-' ? reportedVersion : undefined;
 
   // Keeps a ref to the ACK subscription so it can be cleaned up on unmount
   const ackSubRef = useRef<any>(null);

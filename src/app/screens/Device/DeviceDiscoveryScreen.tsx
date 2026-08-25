@@ -30,7 +30,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
   } = useBleStore();
 
   const [scanning, setScanning] = useState(false);
-  const [, setScanTimeRemaining] = useState(0);
+  const scanTimeRemainingRef = useRef(0);
 
   const scanCleanupRef = useRef<(() => void) | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,7 +55,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
       scanTimerRef.current = null;
     }
     setScanning(false);
-    setScanTimeRemaining(0);
+    scanTimeRemainingRef.current = 0;
   }, []);
 
   const serviceUUIDs: Array<string> = [];
@@ -64,7 +64,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
     stopScanning();
     setScanning(true);
     clearDiscoveredDevices();
-    setScanTimeRemaining(SCAN_TIMEOUT / 1000);
+    scanTimeRemainingRef.current = SCAN_TIMEOUT / 1000;
 
     try {
       const isEnabled = await BleService.isBluetoothEnabled();
@@ -78,13 +78,11 @@ const DeviceDiscoveryScreen: React.FC = () => {
       }
 
       scanTimerRef.current = setInterval(() => {
-        setScanTimeRemaining(prev => {
-          if (prev <= 1) {
-            stopScanning();
-            return 0;
-          }
-          return prev - 1;
-        });
+        if (scanTimeRemainingRef.current <= 1) {
+          stopScanning();
+          return;
+        }
+        scanTimeRemainingRef.current -= 1;
       }, 1000);
 
       scanCleanupRef.current = BleService.scanDevices(

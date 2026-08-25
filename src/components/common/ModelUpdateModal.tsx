@@ -50,7 +50,9 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
   const [showServerModels, setShowServerModels] = useState(false);
   const [serverLoading, setServerLoading] = useState(false);
   const appList = useBleCommandStore(state => state.appsList);
-  const currentVersion = appList[0]?.modelVersion;
+  const reportedVersion = appList[0]?.modelVersion;
+  const currentVersion =
+    reportedVersion && reportedVersion !== '-' ? reportedVersion : undefined;
 
   const ackSubRef = useRef<any>(null);
 

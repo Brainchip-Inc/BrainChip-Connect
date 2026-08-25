@@ -100,23 +100,7 @@ const DeviceConnectingScreen: React.FC = () => {
 
             // STEP 2: Establish BLE connection
             advanceStep(1);
-            await BleService.connectDevice(deviceId, () => {
-              Alert.alert(
-                'Device Disconnected',
-                'The device connection was lost.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      setConnectedDevice(null);
-                      setConnectionState('disconnected');
-                      navigation.replace('DeviceDiscovery');
-                    },
-                  },
-                ],
-                { cancelable: false },
-              );
-            });
+            await BleService.connectDevice(deviceId);
 
             // STEP 3: Sync configuration (start BLE notifications)
             advanceStep(2);

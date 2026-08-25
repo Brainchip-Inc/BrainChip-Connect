@@ -322,10 +322,7 @@ class BleService {
   /**
    * Connect to a BLE device and discover its services/characteristics.
    */
-  connectDevice = async (
-    deviceId: string,
-    _onDisconnected?: () => void,
-  ): Promise<Device> => {
+  connectDevice = async (deviceId: string): Promise<Device> => {
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
       const updatedDevice = await device.requestMTU(this.CHUNK_SIZE);
@@ -1836,12 +1833,19 @@ class BleService {
 
   private waitForEdgeAck = (timeoutMs = 10000): Promise<void> => {
     return new Promise((resolve, reject) => {
-      this.edgeAckResolver = resolve;
-
-      setTimeout(() => {
-        this.edgeAckResolver = null;
+      const timeout = setTimeout(() => {
+        if (this.edgeAckResolver === settle) {
+          this.edgeAckResolver = null;
+        }
         reject(new Error('Edge ACK timeout'));
       }, timeoutMs);
+
+      const settle = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+
+      this.edgeAckResolver = settle;
     });
   };
 

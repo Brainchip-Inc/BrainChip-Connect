@@ -18,6 +18,13 @@ The authoritative counterparts, read-only from this repo, are
 `__tests__/bleModelInfoCrc.test.ts` pins the layout to an exact CRC, so a
 firmware protocol bump should update that expected value deliberately.
 
+The two sides also disagree on where `model_name` comes from: the app packs the
+CRC header's name from `info.yaml`'s `app`, while the firmware derives it from
+the basename of the `fs_name` path, which the app builds from the info-bin
+filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
+package agrees on both, but a package whose `app` differs from its info-bin
+prefix fails the INFO CRC with no diagnostic naming the cause.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
