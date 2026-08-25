@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import DeviceInfoModal from '../../components/common/DeviceInfoModal';
 import UnpairDeviceModal from '../../components/common/UnpairDeviceModal';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
@@ -48,6 +49,7 @@ const UserProfileScreen = ({ navigation }: any) => {
   const { connectedDevice,setConnectedDevice,setConnectionState } = useBleStore();
 
   const [unpairModal, setUnpairModal] = useState(false);
+  const [showDeviceInfo, setShowDeviceInfo] = useState(false);
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
   const deviceId = connectedDevice?.id ?? 'Unknown';
@@ -99,7 +101,11 @@ const UserProfileScreen = ({ navigation }: any) => {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* TOP BAR */}
-      <DeviceHeader deviceName={deviceName} showConnectionStatus={true} />
+      <DeviceHeader
+        deviceName={deviceName}
+        showConnectionStatus={true}
+        onDeviceInfoPress={() => setShowDeviceInfo(true)}
+      />
 
       <View style={styles.content}>
         {/* HEADER */}
@@ -157,9 +163,10 @@ const UserProfileScreen = ({ navigation }: any) => {
               subtitle={
                 <View style={styles.statusContainer}>
                   <View style={styles.dot} />
-                  <Text style={styles.statusText}>Connected via Bluetooth</Text>
+                  <Text style={styles.statusText}>Connected</Text>
                 </View>
               }
+              onPress={() => setShowDeviceInfo(true)}
             />
           </Section>
 
@@ -183,6 +190,12 @@ const UserProfileScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      <DeviceInfoModal
+        visible={showDeviceInfo}
+        onClose={() => setShowDeviceInfo(false)}
+        deviceName={deviceName}
+      />
 
       <UnpairDeviceModal
         visible={unpairModal}

@@ -8,7 +8,6 @@ import { Base64 } from 'react-native-ble-plx';
 import { Button, Divider, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootParamList } from '../../../../App';
-import { useBleCommandStore } from '../../store/useBleCommandStore';
 import { useBleStore } from '../../store/useBleStore';
 
 type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
@@ -50,6 +49,7 @@ const DevicePreviewScreen: React.FC = () => {
     if(deviceInfo){
       parseManufacturerData(deviceInfo);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parseManufacturerData is re-created every render; the parse only needs to run when deviceInfo changes
   },[deviceInfo, setParsedDeviceInfo])
 
   const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo || {

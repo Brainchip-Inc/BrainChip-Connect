@@ -27,15 +27,9 @@ export const useAboutStore = create<AboutState>(() => ({
       id: 'hardware',
       title: 'Device Hardware',
       items: [
-        { type: 'kv', label: 'AI Processor', value: 'BrainChip Akida AKD1500' },
-        { type: 'kv', label: 'MCU', value: 'ARM Cortex-M33 @ 120 MHz' },
-        { type: 'kv', label: 'Memory', value: '2 MB Flash, 512 KB SRAM' },
-        { type: 'kv', label: 'Akida Nodes', value: '1,200 neuromorphic nodes' },
-        {
-          type: 'kv',
-          label: 'Connectivity',
-          value: 'Bluetooth 5.2 LE, Wi-Fi 802.11 b/g/n',
-        },
+        { type: 'kv', label: 'MCU', value: 'nRF5340, Arm Cortex-M33' },
+        { type: 'kv', label: 'AI Processor', value: 'BRN AKD1500' },
+        { type: 'kv', label: 'Connectivity', value: 'Bluetooth 5.3 LE' },
       ],
     },
 

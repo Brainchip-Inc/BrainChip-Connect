@@ -8,7 +8,7 @@ import { unzip } from 'react-native-zip-archive';
 import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
-import { parseBleMessage } from './bleParser';
+import { parseBinaryFrame, parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
@@ -322,10 +322,7 @@ class BleService {
   /**
    * Connect to a BLE device and discover its services/characteristics.
    */
-  connectDevice = async (
-    deviceId: string,
-    onDisconnected?: () => void,
-  ): Promise<Device> => {
+  connectDevice = async (deviceId: string): Promise<Device> => {
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
       const updatedDevice = await device.requestMTU(this.CHUNK_SIZE);
@@ -437,7 +434,7 @@ class BleService {
   listenForDisconnection = (deviceId: string, onDisconnected: () => void) => {
     this.disconnectSubscription = this.bleManager.onDeviceDisconnected(
       deviceId,
-      (error, device) => {
+      (_error, _device) => {
         // console.log('[BLE] Device disconnected');
 
         this.cleanupMonitors();
@@ -570,16 +567,20 @@ class BleService {
 
         if (!characteristic?.value) return;
 
-        // Decode Base64 to string
-        const decoded = Buffer.from(characteristic.value, 'base64').toString(
-          'utf-8',
-        );
+        const buf = Buffer.from(characteristic.value, 'base64');
 
-        // Parse BLE message
-        const parsed = parseBleMessage(decoded) as BleData;
+        // Binary mic-stream frames start with 0x42 'B'. All ASCII text frames
+        // start with '0'..'3' (frame-type digit), so the magic byte is
+        // unambiguous. Route binary → parseBinaryFrame, ASCII → parseBleMessage.
+        if (buf.length > 0 && buf[0] === 0x42) {
+          const parsed = parseBinaryFrame(buf);
+          if (parsed) onData(parsed);
+          return;
+        }
 
-        // Pass parsed data to callback
-        onData(parsed);
+        const decoded = buf.toString('utf-8');
+        const parsed = parseBleMessage(decoded);
+        if (parsed) onData(parsed);
       },
     );
 
@@ -704,19 +705,13 @@ class BleService {
         this.smpBuffer = null;
         this.smpExpectedLength = 0;
 
-        // Log header fields
-        const op = fullFrame[0];
-        const group = fullFrame.readUInt16BE(4);
-        const seq = fullFrame[6];
-        const cmd = fullFrame[7];
-
         const payloadBytes = fullFrame.slice(8);
         let decoded: any = {};
 
         if (payloadBytes.length > 0) {
           try {
             decoded = decode(payloadBytes);
-          } catch (e) {
+          } catch {
             return;
           }
         }
@@ -945,7 +940,6 @@ class BleService {
     const totalSize = fileBuffer.length;
 
     let offset = 0;
-    const t0 = Date.now();
 
     while (offset < totalSize) {
       const isFirst = offset === 0;
@@ -1034,7 +1028,7 @@ class BleService {
           packet.toString('base64'),
         );
       }
-    } catch (e) {}
+    } catch {}
   }
 
   /* ──FOTA MTU REQUEST ──
@@ -1049,7 +1043,7 @@ class BleService {
 
       this.negotiatedMTU = mtu;
       return mtu;
-    } catch (e) {
+    } catch {
       this.negotiatedMTU = 247; // safe fallback
       return this.negotiatedMTU;
     }
@@ -1221,6 +1215,10 @@ class BleService {
   private isEdgeLearnedUUID = 'f000aa0c-0451-4000-b000-000000000000'; // IS_EDGE_LEARNED_CHAR_UUID — 1 = edge-learned model (32-bit LE)
   private numEdgeClassesUUID = 'f000aa0d-0451-4000-b000-000000000000'; // NUM_EDGE_CLASSES_CHAR_UUID — neurons<<16 | classes (32-bit LE)
   private fsNameUUID = 'f000aa0e-0451-4000-b000-000000000000'; // FS_NAME_CHAR_UUID         — LittleFS metadata path (UTF-8)
+  private mfccFsUUID = 'f000aa0f-0451-4000-b000-000000000000'; // MFCC_FS_CHAR_UUID         — MFCC normalisation scalar (IEEE-754 float bits, 32-bit LE)
+  private silenceClassUUID = 'f000aa10-0451-4000-b000-000000000000'; // SILENCE_CLASS_CHAR_UUID   — silence class output index (32-bit LE)
+  private unknownClassUUID = 'f000aa11-0451-4000-b000-000000000000'; // UNKNOWN_CLASS_CHAR_UUID   — unknown class output index (32-bit LE)
+  private inferenceModeUUID = 'f000aa12-0451-4000-b000-000000000000'; // INFERENCE_MODE_CHAR_UUID  — 0=sync, 1=async (32-bit LE)
 
   // Edge-learning service/chars
   private edgeCommandServiceUUID = 'f000bb11-0111-9000-c000-000000000000';
@@ -1264,10 +1262,15 @@ class BleService {
   /**
    * CRC32 over header fields + info file bytes.
    *
-   * Struct layout (all uint32_t little-endian):
+   * Mirrors the firmware's model_info_hdr_crc32 in file_transfer.c: the CRC
+   * covers sizeof(model_meta_t) - offsetof(model_meta_t, total_length) = 124
+   * header bytes followed by the raw program_info bytes.
+   *
+   * Struct layout (15 × uint32_t little-endian, in model_meta_t field order):
    *   total_length, input_shape[3], output_shape[3],
-   *   flash_address, is_edge_learned, num_edge_classes, info_data_len
-   *   + model_name[64] null-padded
+   *   flash_address, is_edge_learned, num_edge_classes, info_data_len,
+   *   mfcc_fs_bits, silence_class, unknown_class, inference_mode
+   *   + model_name[64] null-padded  = 60 + 64 = 124 bytes
    * Then the raw info binary bytes are appended to the CRC stream.
    */
   private computeCombinedCRC32 = async (
@@ -1279,6 +1282,10 @@ class BleService {
     numEdgeClasses: number,
     infoFilePath: string,
     modelName: string = '',
+    mfccFsBits: number = 0,
+    silenceClass: number = 0,
+    unknownClass: number = 0,
+    inferenceMode: number = 0,
   ): Promise<number> => {
     const infoStat = await RNFS.stat(infoFilePath);
     const infoDataLen = infoStat.size;
@@ -1294,9 +1301,10 @@ class BleService {
     ];
 
     // Pack: total_length, input_shape[3], output_shape[3],
-    //       flash_address, is_edge_learned, num_edge_classes, info_data_len
-    // = 1 + 3 + 3 + 4 = 11 uint32_t values -> 44 bytes
-    const numFields = 1 + this.MAX_DIMS + this.MAX_DIMS + 4;
+    //       flash_address, is_edge_learned, num_edge_classes, info_data_len,
+    //       mfcc_fs_bits, silence_class, unknown_class, inference_mode
+    // = 1 + 3 + 3 + 8 = 15 uint32_t values -> 60 bytes
+    const numFields = 1 + this.MAX_DIMS + this.MAX_DIMS + 8;
     const headerBuf = Buffer.alloc(numFields * 4);
     const fields = [
       totalLength,
@@ -1306,6 +1314,10 @@ class BleService {
       isEdgeLearned ? 1 : 0,
       numEdgeClasses,
       infoDataLen,
+      mfccFsBits,
+      silenceClass,
+      unknownClass,
+      inferenceMode,
     ];
     fields.forEach((v, i) => headerBuf.writeUInt32LE(v >>> 0, i * 4));
 
@@ -1427,21 +1439,26 @@ class BleService {
    *    1. Write APP index
    *    ── INFO transfer ──
    *    2. Set TRANSFER_TYPE = INFO (0x00)
-   *    3. Write info file size → wait for ERASE ACK
-   *    4. Write combined CRC32 (header fields + info bytes)
-   *    5. Write total length (info + data)
-   *    6. Write input shape (N × uint32 LE)
-   *    7. Write output shape (N × uint32 LE)
-   *    8. Write flash address (uint32 LE)
-   *    9. Write is_edge_learned (uint32 LE, only if true)
-   *   10. Write num_edge_classes packed as (neurons<<16 | classes) (uint32 LE)
-   *   11. Write fs_name (UTF-8 string)
-   *   12. Stream info chunks → wait for WRITE ACK per BUFFER_SIZE window
+   *    3. Write fs_name (UTF-8 string) — before the size write, so the firmware
+   *       can build its LittleFS paths when the erase is triggered
+   *    4. Write info file size → wait for ERASE ACK
+   *    5. Write combined CRC32 (124-byte header + info bytes)
+   *    6. Write total length (info + data)
+   *    7. Write input shape (N × uint32 LE)
+   *    8. Write output shape (N × uint32 LE)
+   *    9. Write flash address (uint32 LE)
+   *   10. Write is_edge_learned (uint32 LE)
+   *   11. Write num_edge_classes packed as (neurons<<16 | classes) (uint32 LE)
+   *   12. Write mfcc_fs as IEEE-754 float bits (uint32 LE)
+   *   13. Write silence_class (uint32 LE)
+   *   14. Write unknown_class (uint32 LE)
+   *   15. Write inference_mode, 0=sync / 1=async (uint32 LE)
+   *   16. Stream info chunks → wait for WRITE ACK per BUFFER_SIZE window
    *    ── DATA transfer ──
-   *   13. Set TRANSFER_TYPE = DATA (0x01)
-   *   14. Write data file size → wait for ERASE ACK
-   *   15. Write data CRC32 (uint32 LE)
-   *   16. Stream data chunks → wait for WRITE ACK per BUFFER_SIZE window
+   *   17. Set TRANSFER_TYPE = DATA (0x01)
+   *   18. Write data file size → wait for ERASE ACK
+   *   19. Write data CRC32 (uint32 LE)
+   *   20. Stream data chunks → wait for WRITE ACK per BUFFER_SIZE window
    */
   async sendModelZip(
     deviceId: string,
@@ -1506,6 +1523,18 @@ class BleService {
         typeof rawAddr === 'string' ? parseInt(rawAddr, 16) : Number(rawAddr);
       const modelName: string = String(meta?.app ?? meta?.model_name ?? '');
 
+      // KWS runtime fields — the firmware refuses to run a KWS model whose
+      // mfcc_fs is missing, so these are always written during INFO.
+      const mfccFsBuf = Buffer.alloc(4);
+      mfccFsBuf.writeFloatLE(Number(meta?.mfcc_fs ?? 0));
+      const mfccFsBits: number = mfccFsBuf.readUInt32LE(0);
+      const silenceClass: number = Number(meta?.silence_class ?? 0);
+      const unknownClass: number = Number(meta?.unknown_class ?? 0);
+      const inferenceMode: number =
+        String(meta?.inference_mode ?? 'sync').toLowerCase() === 'async'
+          ? 1
+          : 0;
+
       // Edge-learning fields
       const elMeta = meta?.edge_learning ?? {};
       const isEdgeLearned: boolean = Boolean(elMeta?.enabled ?? false);
@@ -1539,6 +1568,10 @@ class BleService {
         packedClasses,
         infoBinFile.path,
         modelName,
+        mfccFsBits,
+        silenceClass,
+        unknownClass,
+        inferenceMode,
       );
 
       // ── Detect APP index ──
@@ -1613,7 +1646,7 @@ class BleService {
 
       if (__DEV__) console.log('flashAddress', flashAddress);
 
-      // 10. is_edge_learned (only written when true)
+      // 10. is_edge_learned (always written — avoids a stale firmware value)
       await this.writeU32LE(
         deviceId,
         this.isEdgeLearnedUUID,
@@ -1625,9 +1658,21 @@ class BleService {
       // 11. num_edge_classes packed (always written — firmware reads it even for non-EL)
       await this.writeU32LE(deviceId, this.numEdgeClassesUUID, packedClasses);
 
+      // 12. mfcc_fs as IEEE-754 float bits
+      await this.writeU32LE(deviceId, this.mfccFsUUID, mfccFsBits);
+
+      // 13. silence_class output index
+      await this.writeU32LE(deviceId, this.silenceClassUUID, silenceClass);
+
+      // 14. unknown_class output index
+      await this.writeU32LE(deviceId, this.unknownClassUUID, unknownClass);
+
+      // 15. inference_mode (0=sync, 1=async)
+      await this.writeU32LE(deviceId, this.inferenceModeUUID, inferenceMode);
+
       if (__DEV__) console.log('Streaming start');
 
-      // 12. Stream info binary chunks → wait for WRITE ACK
+      // 16. Stream info binary chunks → wait for WRITE ACK
       await this.sendFileChunksWithAck(deviceId, infoBinFile.path);
 
       if (__DEV__) console.log('Streaming end');
@@ -1639,21 +1684,21 @@ class BleService {
       // ── DATA transfer ──
       // =====================================================================
 
-      // 13. Set transfer type = DATA
+      // 17. Set transfer type = DATA
       await this.writeU8(
         deviceId,
         this.transferTypeUUID,
         this.TRANSFER_TYPE_DATA,
       );
 
-      // 14. Send data file size → triggers flash erase, wait for ERASE ACK
+      // 18. Send data file size → triggers flash erase, wait for ERASE ACK
       await this.writeU32LE(deviceId, this.fileSizeUUID, dataSize);
       await this.waitForAck(10000);
 
-      // 15. Data CRC32
+      // 19. Data CRC32
       await this.writeU32LE(deviceId, this.crcUUID, dataCRC);
 
-      // 16. Stream data binary chunks → wait for WRITE ACK, report progress
+      // 20. Stream data binary chunks → wait for WRITE ACK, report progress
       await this.sendFileChunksWithAck(deviceId, dataBinFile.path, onProgress);
 
       BleConnectionHelper.setExpectedReboot(true);
@@ -1788,12 +1833,19 @@ class BleService {
 
   private waitForEdgeAck = (timeoutMs = 10000): Promise<void> => {
     return new Promise((resolve, reject) => {
-      this.edgeAckResolver = resolve;
-
       const timeout = setTimeout(() => {
-        this.edgeAckResolver = null;
+        if (this.edgeAckResolver === settle) {
+          this.edgeAckResolver = null;
+        }
         reject(new Error('Edge ACK timeout'));
       }, timeoutMs);
+
+      const settle = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+
+      this.edgeAckResolver = settle;
     });
   };
 

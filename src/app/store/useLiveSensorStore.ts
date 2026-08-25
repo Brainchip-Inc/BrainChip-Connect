@@ -13,7 +13,7 @@ interface SensorState {
   anomalyScore: number;
   systemStatus: string;
 
-  micWave: number[];
+  micWave: Int16Array;
   accel: { x: number[]; y: number[]; z: number[] };
   gyro: { x: number[]; y: number[]; z: number[] };
 
@@ -22,7 +22,7 @@ interface SensorState {
   simulateData: () => void;
 }
 
-export const useLiveSensorStore = create<SensorState>((set, get) => ({
+export const useLiveSensorStore = create<SensorState>((set, _get) => ({
   isStreaming: false,
   appType: null,
 
@@ -32,7 +32,7 @@ export const useLiveSensorStore = create<SensorState>((set, get) => ({
   anomalyScore: 12,
   systemStatus: 'Normal',
 
-  micWave: [],
+  micWave: new Int16Array(),
 
   accel: {
     x: Array(30).fill(0.3),
@@ -64,7 +64,7 @@ export const useLiveSensorStore = create<SensorState>((set, get) => ({
       keywordConfidence: useBleCommandStore.getState().confidence,
       anomalyScore: Math.random() * 30,
 
-      micWave: useBleCommandStore.getState().micWave || [],
+      micWave: useBleCommandStore.getState().micWave ?? new Int16Array(),
 
       accel: {
         x: Array(30)

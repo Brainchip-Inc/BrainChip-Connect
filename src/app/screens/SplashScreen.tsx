@@ -3,8 +3,6 @@ import { View, StyleSheet, Image } from 'react-native';
 import { Text, ActivityIndicator, useTheme } from 'react-native-paper';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../App';
-import BleService from '../../services/ble/bleManager';
-import { getAcceptanceState } from '../store/acceptanceStorage';
 import { Colors } from '../theme/theme';
 
 interface SplashScreenProps {
@@ -18,28 +16,10 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
     let isMounted = true;
 
     const resolveStartupRoute = async () => {
-      const { privacyAccepted, termsAccepted } = await getAcceptanceState();
-
+      // Brief delay for splash branding
+      await new Promise(resolve => setTimeout(resolve, 800));
       if (!isMounted) return;
-
-      if (!privacyAccepted || !termsAccepted) {
-        navigation.replace('GetStarted');
-        return;
-      }
-
-      const [permissions, isBluetoothEnabled] = await Promise.all([
-        BleService.checkAllPermissions(),
-        BleService.isBluetoothEnabled(),
-      ]);
-
-      if (!isMounted) return;
-
-      if (permissions.bluetooth && permissions.location && isBluetoothEnabled) {
-        navigation.replace('DeviceDiscovery');
-        return;
-      }
-
-      navigation.replace('Permissions');
+      navigation.replace('GetStarted');
     };
 
     resolveStartupRoute().catch(() => {

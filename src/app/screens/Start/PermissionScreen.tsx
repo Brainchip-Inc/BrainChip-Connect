@@ -1,16 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  ScrollView,
   useWindowDimensions,
   Alert,
   TouchableOpacity,
 } from 'react-native';
-import {
-  Text,
-  Button,
-  useTheme,
-} from 'react-native-paper';
+import { Text, Button, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckSquare, Square } from 'lucide-react-native';
 import BleIcon from '../../assets/images/00_Permissions/Bluetooth Icon.svg';
@@ -54,17 +49,20 @@ const cardData = [
 
 const PermissionsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   const {
-    privacyAccepted, setPrivacyAccepted,
-    termsAccepted, setTermsAccepted,
+    privacyAccepted,
+    setPrivacyAccepted,
+    termsAccepted,
+    setTermsAccepted,
     setPermissions,
   } = useBleStore();
 
   const [isGranting, setIsGranting] = useState(false);
+  const [alreadyAccepted, setAlreadyAccepted] = useState(false);
 
   // Load persisted acceptance state on mount
   useEffect(() => {
@@ -73,19 +71,27 @@ const PermissionsScreen: React.FC = () => {
         await getAcceptanceState();
       setPrivacyAccepted(privacy);
       setTermsAccepted(terms);
+      if (privacy && terms) {
+        setAlreadyAccepted(true);
+      }
     };
     loadAcceptance().catch(() => {});
   }, [setPrivacyAccepted, setTermsAccepted]);
 
   const isSmallDevice = width < 375;
-  const isMediumDevice = width >= 375 && width < 768;
   const isLargeDevice = width >= 768;
 
-  const spacing = isSmallDevice ? 10 : isMediumDevice ? 12 : 20;
-  const horizontalPadding = 20;
+  // Available height after safe area insets
+  const availableHeight = height - insets.top - insets.bottom;
+  const isCompact = availableHeight < 780;
+  const isVeryCompact = availableHeight < 680;
+
+  const cardGap = isVeryCompact ? 6 : isCompact ? 8 : 12;
+  const sectionGap = isVeryCompact ? 12 : isCompact ? 16 : 20;
+  const verticalPadding = isVeryCompact ? 12 : isCompact ? 16 : 20;
   const maxWidth = isLargeDevice ? 600 : width;
 
-  const canProceed = privacyAccepted && termsAccepted;
+  const canProceed = alreadyAccepted || (privacyAccepted && termsAccepted);
 
   const openPrivacyPolicy = () => {
     navigation.navigate('PrivacyPolicy', {
@@ -173,29 +179,32 @@ const PermissionsScreen: React.FC = () => {
       style={{
         flex: 1,
         backgroundColor: theme.colors.background,
-        paddingTop: insets.top,
+        paddingTop: insets.top + verticalPadding,
+        paddingBottom: insets.bottom + verticalPadding,
+        paddingHorizontal: 20,
       }}
     >
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: horizontalPadding,
-          paddingTop: spacing * 2,
-          paddingBottom: insets.bottom + 160,
-          alignItems: 'center',
+      <View
+        style={{
+          flex: 1,
+          width: '100%',
+          maxWidth,
+          alignSelf: 'center',
+          justifyContent: 'space-between',
         }}
-        showsVerticalScrollIndicator={false}
       >
-        <View style={{ width: '100%', maxWidth }}>
+        {/* TOP CONTENT */}
+        <View>
           {/* Header */}
-          <View style={{ marginBottom: spacing * 1.5 }}>
+          <View style={{ marginBottom: sectionGap }}>
             <Text
               variant={isSmallDevice ? 'headlineSmall' : 'headlineMedium'}
-              style={{ fontWeight: '700', marginBottom: spacing * 0.5 }}
+              style={{ fontWeight: '700', marginBottom: 4 }}
             >
               Permissions Required
             </Text>
             <Text
-              variant="bodyMedium"
+              variant="bodySmall"
               style={{ color: theme.colors.onSurfaceVariant }}
             >
               To provide the best experience, we need access to the following
@@ -204,7 +213,7 @@ const PermissionsScreen: React.FC = () => {
           </View>
 
           {/* Permission Cards */}
-          <View style={{ gap: spacing, marginBottom: spacing * 1.5 }}>
+          <View style={{ gap: cardGap, marginBottom: sectionGap }}>
             {cardData.map((card, index) => (
               <PermissionCard
                 key={index}
@@ -216,182 +225,174 @@ const PermissionsScreen: React.FC = () => {
             ))}
           </View>
 
-          {/* Terms and Privacy */}
-          <View style={{ gap: spacing }}>
-            {/* Privacy Policy Checkbox */}
-            <TouchableOpacity
-              onPress={togglePrivacyAccepted}
-              activeOpacity={0.7}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-start',
-                backgroundColor: theme.colors.surface,
-                padding: spacing,
-                borderWidth: 1,
-                borderColor: theme.colors.outline,
-              }}
-            >
-              <View style={{ paddingTop: 2 }}>
-                {privacyAccepted ? (
-                  <CheckSquare
-                    size={22}
-                    color={theme.colors.primary}
-                    strokeWidth={2}
-                  />
-                ) : (
-                  <Square
-                    size={22}
-                    color={theme.colors.outline}
-                    strokeWidth={2}
-                  />
-                )}
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing * 0.75 }}>
-                <Text variant="bodyMedium">
-                  I accept the{' '}
-                  <Text
-                    style={{
-                      color: theme.colors.primary,
-                      textDecorationLine: 'underline',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                    }}
-                    onPress={e => {
-                      e?.stopPropagation?.();
-                      openPrivacyPolicy();
-                    }}
-                  >
-                    Privacy Policy
+          {/* Terms and Privacy — only shown if not already accepted */}
+          {!alreadyAccepted && (
+            <View style={{ gap: cardGap }}>
+              {/* Privacy Policy Checkbox */}
+              <TouchableOpacity
+                onPress={togglePrivacyAccepted}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  backgroundColor: theme.colors.surface,
+                  padding: isVeryCompact ? 10 : 12,
+                  borderWidth: 1,
+                  borderColor: theme.colors.outline,
+                }}
+              >
+                <View style={{ paddingTop: 2 }}>
+                  {privacyAccepted ? (
+                    <CheckSquare
+                      size={22}
+                      color={theme.colors.primary}
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <Square
+                      size={22}
+                      color={theme.colors.outline}
+                      strokeWidth={2}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text variant="bodyMedium">
+                    I accept the{' '}
+                    <Text
+                      style={{
+                        color: theme.colors.primary,
+                        textDecorationLine: 'underline',
+                        fontWeight: 'bold',
+                      }}
+                      onPress={e => {
+                        e?.stopPropagation?.();
+                        openPrivacyPolicy();
+                      }}
+                    >
+                      Privacy Policy
+                    </Text>
                   </Text>
-                </Text>
-                <Text
-                  variant="bodySmall"
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    marginTop: 4,
-                  }}
-                >
-                  Your data stays on your device. We don't collect personal
-                  information.
-                </Text>
-              </View>
-            </TouchableOpacity>
+                  {!isVeryCompact && (
+                    <Text
+                      variant="bodySmall"
+                      style={{
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 2,
+                      }}
+                    >
+                      Your data stays on your device. We don't collect personal
+                      information.
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
 
-            {/* Terms and Conditions Checkbox */}
-            <TouchableOpacity
-              onPress={toggleTermsAccepted}
-              activeOpacity={0.7}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-start',
-                backgroundColor: theme.colors.surface,
-                padding: spacing,
-                borderWidth: 1,
-                borderColor: theme.colors.outline,
-              }}
-            >
-              <View style={{ paddingTop: 2 }}>
-                {termsAccepted ? (
-                  <CheckSquare
-                    size={22}
-                    color={theme.colors.primary}
-                    strokeWidth={2}
-                  />
-                ) : (
-                  <Square
-                    size={22}
-                    color={theme.colors.outline}
-                    strokeWidth={2}
-                  />
-                )}
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing * 0.75 }}>
-                <Text variant="bodyMedium">
-                  I accept the{' '}
-                  <Text
-                    style={{
-                      color: theme.colors.primary,
-                      textDecorationLine: 'underline',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                    }}
-                    onPress={e => {
-                      e?.stopPropagation?.();
-                      openTermsAndConditions();
-                    }}
-                  >
-                    Terms and Conditions
+              {/* Terms and Conditions Checkbox */}
+              <TouchableOpacity
+                onPress={toggleTermsAccepted}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  backgroundColor: theme.colors.surface,
+                  padding: isVeryCompact ? 10 : 12,
+                  borderWidth: 1,
+                  borderColor: theme.colors.outline,
+                }}
+              >
+                <View style={{ paddingTop: 2 }}>
+                  {termsAccepted ? (
+                    <CheckSquare
+                      size={22}
+                      color={theme.colors.primary}
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <Square
+                      size={22}
+                      color={theme.colors.outline}
+                      strokeWidth={2}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text variant="bodyMedium">
+                    I accept the{' '}
+                    <Text
+                      style={{
+                        color: theme.colors.primary,
+                        textDecorationLine: 'underline',
+                        fontWeight: 'bold',
+                      }}
+                      onPress={e => {
+                        e?.stopPropagation?.();
+                        openTermsAndConditions();
+                      }}
+                    >
+                      Terms and Conditions
+                    </Text>
                   </Text>
-                </Text>
-                <Text
-                  variant="bodySmall"
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    marginTop: 4,
-                  }}
-                >
-                  Development tool for Edge AI devices. Not designed for
-                  collecting sensitive data.
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+                  {!isVeryCompact && (
+                    <Text
+                      variant="bodySmall"
+                      style={{
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 2,
+                      }}
+                    >
+                      Development tool for Edge AI devices. Not designed for
+                      collecting sensitive data.
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Bottom Action Buttons */}
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            width: '100%',
-            alignItems: 'center',
-            paddingBottom: insets.bottom + 24,
-            backgroundColor: 'transparent',
-          }}
-        >
-          <View style={{ width: '100%', maxWidth }}>
-            {/* Grant Permissions */}
-            <Button
-              mode="contained"
-              onPress={handleGrantPermissions}
-              disabled={!canProceed || isGranting}
-              loading={isGranting}
-              style={{
-                borderRadius: 0,
-                backgroundColor: canProceed ? '#0061ED' : '#E5E7EB',
-              }}
-              labelStyle={{
-                fontSize: 16,
-                fontWeight: '600',
-                color: canProceed ? '#FFFFFF' : 'rgba(0,0,0,0.4)',
-              }}
-            >
-              {isGranting ? 'Requesting Permissions...' : 'Grant Permissions'}
-            </Button>
+        <View>
+          {/* Grant Permissions */}
+          <Button
+            mode="contained"
+            onPress={handleGrantPermissions}
+            disabled={!canProceed || isGranting}
+            loading={isGranting}
+            style={{
+              borderRadius: 0,
+              backgroundColor: canProceed ? '#0061ED' : '#E5E7EB',
+            }}
+            labelStyle={{
+              fontSize: 16,
+              fontWeight: '600',
+              color: canProceed ? '#FFFFFF' : 'rgba(0,0,0,0.4)',
+            }}
+          >
+            {isGranting ? 'Requesting Permissions...' : 'Grant Permissions'}
+          </Button>
 
-            {/* Back */}
-            <Button
-              mode="outlined"
-              onPress={() => navigation.goBack()}
-              disabled={isGranting}
-              style={{
-                borderRadius: 0,
-                borderColor: '#E5E7EB',
-                marginTop: 12,
-                backgroundColor: '#FFFFFF',
-              }}
-              labelStyle={{
-                fontSize: 14,
-                fontWeight: '500',
-                color: '#000000',
-              }}
-            >
-              Back
-            </Button>
-          </View>
+          {/* Back */}
+          <Button
+            mode="outlined"
+            onPress={() => navigation.goBack()}
+            disabled={isGranting}
+            style={{
+              borderRadius: 0,
+              borderColor: '#E5E7EB',
+              marginTop: 10,
+              backgroundColor: '#FFFFFF',
+            }}
+            labelStyle={{
+              fontSize: 14,
+              fontWeight: '500',
+              color: '#000000',
+            }}
+          >
+            Back
+          </Button>
         </View>
-      </ScrollView>
-
+      </View>
     </View>
   );
 };
