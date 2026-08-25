@@ -77,7 +77,7 @@ export type ParsedResponse =
 // Envelope mode: 134 bytes, n_samples=64 (32 min/max pairs).
 // Fallback mode: 70 bytes,  n_samples=32 (raw int16 samples).
 const WAVE_MAGIC = 0x42;
-const WAVE_CMD = 0x0c;
+const WAVE_CMD: number = BleCommand.STREAMWAVE;
 
 export const parseBinaryFrame = (buf: Buffer): ParsedResponse | null => {
   if (buf.length < 6 || buf[0] !== WAVE_MAGIC) return null;
