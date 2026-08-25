@@ -22,14 +22,11 @@ import DeviceHeader from '../../components/custom/DeviceHeader';
 import bleService from '../../services/ble/bleManager';
 import { FirmwareBuild } from '../../types/FirmwareBuild';
 import { RouteName, ROUTES } from '../../types/routes';
-import { useBleCommandStore } from '../store/useBleCommandStore';
 import { useBleStore } from '../store/useBleStore';
 import { useDeviceAuthStore } from '../store/useDeviceAuthStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
 import { Colors } from '../theme/theme';
 import RNFS from 'react-native-fs';
-
-const CONTENT_WIDTH = 382;
 
 const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
@@ -77,6 +74,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       );
       navigation.navigate('DeviceDiscovery');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on authtoken so the alert fires once per auth change; deviceName would re-fire it whenever the connected device is renamed
   }, [authtoken]);
 
   const FetchFromServer = async () => {
@@ -249,7 +247,6 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         return;
       }
 
-      const deviceId = connectedDevice.id;
       setInstallingId(build.id);
       setProgress(0);
 

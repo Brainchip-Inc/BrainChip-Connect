@@ -30,14 +30,12 @@ const DeviceDiscoveryScreen: React.FC = () => {
   } = useBleStore();
 
   const [scanning, setScanning] = useState(false);
-  const [scanTimeRemaining, setScanTimeRemaining] = useState(0);
+  const scanTimeRemainingRef = useRef(0);
 
   const scanCleanupRef = useRef<(() => void) | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hasDevices = devices.length > 0;
-  const privacyAccepted = useBleStore(state => state.privacyAccepted);
-  const termsAccepted = useBleStore(state => state.termsAccepted);
 
   const getSignalColor = (rssi: number | null) => {
     if (!rssi) return theme.colors.outline;
@@ -57,7 +55,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
       scanTimerRef.current = null;
     }
     setScanning(false);
-    setScanTimeRemaining(0);
+    scanTimeRemainingRef.current = 0;
   }, []);
 
   const serviceUUIDs: Array<string> = [];
@@ -66,7 +64,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
     stopScanning();
     setScanning(true);
     clearDiscoveredDevices();
-    setScanTimeRemaining(SCAN_TIMEOUT / 1000);
+    scanTimeRemainingRef.current = SCAN_TIMEOUT / 1000;
 
     try {
       const isEnabled = await BleService.isBluetoothEnabled();
@@ -80,13 +78,11 @@ const DeviceDiscoveryScreen: React.FC = () => {
       }
 
       scanTimerRef.current = setInterval(() => {
-        setScanTimeRemaining(prev => {
-          if (prev <= 1) {
-            stopScanning();
-            return 0;
-          }
-          return prev - 1;
-        });
+        if (scanTimeRemainingRef.current <= 1) {
+          stopScanning();
+          return;
+        }
+        scanTimeRemainingRef.current -= 1;
       }, 1000);
 
       scanCleanupRef.current = BleService.scanDevices(
@@ -105,10 +101,11 @@ const DeviceDiscoveryScreen: React.FC = () => {
         serviceUUIDs,
         SCAN_TIMEOUT,
       );
-    } catch (error) {
+    } catch {
       Alert.alert('Scan Error', 'Failed to scan for devices.');
       stopScanning();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- serviceUUIDs is a fresh empty array each render, so adding it would rebuild startScanning and restart the scan continuously
   }, [stopScanning, clearDiscoveredDevices, addDiscoveredDevice]);
 
   const handleDevicePress = (device: BLEDevice) => {
@@ -303,7 +300,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
         style={{
           paddingHorizontal: 20,
           paddingTop: 12,
-          paddingBottom: insets.bottom + 20,
+          paddingBottom: insets.bottom + 48,
           backgroundColor: theme.colors.background,
         }}
       >
@@ -315,15 +312,13 @@ const DeviceDiscoveryScreen: React.FC = () => {
           Scan again
         </Button>
 
-        {privacyAccepted && termsAccepted ? (
-          <Button
-            mode="outlined"
-            onPress={() => navigation.goBack()}
-            style={{ marginTop: 12 }}
-          >
-            Back
-          </Button>
-        ) : null}
+        <Button
+          mode="outlined"
+          onPress={() => navigation.navigate('GetStarted')}
+          style={{ marginTop: 12 }}
+        >
+          Back
+        </Button>
       </View>
     </View>
   );
