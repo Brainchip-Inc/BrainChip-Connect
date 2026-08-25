@@ -18,23 +18,6 @@ import path from 'path';
 const INFO_FIXTURE = path.join(__dirname, 'fixtures', 'kws_program_info.bin');
 const mockInfoBytes = fs.readFileSync(INFO_FIXTURE);
 
-jest.mock('react-native-ble-plx', () => ({
-  BleManager: jest.fn().mockImplementation(() => ({
-    onStateChange: jest.fn(() => ({ remove: jest.fn() })),
-  })),
-  Device: jest.fn(),
-  State: { PoweredOn: 'PoweredOn', PoweredOff: 'PoweredOff' },
-  Subscription: jest.fn(),
-}));
-
-jest.mock('react-native-zip-archive', () => ({ unzip: jest.fn() }));
-
-// cbor-x ships ESM only; the CRC path does not touch it.
-jest.mock('cbor-x', () => ({
-  decode: jest.fn(),
-  Encoder: jest.fn().mockImplementation(() => ({ encode: jest.fn() })),
-}));
-
 jest.mock('react-native-fs', () => ({
   TemporaryDirectoryPath: '/tmp',
   stat: jest.fn(async () => ({ size: mockInfoBytes.length })),
