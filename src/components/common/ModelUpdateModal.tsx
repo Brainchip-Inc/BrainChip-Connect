@@ -62,14 +62,12 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
     };
   }, []);
 
-  // Reset state when modal opens
+  // Reset state on every open/close transition
   useEffect(() => {
-    if (visible) {
-      setScreen('list');
-      setProgress(0);
-      setLocalModel(null);
-      setShowServerModels(false);
-    }
+    setScreen('list');
+    setProgress(0);
+    setLocalModel(null);
+    setShowServerModels(false);
   }, [visible]);
 
   const startUpdate = async (model: AIModel) => {
