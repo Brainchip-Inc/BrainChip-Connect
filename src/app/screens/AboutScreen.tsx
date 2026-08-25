@@ -87,15 +87,7 @@ const AboutScreen = ({ navigation }: any) => {
                   return (
                     <Bullet key={i}>
                       <Text style={styles.bold}>{item.label}: </Text>
-                      <Text
-                        style={
-                          item.label === 'AI Processor'
-                            ? styles.linkBlue
-                            : styles.body
-                        }
-                      >
-                        {item.value}
-                      </Text>
+                      <Text style={styles.body}>{item.value}</Text>
                     </Bullet>
                   );
                 }

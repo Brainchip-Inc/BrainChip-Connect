@@ -4,14 +4,15 @@ import {
   Cpu,
   Download,
   Power,
-  Sliders,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import DeviceInfoModal from '../../components/common/DeviceInfoModal';
 import FactoryResetModal from '../../components/common/FactoryResetModal';
+import FirmwareUpdateModal from '../../components/common/FirmwareUpdateModal';
+import ModelUpdateModal from '../../components/common/ModelUpdateModal';
 import PowerModeModal from '../../components/common/PowerModeModal';
-import SensorConfigModal from '../../components/common/SensorConfigModal';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import { useBleStore } from '../store/useBleStore';
@@ -38,21 +39,26 @@ const SettingRow = ({ icon, title, subtitle, onPress }: any) => (
   </TouchableOpacity>
 );
 
-const SettingsScreen = ({ navigation }: any) => {
+const SettingsScreen = () => {
   const theme = useTheme();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
   const [showPowerModal, setShowPowerModal] = useState(false);
-  const [showSensorModal, setShowSensorModal] = useState(false);
   const [showReset, setShowReset] = useState(false);
-  const { connectedDevice, parsedDeviceInfo } = useBleStore();
+  const [showDeviceInfo, setShowDeviceInfo] = useState(false);
+  const [showFirmwareModal, setShowFirmwareModal] = useState(false);
+  const [showModelModal, setShowModelModal] = useState(false);
+  const { connectedDevice } = useBleStore();
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
-  const currentYear = new Date().getFullYear();
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* TOP BAR */}
-      <DeviceHeader deviceName={deviceName} showConnectionStatus={true} />
+      <DeviceHeader
+        deviceName={deviceName}
+        showConnectionStatus={true}
+        onDeviceInfoPress={() => setShowDeviceInfo(true)}
+      />
 
       <View style={styles.content}>
         {/* HEADER */}
@@ -72,32 +78,22 @@ const SettingsScreen = ({ navigation }: any) => {
             />
           </Section>
 
-          {/* SENSORS */}
-          <Section title="Sensors">
-            <SettingRow
-              icon={<Sliders size={20} />}
-              title="Sensor Configuration"
-              subtitle="10 Hz"
-              onPress={() => setShowSensorModal(true)}
-            />
-          </Section>
-
           {/* FIRMWARE */}
           <Section title="Firmware">
             <SettingRow
               icon={<Cpu size={20} />}
               title="Firmware Update"
               subtitle="Update Application"
-              onPress={() => navigation.navigate('FirmwareUpdate')}
+              onPress={() => setShowFirmwareModal(true)}
             />
             <TouchableOpacity
               style={styles.secondCard}
-              onPress={() => navigation.navigate('AIModelUpdate')}
+              onPress={() => setShowModelModal(true)}
             >
               <View style={styles.cardRow}>
                 <Download size={20} />
                 <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>AI Model Update</Text>
+                  <Text style={styles.cardTitle}>Model Update</Text>
                   <Text style={styles.cardSub}>Check for system updates</Text>
                 </View>
                 <ChevronRight size={18} />
@@ -124,16 +120,6 @@ const SettingsScreen = ({ navigation }: any) => {
               </View>
             </View>
           </TouchableOpacity>
-          {/* FOOTER */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>{deviceName}</Text>
-            <Text style={styles.footerText}>
-              Firmware v{parsedDeviceInfo?.firmwareVersion} � Serial: {parsedDeviceInfo?.deviceType}
-            </Text>
-            <Text style={styles.footerText}>
-              © {currentYear} BrainChip Holdings Ltd.
-            </Text>
-          </View>
         </View>
       </View>
 
@@ -142,10 +128,22 @@ const SettingsScreen = ({ navigation }: any) => {
         onClose={() => setShowPowerModal(false)}
       />
 
-      <SensorConfigModal
-        visible={showSensorModal}
-        onClose={() => setShowSensorModal(false)}
+      <DeviceInfoModal
+        visible={showDeviceInfo}
+        onClose={() => setShowDeviceInfo(false)}
+        deviceName={deviceName}
       />
+
+      <FirmwareUpdateModal
+        visible={showFirmwareModal}
+        onClose={() => setShowFirmwareModal(false)}
+      />
+
+      <ModelUpdateModal
+        visible={showModelModal}
+        onClose={() => setShowModelModal(false)}
+      />
+
       <FactoryResetModal
         visible={showReset}
         onCancel={() => setShowReset(false)}
@@ -254,14 +252,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 12,
     color: `${Colors.error}`,
-  },
-  footer: {
-    marginTop: 32,
-    alignItems: 'center',
-    paddingBottom: 24,
-  },
-  footerText: {
-    fontSize: 12,
-    fontFamily: 'Inter',
   },
 });

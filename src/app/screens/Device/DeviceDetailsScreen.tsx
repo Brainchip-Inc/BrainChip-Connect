@@ -115,6 +115,7 @@ const DeviceDetailsScreen: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(checkConnection, 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- checkConnection is re-created every render, so adding it would tear down and restart the 5s poll on each one
   }, []);
 
   return (

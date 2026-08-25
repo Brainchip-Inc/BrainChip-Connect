@@ -24,7 +24,7 @@ const TermsAndConditionsScreen = () => {
 
   useEffect(() => {
     fetchTerms();
-  }, []);
+  }, [fetchTerms]);
 
   const content = terms;
 
