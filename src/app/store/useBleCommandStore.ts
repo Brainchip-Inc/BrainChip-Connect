@@ -472,7 +472,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     if (sub) {
       try {
         sub.remove();
-      } catch (e) {
+      } catch {
         if (__DEV__) console.warn('Subscription already removed');
       }
     }
@@ -488,7 +488,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
     try {
       await BleService.sendCommand(deviceId, BleCommand.BATTERY);
-    } catch (error) {
+    } catch {
       set({
         batteryError: 'Battery request failed',
         batteryLoading: false,
@@ -498,7 +498,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     await new Promise(r => setTimeout(r, 300));
     try {
       await BleService.sendCommand(deviceId, BleCommand.APPS);
-    } catch (error) {
+    } catch {
       set({
         appsList: [],
       });
@@ -630,7 +630,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       set({ resetLoading: false, resetError: null });
       BleConnectionHelper.setExpectedReboot(true);
       return true;
-    } catch (error) {
+    } catch {
       set({
         resetError: 'Device reset request failed',
         resetLoading: false,

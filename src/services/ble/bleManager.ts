@@ -324,7 +324,7 @@ class BleService {
    */
   connectDevice = async (
     deviceId: string,
-    onDisconnected?: () => void,
+    _onDisconnected?: () => void,
   ): Promise<Device> => {
     try {
       const device = await this.bleManager.connectToDevice(deviceId);
@@ -437,7 +437,7 @@ class BleService {
   listenForDisconnection = (deviceId: string, onDisconnected: () => void) => {
     this.disconnectSubscription = this.bleManager.onDeviceDisconnected(
       deviceId,
-      (error, device) => {
+      (_error, _device) => {
         // console.log('[BLE] Device disconnected');
 
         this.cleanupMonitors();
@@ -708,19 +708,13 @@ class BleService {
         this.smpBuffer = null;
         this.smpExpectedLength = 0;
 
-        // Log header fields
-        const op = fullFrame[0];
-        const group = fullFrame.readUInt16BE(4);
-        const seq = fullFrame[6];
-        const cmd = fullFrame[7];
-
         const payloadBytes = fullFrame.slice(8);
         let decoded: any = {};
 
         if (payloadBytes.length > 0) {
           try {
             decoded = decode(payloadBytes);
-          } catch (e) {
+          } catch {
             return;
           }
         }
@@ -949,7 +943,6 @@ class BleService {
     const totalSize = fileBuffer.length;
 
     let offset = 0;
-    const t0 = Date.now();
 
     while (offset < totalSize) {
       const isFirst = offset === 0;
@@ -1038,7 +1031,7 @@ class BleService {
           packet.toString('base64'),
         );
       }
-    } catch (e) {}
+    } catch {}
   }
 
   /* ──FOTA MTU REQUEST ──
@@ -1053,7 +1046,7 @@ class BleService {
 
       this.negotiatedMTU = mtu;
       return mtu;
-    } catch (e) {
+    } catch {
       this.negotiatedMTU = 247; // safe fallback
       return this.negotiatedMTU;
     }
@@ -1845,7 +1838,7 @@ class BleService {
     return new Promise((resolve, reject) => {
       this.edgeAckResolver = resolve;
 
-      const timeout = setTimeout(() => {
+      setTimeout(() => {
         this.edgeAckResolver = null;
         reject(new Error('Edge ACK timeout'));
       }, timeoutMs);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Text, useTheme, ProgressBar } from 'react-native-paper';
+import { Text, ProgressBar } from 'react-native-paper';
 import { X, Bell } from 'lucide-react-native';
 import { Colors } from '../../app/theme/theme';
 
@@ -21,7 +21,6 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
   onMuteNotifications,
   onClose,
 }) => {
-  const theme = useTheme();
 
   return (
     <View style={styles.wrapper}>

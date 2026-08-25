@@ -95,8 +95,6 @@ export const parseBleMessage = (raw: string): ParsedResponse | null => {
   if (parts.length < 4) return null;
 
   const frameType = Number(parts[0]); // 0=SF, 1=START, 2=MID, 3=END
-  const seq = Number(parts[1]); // parsed for future use
-  const length = Number(parts[2]); // payload length parsed for future use, need to validate with the actual payload data
 
   // Payload = everything after length.
   // Preserve every colon after the first one — CONFIG responses (opcode 4)

@@ -1,5 +1,4 @@
 import {
-  NavigationProp,
   useNavigation,
   useRoute,
 } from '@react-navigation/native';

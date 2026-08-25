@@ -45,7 +45,6 @@ jest.mock('react-native-fs', () => ({
   readDir: jest.fn(async () => []),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const BleService = require('../src/services/ble/bleManager').default;
 
 /** mfcc_fs as the firmware sees it: IEEE-754 single-precision bits. */
@@ -90,7 +89,7 @@ describe('computeCombinedCRC32 (kws_edge_learning)', () => {
 
     const crc = await BleService.computeCombinedCRC32(...args);
 
-    expect(crc >>> 0).toBe(0x970df4c7);
+    expect(crc).toBe(0x970df4c7);
   });
 
   it('does not fall back to the pre-revision 108-byte layout', async () => {
@@ -98,7 +97,7 @@ describe('computeCombinedCRC32 (kws_edge_learning)', () => {
 
     // 0xF3E0670D = 11-field / 108-byte header, 0x6E8952FD = 124-byte header
     // with the four new fields left at zero.
-    expect(crc >>> 0).not.toBe(0xf3e0670d);
-    expect(crc >>> 0).not.toBe(0x6e8952fd);
+    expect(crc).not.toBe(0xf3e0670d);
+    expect(crc).not.toBe(0x6e8952fd);
   });
 });

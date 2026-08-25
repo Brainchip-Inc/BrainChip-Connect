@@ -22,7 +22,7 @@ interface SensorState {
   simulateData: () => void;
 }
 
-export const useLiveSensorStore = create<SensorState>((set, get) => ({
+export const useLiveSensorStore = create<SensorState>((set, _get) => ({
   isStreaming: false,
   appType: null,
 

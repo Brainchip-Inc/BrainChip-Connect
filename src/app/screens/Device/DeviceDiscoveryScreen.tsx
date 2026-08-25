@@ -30,7 +30,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
   } = useBleStore();
 
   const [scanning, setScanning] = useState(false);
-  const [scanTimeRemaining, setScanTimeRemaining] = useState(0);
+  const [, setScanTimeRemaining] = useState(0);
 
   const scanCleanupRef = useRef<(() => void) | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -103,7 +103,7 @@ const DeviceDiscoveryScreen: React.FC = () => {
         serviceUUIDs,
         SCAN_TIMEOUT,
       );
-    } catch (error) {
+    } catch {
       Alert.alert('Scan Error', 'Failed to scan for devices.');
       stopScanning();
     }

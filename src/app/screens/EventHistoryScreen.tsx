@@ -14,7 +14,6 @@ import {
   AlertTriangle,
 } from 'lucide-react-native';
 import DeviceHeader from '../../components/custom/DeviceHeader';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import { useBleStore } from '../store/useBleStore';
 import { RouteName, ROUTES } from '../../types/routes';
@@ -23,7 +22,6 @@ import { Colors } from '../theme/theme';
 import { useBleCommandStore } from '../store/useBleCommandStore';
 
 const EventHistoryScreen = ({ navigation }: any) => {
-  const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.PROFILE);
   const { connectedDevice } = useBleStore();
   const eventsData = useEventsStore(state => state.events);
@@ -32,7 +30,7 @@ const EventHistoryScreen = ({ navigation }: any) => {
 
   const activeApp = useBleCommandStore(state => state.activeApp);
 
-  const { todayEvents, loadEvents } = useEventsStore();
+  const { loadEvents } = useEventsStore();
 
   const handleMoreDetails = () => {
     Alert.alert('This feature will be implemented later.');
@@ -50,8 +48,6 @@ const EventHistoryScreen = ({ navigation }: any) => {
 
     return new Date(timestamp).toLocaleDateString();
   };
-
-  const todayKey = new Date().toISOString().split('T')[0];
 
   const formatDisplayDate = (dateStr: string) => {
     const date = new Date(dateStr);

@@ -1,6 +1,6 @@
 // theme.js
 import { MD3LightTheme } from 'react-native-paper';
-import { MD3Theme, ThemeProp } from 'react-native-paper/lib/typescript/types';
+import { MD3Theme } from 'react-native-paper/lib/typescript/types';
 
 type CustomTheme = MD3Theme & {
   colors: MD3Theme['colors'] & {

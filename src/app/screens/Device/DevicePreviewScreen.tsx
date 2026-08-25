@@ -8,7 +8,6 @@ import { Base64 } from 'react-native-ble-plx';
 import { Button, Divider, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootParamList } from '../../../../App';
-import { useBleCommandStore } from '../../store/useBleCommandStore';
 import { useBleStore } from '../../store/useBleStore';
 
 type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
