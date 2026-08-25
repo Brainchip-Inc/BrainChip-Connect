@@ -80,9 +80,6 @@ ios/*.xcworkspace/
 # Source maps
 *.map
 
-# Package lock (if using npm)
-package-lock.json
-
 # React Native Bundler
 *.jsbundle
 .expo/
