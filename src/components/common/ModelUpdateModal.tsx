@@ -62,9 +62,9 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
     };
   }, []);
 
-  // Reset state when modal closes
+  // Reset state when modal opens
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
       setScreen('list');
       setProgress(0);
       setLocalModel(null);
@@ -196,7 +196,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
         visible={visible}
         onDismiss={onClose}
         contentContainerStyle={styles.modalContainer}
-        dismissable={true}
+        dismissable={screen !== 'updating'}
       >
         {/* Backdrop */}
         <View style={styles.backdrop} />
@@ -215,8 +215,17 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              disabled={screen === 'updating'}
+            >
+              <X
+                size={18}
+                color={
+                  screen === 'updating' ? Colors.text.disabled : Colors.black
+                }
+              />
             </TouchableOpacity>
           </View>
 

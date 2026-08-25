@@ -247,7 +247,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               const resolver = get().deployAckResolver;
               if (resolver && resolver.kind === 'start') {
                 resolver.resolve();
-                set({ deployAckResolver: null });
+                if (get().deployAckResolver === resolver) {
+                  set({ deployAckResolver: null });
+                }
               }
               set({ isInferenceRunning: true });
               break;
@@ -257,7 +259,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               const resolver = get().deployAckResolver;
               if (resolver && resolver.kind === 'stop') {
                 resolver.resolve();
-                set({ deployAckResolver: null });
+                if (get().deployAckResolver === resolver) {
+                  set({ deployAckResolver: null });
+                }
               }
               set({ isInferenceRunning: false });
               break;
@@ -513,9 +517,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     if (!deviceId) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let thisResolver: DeployAckResolver | null = null;
     try {
       const ack = new Promise<void>((resolve, reject) => {
-        set({ deployAckResolver: { kind: 'start', resolve, reject } });
+        thisResolver = { kind: 'start', resolve, reject };
+        set({ deployAckResolver: thisResolver });
       });
 
       await BleService.sendCommand(
@@ -541,8 +547,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       });
     } finally {
       if (timer) clearTimeout(timer);
-      const resolver = get().deployAckResolver;
-      if (resolver && resolver.kind === 'start') {
+      if (thisResolver && get().deployAckResolver === thisResolver) {
         set({ deployAckResolver: null });
       }
     }
@@ -554,9 +559,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     if (!deviceId) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let thisResolver: DeployAckResolver | null = null;
     try {
       const ack = new Promise<void>((resolve, reject) => {
-        set({ deployAckResolver: { kind: 'stop', resolve, reject } });
+        thisResolver = { kind: 'stop', resolve, reject };
+        set({ deployAckResolver: thisResolver });
       });
 
       await BleService.sendCommand(
@@ -574,8 +581,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       await Promise.race([ack, timeout]);
     } finally {
       if (timer) clearTimeout(timer);
-      const resolver = get().deployAckResolver;
-      if (resolver && resolver.kind === 'stop') {
+      if (thisResolver && get().deployAckResolver === thisResolver) {
         set({ deployAckResolver: null });
       }
     }

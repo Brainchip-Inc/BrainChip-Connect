@@ -257,7 +257,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
         visible={visible}
         onDismiss={onClose}
         contentContainerStyle={styles.modalContainer}
-        dismissable={true}
+        dismissable={installingId === null}
       >
         {/* Backdrop */}
         <View style={styles.backdrop} />
@@ -276,8 +276,17 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              disabled={installingId !== null}
+            >
+              <X
+                size={18}
+                color={
+                  installingId !== null ? Colors.text.disabled : Colors.black
+                }
+              />
             </TouchableOpacity>
           </View>
 
