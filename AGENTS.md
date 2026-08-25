@@ -28,6 +28,43 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
+## BLE command opcodes are owned by the firmware enum
+
+`src/services/ble/bleCommands.ts` must match `command_type_t` in the spark
+firmware repo at `source/include/ble_services/ble_initialization.h`. Commands go
+out as the bare number and notifications are matched on the numeric prefix, so a
+drifted value invokes the wrong handler instead of failing: CURRENTSTART sitting
+at 12 rather than 13 made "start current measurement" start the microphone
+waveform stream.
+
+Every value is therefore assigned explicitly, including `STREAMWAVE = 12`, which
+the app never sends but which holds the firmware's slot.
+`__tests__/bleCommandOpcodes.test.ts` pins all fifteen against a transcription of
+that header. Verify a protocol bump against the header itself, never against the
+trailing comments in the enum.
+
+Firmware acks the stop commands with `ACK_DONE` (0xAA / 170) under the same
+opcode: `8:170`, `10:170`, `11:170`, `14:170`. `CMD_CURRENT_START` is not acked
+at all, and doubles as the opcode the sample stream arrives on, payload
+`"<1v8>,<0v8>"` in mA at `CONFIG_CURRENT_DEFAULT_RATE_HZ` (10 Hz).
+
+## A clean `npm ci` cannot build Android without patching react-native-screens
+
+`react-native-screens` resolves to 4.27.0 under `^4.19.0`, and its codegen specs
+under `src/fabric/` declare command refs as `React.ComponentRef<ComponentType>`.
+The codegen shipped with react-native 0.83.10 accepts only `React.ElementRef<>`,
+so `:react-native-screens:generateCodegenSchemaFromJavaScript` aborts and no
+Android build completes:
+
+    Error: The first argument of method showColumn must be of type React.ElementRef<>
+
+Four spec files are affected (`SearchBarNativeComponent.ts`, and the `gamma`
+split/stack header configs). A proper fix belongs in `patches/` via
+patch-package, which this repo already uses, or in a version pin; see
+`node_modules/@react-native/codegen/lib/parsers/typescript/components/commands.js`
+for the constraint. Gradle also needs `ANDROID_HOME`, which a non-login shell
+does not set.
+
 ## Dependencies are locked, and two pins are load-bearing
 
 `package-lock.json` is committed and npm is the only supported package manager;
