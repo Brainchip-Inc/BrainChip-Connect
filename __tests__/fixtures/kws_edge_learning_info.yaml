@@ -1,0 +1,19 @@
+app: kws
+flash_address: '0x101000'
+input_shape:
+- 49
+- 10
+- 1
+output_shape:
+- 1
+- 1
+- 150
+mfcc_fs: 123.56967163085938
+silence_class: 10
+unknown_class: 11
+inference_mode: async
+edge_learning:
+  enabled: true
+  num_classes: 15
+  num_el_classes: 3
+  num_neurons: 10
