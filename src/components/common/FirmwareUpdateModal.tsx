@@ -1,6 +1,6 @@
 import { pick } from '@react-native-documents/picker';
-import { CloudDownload, Cpu, Folder, Loader, X } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { Cpu, Folder, X } from 'lucide-react-native';
+import React, { useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -14,7 +14,6 @@ import { Button, Portal, Modal, Text } from 'react-native-paper';
 import bleService from '../../services/ble/bleManager';
 import { FirmwareBuild } from '../../types/FirmwareBuild';
 import { useBleStore } from '../../app/store/useBleStore';
-import { useDeviceAuthStore } from '../../app/store/useDeviceAuthStore';
 import { useFirmwareStore } from '../../app/store/useFirmwareStore';
 import { Colors } from '../../app/theme/theme';
 import RNFS from 'react-native-fs';
@@ -30,7 +29,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
   visible,
   onClose,
 }) => {
-  const [installingId, setInstallingId] = useState<number | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [progress, setProgress] = useState(0);
   const { connectedDevice } = useBleStore();
   const [selectedFile, setSelectedFile] = useState<{
@@ -39,49 +38,16 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     uri: string;
   } | null>(null);
 
-  const {
-    firmwareBuilds,
-    installedBuild,
-    setInstalledBuild,
-    fetchFirmwareBuilds,
-    loading,
-  } = useFirmwareStore();
-
-  const authtoken = useDeviceAuthStore(state => state.token);
-  const downloadFirmware = useFirmwareStore(state => state.downloadFirmware);
-
-  const deviceName = connectedDevice?.name ?? 'Unknown Device';
+  const { installedBuild, setInstalledBuild } = useFirmwareStore();
 
   const [showUninstallConfirm, setShowUninstallConfirm] = useState(false);
   const [showUninstallProgress, setShowUninstallProgress] = useState(false);
   const [uninstallProgress, setUninstallProgress] = useState(0);
-  const [isLocalFile, setIsLocalFile] = useState(false);
-  const [serverRequested, setServerRequested] = useState(false);
-  const [expandedBuildId, setExpandedBuildId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (visible && !authtoken) {
-      Alert.alert(
-        'Authentication Failed',
-        `Device ${deviceName} not authenticated`,
-        [{ text: 'OK', onPress: onClose }],
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the alert should fire only when the modal opens unauthenticated; onClose and deviceName change identity on render and would re-fire it
-  }, [visible, authtoken]);
-
-  const FetchFromServer = async () => {
-    setIsLocalFile(false);
-    setSelectedFile(null);
-    setServerRequested(true);
-    await fetchFirmwareBuilds(authtoken!);
-  };
 
   const runFirmwareUpdate = async (
     deviceId: string,
     filePath: string,
-    buildId: number,
-    build?: FirmwareBuild,
+    build: FirmwareBuild,
   ) => {
     try {
       const connected = await bleService.isDeviceConnected(deviceId);
@@ -90,7 +56,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
         return;
       }
 
-      setInstallingId(buildId);
+      setIsInstalling(true);
       setProgress(0);
 
       const exists = await RNFS.exists(filePath);
@@ -108,9 +74,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
 
       Alert.alert('Success', 'Firmware updated successfully');
 
-      if (build) {
-        setInstalledBuild(build);
-      }
+      setInstalledBuild(build);
 
       setSelectedFile(null);
     } catch (error: any) {
@@ -120,14 +84,12 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
         error?.message ?? 'The firmware update did not complete.',
       );
     } finally {
-      setInstallingId(null);
+      setIsInstalling(false);
       setProgress(0);
     }
   };
 
   const browseLocalFirmware = async () => {
-    setIsLocalFile(true);
-    setServerRequested(false);
     setSelectedFile(null);
 
     try {
@@ -181,68 +143,25 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     }
   };
 
-  const localBuild =
-    selectedFile && isLocalFile
-      ? {
-          id: -1,
-          title: selectedFile.name,
-          description: 'Local firmware selected from device',
-          version: 'Local',
-          size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
-          useCases: ['Local Firmware'],
-          filename: selectedFile.name,
-        }
-      : null;
+  const localBuild: FirmwareBuild | null = selectedFile
+    ? {
+        title: selectedFile.name,
+        description: 'Local firmware selected from device',
+        version: 'Local',
+        size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
+        useCases: ['Local Firmware'],
+      }
+    : null;
 
   const startLocalUpdate = async () => {
-    if (!selectedFile || !connectedDevice?.id) {
+    if (!selectedFile || !localBuild || !connectedDevice?.id) {
       Alert.alert(
         'Installation Failed',
         'No Device Connected or firmware selected',
       );
       return;
     }
-    await runFirmwareUpdate(
-      connectedDevice.id,
-      selectedFile.uri,
-      -1,
-      localBuild!,
-    );
-  };
-
-  const downloadFile = async (build: FirmwareBuild) => {
-    setIsLocalFile(false);
-    try {
-      if (!authtoken || !connectedDevice?.id) {
-        Alert.alert('Device not ready');
-        return;
-      }
-
-      setInstallingId(build.id);
-      setProgress(0);
-
-      const filePath = await downloadFirmware(
-        build.id,
-        authtoken,
-        build.filename,
-      );
-      if (!filePath) throw new Error('Download failed');
-
-      await runFirmwareUpdate(connectedDevice.id, filePath, build.id, build);
-    } catch (error: any) {
-      if (__DEV__) console.error('[downloadFile] error:', error);
-      Alert.alert(
-        'Firmware Update Failed',
-        error?.message ?? 'The firmware update did not complete.',
-      );
-    } finally {
-      setInstallingId(null);
-      setProgress(0);
-    }
-  };
-
-  const handleInstall = async (build: FirmwareBuild) => {
-    await downloadFile(build);
+    await runFirmwareUpdate(connectedDevice.id, selectedFile.uri, localBuild);
   };
 
   return (
@@ -251,7 +170,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
         visible={visible}
         onDismiss={onClose}
         contentContainerStyle={styles.modalContainer}
-        dismissable={installingId === null}
+        dismissable={!isInstalling}
       >
         {/* Backdrop */}
         <View style={styles.backdrop} />
@@ -271,13 +190,11 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             <TouchableOpacity
               onPress={onClose}
               style={styles.closeBtn}
-              disabled={installingId !== null}
+              disabled={isInstalling}
             >
               <X
                 size={18}
-                color={
-                  installingId !== null ? Colors.text.disabled : Colors.black
-                }
+                color={isInstalling ? Colors.text.disabled : Colors.black}
               />
             </TouchableOpacity>
           </View>
@@ -317,8 +234,8 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
               )}
             </View>
 
-            {/* ACTION BUTTONS */}
-            <View style={styles.buttonRow}>
+            {/* ACTION BUTTON */}
+            <View style={styles.actionArea}>
               <Button
                 mode="contained"
                 icon={({ size, color }) => <Folder size={size} color={color} />}
@@ -326,17 +243,6 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
                 style={styles.actionBtn}
               >
                 Browse Local Firmware
-              </Button>
-
-              <Button
-                mode="outlined"
-                icon={({ size, color }) => (
-                  <CloudDownload size={size} color={color} />
-                )}
-                onPress={FetchFromServer}
-                style={styles.actionBtn}
-              >
-                Download From Server
               </Button>
             </View>
 
@@ -351,7 +257,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
                   <Text style={styles.meta}>Size: {localBuild.size}</Text>
                 </View>
 
-                {installingId === -1 && (
+                {isInstalling && (
                   <>
                     <View style={styles.progressBar}>
                       <View
@@ -367,115 +273,13 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
                 <Button
                   mode="contained"
                   style={styles.installBtn}
-                  disabled={installingId !== null}
+                  disabled={isInstalling}
                   onPress={startLocalUpdate}
                 >
-                  {installingId === -1 ? 'Installing...' : 'Install This Build'}
+                  {isInstalling ? 'Installing...' : 'Install This Build'}
                 </Button>
               </View>
             )}
-
-            {/* SERVER BUILDS - LOADING */}
-            {serverRequested && loading && (
-              <View style={styles.card}>
-                <Loader size={20} color={Colors.primary} />
-                <Text style={[styles.boldText, { marginTop: 8 }]}>
-                  Fetching firmware builds
-                </Text>
-                <Text style={styles.subText}>
-                  Downloading firmware list from server...
-                </Text>
-              </View>
-            )}
-
-            {/* SERVER BUILDS - EMPTY */}
-            {serverRequested && !loading && firmwareBuilds.length === 0 && (
-              <View style={styles.card}>
-                <Text style={styles.buildTitle}>No Firmware Available</Text>
-                <Text style={styles.subText}>
-                  No firmware builds were found on the server.
-                </Text>
-              </View>
-            )}
-
-            {/* SERVER BUILDS - LIST */}
-            {serverRequested &&
-              !loading &&
-              firmwareBuilds
-                .filter(b => b.id !== installedBuild?.id)
-                .map((build, index) => {
-                  const isExpanded = expandedBuildId === build.id;
-                  const isNewest = index === 0;
-
-                  return (
-                    <View key={build.id} style={styles.card}>
-                      <View style={styles.buildHeaderRow}>
-                        <Text style={styles.buildTitle}>{build.title}</Text>
-                        {isNewest && (
-                          <View style={styles.newBadge}>
-                            <Text style={styles.newBadgeText}>NEW</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.meta}>
-                        Version: {build.version} | Size: {build.size}
-                      </Text>
-
-                      {isExpanded && (
-                        <>
-                          <Text style={styles.subText}>
-                            {build.description}
-                          </Text>
-                          <Text style={styles.label}>Included Use Cases:</Text>
-                          <View style={styles.tagRow}>
-                            {build.useCases.map(useCase => (
-                              <Text key={useCase} style={styles.tag}>
-                                {useCase}
-                              </Text>
-                            ))}
-                          </View>
-                        </>
-                      )}
-
-                      <TouchableOpacity
-                        onPress={() =>
-                          setExpandedBuildId(isExpanded ? null : build.id)
-                        }
-                      >
-                        <Text style={styles.moreInfoText}>
-                          {isExpanded ? 'Less Information' : 'More Information'}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {installingId === build.id && (
-                        <>
-                          <View style={styles.progressBar}>
-                            <View
-                              style={[
-                                styles.progressFill,
-                                { width: `${progress}%` },
-                              ]}
-                            />
-                          </View>
-                          <Text style={styles.progressText}>
-                            Installing... {progress.toFixed(2)}%
-                          </Text>
-                        </>
-                      )}
-
-                      <Button
-                        mode="contained"
-                        style={styles.installBtn}
-                        disabled={installingId !== null}
-                        onPress={() => handleInstall(build)}
-                      >
-                        {installingId === build.id
-                          ? 'Installing...'
-                          : 'Install This Build'}
-                      </Button>
-                    </View>
-                  );
-                })}
           </ScrollView>
         </View>
 
@@ -686,9 +490,7 @@ const styles = StyleSheet.create({
     color: Colors.success,
   },
 
-  buttonRow: {
-    flexDirection: 'column',
-    gap: 10,
+  actionArea: {
     marginBottom: 16,
   },
 
@@ -700,26 +502,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
-  },
-
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 12,
-  },
-
-  tag: {
-    borderWidth: 1,
-    borderColor: Colors.border.light,
-    padding: 4,
-    fontSize: 11,
   },
 
   installBtn: {
@@ -742,33 +524,6 @@ const styles = StyleSheet.create({
 
   progressText: {
     fontSize: 12,
-    color: Colors.primary,
-    marginBottom: 8,
-  },
-
-  buildHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-
-  newBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-
-  newBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.white,
-    letterSpacing: 0.5,
-  },
-
-  moreInfoText: {
-    fontSize: 13,
-    fontWeight: '600',
     color: Colors.primary,
     marginBottom: 8,
   },
