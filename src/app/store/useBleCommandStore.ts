@@ -61,8 +61,17 @@ type DeployAckResolver = {
   reject: (err: Error) => void;
 };
 
+// The firmware reports its serial as 16 lowercase hex characters. Anything
+// else on that frame is a firmware the app does not understand, so it is
+// dropped rather than shown.
+const DEVICE_SERIAL_PATTERN = /^[0-9a-f]{16}$/;
+
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
+
+  // Permanent hardware serial, from the last frame of the device-info burst.
+  // Null until that burst arrives, which is a moment after connecting.
+  deviceSerial: string | null;
 
   batteryLevel: string | null;
   batteryLoading: boolean;
@@ -102,6 +111,7 @@ interface BleCommandState {
 
   // 🔹 Commands
   requestBattery: () => Promise<void>;
+  requestDeviceInfo: () => Promise<void>;
   deployApp: (appId: string) => Promise<void>;
   stopApp: (appId: string) => Promise<void>;
   // Device Reset
@@ -132,6 +142,8 @@ interface BleCommandState {
 
 export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   connectedDevice: null,
+
+  deviceSerial: null,
 
   batteryLevel: null,
   batteryLoading: false,
@@ -171,6 +183,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
     await get().startNotifications(device.id);
 
+    // The serial is only available over the connection, so ask for it as soon
+    // as there is one. Writes are serialised by the command queue, so this
+    // does not race the battery request that follows.
+    await get().requestDeviceInfo();
+
     // Automatically request battery on connect
     await get().requestBattery();
   },
@@ -181,6 +198,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
     set({
       connectedDevice: null,
+      deviceSerial: null,
       batteryLevel: null,
       batteryLoading: false,
       batteryError: null,
@@ -225,6 +243,20 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 batteryStateLabel: getBatteryLabel(stateNum),
               });
               break;
+
+            case 'DEVICE_INFO': {
+              // Last frame of the burst carries the permanent hardware serial.
+              // A firmware that predates the change ends the burst one frame
+              // early, so the field is absent there — leave the serial null
+              // rather than show a blank row.
+              const serial = String(data.data.serial ?? '')
+                .trim()
+                .toLowerCase();
+              if (DEVICE_SERIAL_PATTERN.test(serial)) {
+                set({ deviceSerial: serial });
+              }
+              break;
+            }
 
             case 'DEPLOYSTART':
               const detectionData = String(data.data).split(',');
@@ -521,6 +553,21 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       set({
         appsList: [],
       });
+    }
+  },
+
+  // ✅ Request device info — the five-frame burst whose last frame carries the
+  // permanent hardware serial. The reply lands in the DEVICE_INFO case above.
+  requestDeviceInfo: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return;
+
+    try {
+      await BleService.sendCommand(deviceId, BleCommand.DEVICE_INFO);
+    } catch {
+      // Nothing to show for a failed request: the Device ID row keeps its
+      // pending state until a later request succeeds.
+      if (__DEV__) console.warn('Device info request failed');
     }
   },
 

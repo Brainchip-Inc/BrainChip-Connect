@@ -28,6 +28,28 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
+## A Spark board is recognised by its manufacturer data, never by name or UUID
+
+The firmware advertises no service UUID at all: the 128-bit value it used to
+put in its scan response was the permanent factory serial, and a value that
+never changes defeats the rotating private address. So the only thing in the
+advertisement that identifies the hardware is the chip ID in the 12 ASCII
+bytes of manufacturer data, which is what `isSparkManufacturerData` in
+`src/services/ble/sparkAdvertisement.ts` matches on, pinned by
+`__tests__/sparkAdvertisement.test.ts`. Names are cosmetic and differ between
+the tag and the DK, so they must not become a filter.
+
+The serial now arrives instead as the last frame of the `CMD_DEVICE_INFO`
+burst. Two consequences follow for the UI: nothing before connecting can show
+the device's identity, and anything that does show it has to survive the moment
+before the burst lands. `deviceId` is not a substitute; on Android it is the
+resolvable private address and rotates every fifteen minutes.
+
+The authoritative counterpart, read-only from this repo, is
+`source/core/interface/ble_services/ble_initialization.c` in the spark firmware
+repo: `adv_manufacturer_data[]` for the advertisement layout and
+`send_device_info_response()` for the frame order.
+
 ## The app is offline by design
 
 There is no backend. The app was cut over from an internal VPN-only server

@@ -18,7 +18,7 @@ const DevicePreviewScreen: React.FC = () => {
   const { width, height } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { parsedDeviceInfo, setParsedDeviceInfo} = useBleStore();
+  const { parsedDeviceInfo, setParsedDeviceInfo } = useBleStore();
 
   const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs } = route.params;
 
@@ -40,17 +40,16 @@ const DevicePreviewScreen: React.FC = () => {
       deviceType: deviceType,
       firmwareVersion: `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
       bleVersion: `BLE ${bleVersion.major}.${bleVersion.minor}`,
-    }
-    setParsedDeviceInfo(deviceInfoObj)
+    };
+    setParsedDeviceInfo(deviceInfoObj);
   };
 
-
-  useEffect(()=>{
-    if(deviceInfo){
+  useEffect(() => {
+    if (deviceInfo) {
       parseManufacturerData(deviceInfo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- parseManufacturerData is re-created every render; the parse only needs to run when deviceInfo changes
-  },[deviceInfo, setParsedDeviceInfo])
+  }, [deviceInfo, setParsedDeviceInfo]);
 
   const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo || {
     deviceType: 'Unknown',
@@ -87,12 +86,14 @@ const DevicePreviewScreen: React.FC = () => {
     buttonGap: scale(6, spacing),
   };
 
+  // No Device ID row: the hardware serial is no longer advertised, so nothing
+  // before connecting can fill it. It appears on the device details screen
+  // once the device-info burst has arrived over the connection.
   const deviceDetails = [
     { label: 'Device Type', value: deviceType },
     { label: 'Firmware', value: firmwareVersion },
     { label: 'Protocol', value: bleVersion },
     { label: 'MAC Address', value: macAddress },
-    { label: 'Device ID', value: serviceUUIDs![0] },
   ];
 
   return (
@@ -211,7 +212,12 @@ const DevicePreviewScreen: React.FC = () => {
                   </Text>
                   <Text
                     variant="bodySmall"
-                    style={{ fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 8 }}
+                    style={{
+                      fontWeight: '600',
+                      flexShrink: 1,
+                      textAlign: 'right',
+                      marginLeft: 8,
+                    }}
                   >
                     {item.value}
                   </Text>
