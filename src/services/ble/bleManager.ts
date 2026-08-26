@@ -10,6 +10,7 @@ import { BleData } from '../../types/bleData';
 import { BleCommand } from './bleCommands';
 import { parseBinaryFrame, parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
+import { isSparkManufacturerData } from './sparkAdvertisement';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -269,32 +270,16 @@ class BleService {
           return;
         }
 
-        // Skip devices that have no name or serviceUUIDs
-        if (!device.name || !device.serviceUUIDs) {
+        // Only surface Spark boards. A board advertises no service UUID at
+        // all, so it is identified by the chip ID in its manufacturer data;
+        // the name is still required because the list has nothing to show
+        // without one, and it is deliberately not matched on because the DK
+        // advertises a different name from the tag.
+        if (!device.name || !isSparkManufacturerData(device.manufacturerData)) {
           return;
         }
 
-        // **Important**: Here we filter the devices explicitly
-        if (serviceUUIDs && serviceUUIDs.length > 0) {
-          // Ensure device.serviceUUIDs is not null or undefined
-          if (device.serviceUUIDs && device.serviceUUIDs.length > 0) {
-            // Check if the device has one of the provided serviceUUIDs
-            const deviceHasServiceUUID = device.serviceUUIDs.some(serviceUUID =>
-              serviceUUIDs.includes(serviceUUID),
-            );
-
-            // If the device does not have any matching serviceUUIDs, skip it
-            if (!deviceHasServiceUUID) {
-              return;
-            }
-          } else {
-            return; // Skip device if it doesn't advertise any serviceUUIDs
-          }
-        }
-
-        if (device) {
-          onDeviceFound(device);
-        }
+        onDeviceFound(device);
       },
     );
 
