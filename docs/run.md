@@ -33,26 +33,11 @@ git clone <repository-url>
 cd spark-phone
 git checkout <branch-name>
 npm install
-cp .env.template .env
 ```
 
-### Create .env file
-
-The .env file contains environment-specific settings that are used by the application.
-
-#### Environment Variables
-
-SERVER_URL: Base URL of the Spark backend server.
-
-#### Create .env file in main directory and add the following lines:
-
-SERVER_URL = http://<server.ip>:<server:port> or cp .env.template and update the value
-
-#### Env variable Notes
-
-Do not add spaces around =
-Ensure your server is reachable from your device/emulator
-Use your machine’s local IP (not localhost) when testing on a physical device
+The app is fully offline: it needs no environment variables and talks to no
+server. Terms and privacy content is bundled at build time, and firmware and
+model packages are picked from the phone's own storage.
 
 ## iOS (First)
 
@@ -240,16 +225,7 @@ Use `--apply` to delete known generated files (safe to regenerate later).
   cd ..
   ```
 
-## 🌱 Environment Variables (`.env`) Handling
-
-### ⚠️ Important
-
-Environment variables are **cached at build time**.
-If you update `.env`, the changes will **NOT reflect automatically**.
-
-You must **reset cache and rebuild the app**.
-
-## 🔄 Apply `.env` Changes (Recommended Steps)
+## 🔄 Reset Cache and Rebuild
 
 ```bash
 # 1. Stop Metro (Ctrl + C)
@@ -303,9 +279,6 @@ cd ..
 
 ## 💡 Notes
 
-- `.env` changes are **not hot-reloaded**
-- Always rebuild after changing environment variables
-- If using libraries like `react-native-config`, rebuild is mandatory
 - If issues persist, restart Metro + reinstall pods (iOS)
 
 # 📦 Build Outputs

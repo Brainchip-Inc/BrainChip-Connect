@@ -1,12 +1,6 @@
 import { pick } from '@react-native-documents/picker';
-import {
-  ChevronLeft,
-  CloudDownload,
-  Cpu,
-  Folder,
-  Loader,
-} from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { ChevronLeft, Cpu, Folder } from 'lucide-react-native';
+import React, { useState } from 'react';
 import {
   Alert,
   Platform,
@@ -23,7 +17,6 @@ import bleService from '../../services/ble/bleManager';
 import { FirmwareBuild } from '../../types/FirmwareBuild';
 import { RouteName, ROUTES } from '../../types/routes';
 import { useBleStore } from '../store/useBleStore';
-import { useDeviceAuthStore } from '../store/useDeviceAuthStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
 import { Colors } from '../theme/theme';
 import RNFS from 'react-native-fs';
@@ -32,7 +25,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
-  const [installingId, setInstallingId] = useState<number | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [progress, setProgress] = useState(0);
   const { connectedDevice } = useBleStore();
   const [selectedFile, setSelectedFile] = useState<{
@@ -41,57 +34,18 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     uri: string;
   } | null>(null);
 
-  const {
-    firmwareBuilds,
-    installedBuild,
-    setInstalledBuild,
-    fetchFirmwareBuilds,
-    loading,
-  } = useFirmwareStore();
-
-  const authtoken = useDeviceAuthStore(state => state.token);
-  const downloadFirmware = useFirmwareStore(state => state.downloadFirmware);
+  const { installedBuild, setInstalledBuild } = useFirmwareStore();
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
 
   const [showUninstallConfirm, setShowUninstallConfirm] = useState(false);
   const [showUninstallProgress, setShowUninstallProgress] = useState(false);
   const [uninstallProgress, setUninstallProgress] = useState(0);
-  const [isLocalFile, setIsLocalFile] = useState(false);
-  const [serverRequested, setServerRequested] = useState(false);
-
-  useEffect(() => {
-    if (!authtoken) {
-      Alert.alert(
-        'Authentication Failed',
-        `Device ${deviceName} not authenticated`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('DeviceDiscovery'),
-          },
-        ],
-      );
-      navigation.navigate('DeviceDiscovery');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on authtoken so the alert fires once per auth change; deviceName would re-fire it whenever the connected device is renamed
-  }, [authtoken]);
-
-  const FetchFromServer = async () => {
-    // if (!authtoken) return;
-
-    setIsLocalFile(false);
-    setSelectedFile(null);
-    setServerRequested(true);
-
-    await fetchFirmwareBuilds(authtoken!);
-  };
 
   const runFirmwareUpdate = async (
     deviceId: string,
     filePath: string,
-    buildId: number,
-    build?: FirmwareBuild,
+    build: FirmwareBuild,
   ) => {
     try {
       const connected = await bleService.isDeviceConnected(deviceId);
@@ -101,7 +55,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         return;
       }
 
-      setInstallingId(buildId);
+      setIsInstalling(true);
       setProgress(0);
 
       const exists = await RNFS.exists(filePath);
@@ -122,9 +76,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
 
       Alert.alert('Success', 'Firmware updated successfully');
 
-      if (build) {
-        setInstalledBuild(build);
-      }
+      setInstalledBuild(build);
 
       setSelectedFile(null);
     } catch (error: any) {
@@ -134,21 +86,15 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         error?.message ?? 'The firmware update did not complete.',
       );
     } finally {
-      setInstallingId(null);
+      setIsInstalling(false);
       setProgress(0);
     }
   };
 
   const browseLocalFirmware = async () => {
-    setIsLocalFile(true);
-    setServerRequested(false);
     setSelectedFile(null);
 
     try {
-      // const [result] = await pick({
-      //   type: ['*/*'],
-      //   copyTo: 'cachesDirectory',
-      // });
       const results = await pick({
         allowMultiSelection: false,
         type: Platform.select({
@@ -209,21 +155,18 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     }
   };
 
-  const localBuild =
-    selectedFile && isLocalFile
-      ? {
-          id: -1,
-          title: selectedFile.name,
-          description: 'Local firmware selected from device',
-          version: 'Local',
-          size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
-          useCases: ['Local Firmware'],
-          filename: selectedFile.name,
-        }
-      : null;
+  const localBuild: FirmwareBuild | null = selectedFile
+    ? {
+        title: selectedFile.name,
+        description: 'Local firmware selected from device',
+        version: 'Local',
+        size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
+        useCases: ['Local Firmware'],
+      }
+    : null;
 
   const startLocalUpdate = async () => {
-    if (!selectedFile || !connectedDevice?.id) {
+    if (!selectedFile || !localBuild || !connectedDevice?.id) {
       Alert.alert(
         'Installation Failed',
         'No Device Connected or firmware selected',
@@ -231,98 +174,8 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
       return;
     }
 
-    await runFirmwareUpdate(
-      connectedDevice.id,
-      selectedFile.uri,
-      -1,
-      localBuild!,
-    );
+    await runFirmwareUpdate(connectedDevice.id, selectedFile.uri, localBuild);
   };
-
-  const downloadFile = async (build: FirmwareBuild) => {
-    setIsLocalFile(false);
-    try {
-      if (!authtoken || !connectedDevice?.id) {
-        Alert.alert('Device not ready');
-        return;
-      }
-
-      setInstallingId(build.id);
-      setProgress(0);
-
-      // 1. Download firmware binary
-      const filePath = await downloadFirmware(
-        build.id,
-        authtoken,
-        build.filename,
-      );
-      if (__DEV__) console.log('downloadFile filePath:', filePath);
-      if (!filePath) throw new Error('Download failed');
-
-      // const connected = await bleService.isDeviceConnected(deviceId);
-
-      // if (!connected) {
-      //   Alert.alert('Device disconnected');
-      //   return;
-      // }
-
-      // // useBleCommandStore.getState().stopNotifications();
-
-      // // 3. Run full FOTA — handles subscribe, SMP params, upload, confirm, reset
-      // await bleService.performFota(
-      //   deviceId,
-      //   filePath,
-      //   percent => setProgress(percent), // live progress 0–100
-      //   msg => console.log('[FOTA]', msg), // optional log callback
-      // );
-
-      // Alert.alert('Success', 'Firmware updated successfully');
-
-      // // 4. Done
-      // setInstalledBuild(build);
-
-      if (!filePath || !connectedDevice?.id) {
-        Alert.alert(
-          'Installation Failed',
-          'No Device Connected or firmware selected',
-        );
-        return;
-      }
-
-      await runFirmwareUpdate(connectedDevice.id, filePath, build.id, build);
-    } catch (error: any) {
-      if (__DEV__) console.error('[downloadFile] error:', error);
-      Alert.alert(
-        'Firmware Update Failed',
-        error?.message ?? 'The firmware update did not complete.',
-      );
-    } finally {
-      setInstallingId(null);
-      setProgress(0);
-    }
-  };
-
-  const handleInstall = async (build: FirmwareBuild) => {
-    await downloadFile(build);
-  };
-
-  // const handleInstall = (build: FirmwareBuild) => {
-  //   downloadFile(build);
-  //   setInstallingId(build.id);
-  //   setProgress(0);
-
-  //   const interval = setInterval(() => {
-  //     setProgress(prev => {
-  //       if (prev >= 100) {
-  //         clearInterval(interval);
-  //         setInstallingId(null);
-  //         setInstalledBuild(build);
-  //         return 100;
-  //       }
-  //       return prev + 8;
-  //     });
-  //   }, 300);
-  // };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -408,23 +261,13 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
             )}
           </View>
 
-          <View style={{ flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          <View style={styles.actionArea}>
             <Button
               mode="contained"
               icon={({ size, color }) => <Folder size={size} color={color} />}
               onPress={browseLocalFirmware}
             >
               Browse Local Firmware
-            </Button>
-
-            <Button
-              mode="outlined"
-              icon={({ size, color }) => (
-                <CloudDownload size={size} color={color} />
-              )}
-              onPress={FetchFromServer}
-            >
-              Download From Server
             </Button>
           </View>
 
@@ -444,7 +287,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                 <Text style={styles.meta}>Size: {localBuild.size}</Text>
               </View>
 
-              {installingId === -1 && (
+              {isInstalling && (
                 <>
                   <View style={styles.progressBar}>
                     <View
@@ -461,87 +304,13 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
               <Button
                 mode="contained"
                 style={styles.installBtn}
-                disabled={installingId !== null}
+                disabled={isInstalling}
                 onPress={startLocalUpdate}
               >
-                {installingId === -1 ? 'Installing…' : 'Install This Build'}
+                {isInstalling ? 'Installing…' : 'Install This Build'}
               </Button>
             </View>
           )}
-
-          {/* AVAILABLE BUILDS */}
-          {serverRequested && !loading && firmwareBuilds.length > 0 && (
-            <Text style={styles.sectionTitle}>Available Firmware Builds</Text>
-          )}
-          {serverRequested && loading && (
-            <View style={styles.card}>
-              <Loader size={20} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>Fetching firmware builds</Text>
-              <Text style={styles.subText}>
-                Downloading firmware list from server...
-              </Text>
-            </View>
-          )}
-
-          {serverRequested && !loading && firmwareBuilds.length === 0 && (
-            <View style={styles.card}>
-              <Text style={styles.buildTitle}>No Firmware Available</Text>
-              <Text style={styles.subText}>
-                No firmware builds were found on the server.
-              </Text>
-            </View>
-          )}
-          {serverRequested &&
-            !loading &&
-            firmwareBuilds
-              .filter(b => b.id !== installedBuild?.id)
-              .map(build => (
-                <View key={build.id} style={styles.card}>
-                  <Text style={styles.buildTitle}>{build.title}</Text>
-                  <Text style={styles.subText}>{build.description}</Text>
-
-                  <Text style={styles.label}>Included Use Cases:</Text>
-                  <View style={styles.tagRow}>
-                    {build.useCases.map(useCase => (
-                      <Text key={useCase} style={styles.tag}>
-                        {useCase}
-                      </Text>
-                    ))}
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: 16 }}>
-                    <Text style={styles.meta}>Version: {build.version}</Text>
-                    <Text style={styles.meta}>Size: {build.size}</Text>
-                  </View>
-
-                  {installingId === build.id && (
-                    <>
-                      <View style={styles.progressBar}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            { width: `${progress}%` },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.progressText}>
-                        Installing… {progress.toFixed(2)}%
-                      </Text>
-                    </>
-                  )}
-
-                  <Button
-                    mode="contained"
-                    style={styles.installBtn}
-                    disabled={installingId !== null}
-                    onPress={() => handleInstall(build)}
-                  >
-                    {installingId === build.id
-                      ? 'Installing…'
-                      : 'Install This Build'}
-                  </Button>
-                </View>
-              ))}
         </View>
       </ScrollView>
       {showUninstallConfirm && (
@@ -659,11 +428,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
 
-  sectionTitle: {
-    fontFamily: 'Sora',
-    fontSize: 16,
-    fontWeight: '700',
-    marginVertical: 16,
+  actionArea: {
+    marginBottom: 20,
   },
 
   card: {

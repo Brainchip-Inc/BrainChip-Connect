@@ -1,7 +1,6 @@
 import {
   CheckCircle,
   ChevronLeft,
-  CloudDownload,
   Folder,
   RefreshCw,
 } from 'lucide-react-native';
@@ -19,10 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BleService from '../../services/ble/bleManager';
+import { AIModel } from '../../types/AIModel';
 import { RouteName, ROUTES } from '../../types/routes';
 import { useBleStore } from '../store/useBleStore';
-import { useDeviceAuthStore } from '../store/useDeviceAuthStore';
-import { AIModel, useModelStore } from '../store/useModelStore';
 import { Colors } from '../theme/theme';
 import { pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -40,11 +38,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
   const deviceId = connectedDevice?.id ?? 'Unknown Device';
-  const { models, fetchModels, downloadModel, loading } = useModelStore();
-  const token = useDeviceAuthStore(state => state.token);
   const [localModel, setLocalModel] = useState<AIModel | null>(null);
-  const [showServerModels, setShowServerModels] = useState(false);
-  const [serverLoading, setServerLoading] = useState(false);
   const appList = useBleCommandStore(state => state.appsList);
   const reportedVersion = appList[0]?.modelVersion;
   const currentVersion =
@@ -67,35 +61,11 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
       return;
     }
 
-    if (!token && !model.local) {
-      Alert.alert('Device not authenticated');
-      return;
-    }
-
     setScreen('updating');
     setProgress(0);
 
     try {
-      let zipPath = '';
-
-      // Local model — user picked a .zip from device storage
-      if (model.local) {
-        zipPath = model.localPath!;
-      }
-      // Server model — download the zip first
-      else {
-        const downloaded = await downloadModel(
-          model.id,
-          token!,
-          model.filename,
-        );
-
-        if (!downloaded) {
-          throw new Error('Download failed');
-        }
-
-        zipPath = downloaded;
-      }
+      const zipPath = model.localPath;
 
       // Subscribe to raw ACK codes for progress feedback
       ackSubRef.current = BleService.subscribeToModelAck(deviceId, ack => {
@@ -137,8 +107,6 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const browseLocalModel = async () => {
     setScreen('list');
     try {
-      setShowServerModels(false);
-
       const results = await pick({
         allowMultiSelection: false,
         type: Platform.select({
@@ -167,16 +135,10 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
       const stat = await RNFS.stat(localPath);
 
       const model: AIModel = {
-        id: -1,
-        version: 'Local Model',
         filename: fileName,
         size_kb: Math.round(stat.size / 1024),
-        local: true,
         localPath: localPath,
-        release_notes: 'NA',
-        created_at: new Date().toISOString(),
         description: 'Local model selected from device',
-        filepath: localPath,
       };
 
       setLocalModel(model);
@@ -215,40 +177,13 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
             </Text>
           </View>
 
-          <View
-            style={{
-              flexDirection: 'column',
-              gap: 10,
-              marginBottom: 20,
-              paddingTop: 10,
-            }}
-          >
+          <View style={styles.actionArea}>
             <Button
               mode="contained"
               icon={({ size, color }) => <Folder size={size} color={color} />}
               onPress={browseLocalModel}
             >
               Browse Local Model
-            </Button>
-
-            <Button
-              mode="outlined"
-              icon={({ size, color }) => (
-                <CloudDownload size={size} color={color} />
-              )}
-              onPress={async () => {
-                if (!token) return;
-                setScreen('list');
-                setLocalModel(null);
-                setShowServerModels(true);
-                setServerLoading(true);
-
-                await fetchModels(token);
-
-                setServerLoading(false);
-              }}
-            >
-              Download From Server
             </Button>
           </View>
 
@@ -276,60 +211,6 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
               </Button>
             </View>
           )}
-
-          {/* ---------------- SCREEN 1 : server models loading ---------------- */}
-          {screen === 'list' && showServerModels && serverLoading && (
-            <View style={styles.card}>
-              <RefreshCw size={24} color={Colors.primary} />
-              <Text style={{ marginTop: 10 }}>
-                Fetching models from server...
-              </Text>
-            </View>
-          )}
-
-          {/* ---------------- SCREEN 1 : server model list ---------------- */}
-          {screen === 'list' &&
-            showServerModels &&
-            !serverLoading &&
-            models.map((model, index) => {
-              const isNew = index === 0;
-
-              return (
-                <View key={model.id} style={styles.card}>
-                  <View style={styles.versionHeaderRow}>
-                    <Text style={styles.title}>Available Version</Text>
-                    {isNew && (
-                      <View style={styles.newBadge}>
-                        <Text style={styles.newBadgeText}>NEW</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <Text style={styles.newVersion}>{model.version}</Text>
-                  <Text style={styles.releaseTitle}>Release Notes</Text>
-
-                  {model.release_notes
-                    ?.split('\n')
-                    .filter(line => line.trim() !== '')
-                    .map((line, i) => (
-                      <Text key={i} style={styles.bullet}>
-                        • {line.trim()}
-                      </Text>
-                    ))}
-
-                  <Text style={styles.title}>Size: {model.size_kb} KB</Text>
-
-                  <Button
-                    mode="contained"
-                    style={styles.primaryBtn}
-                    disabled={loading}
-                    onPress={() => startUpdate(model)}
-                  >
-                    Download and Install
-                  </Button>
-                </View>
-              );
-            })}
 
           {/* ---------------- SCREEN 2 : transfer in progress ---------------- */}
           {screen === 'updating' && (
@@ -427,6 +308,11 @@ const styles = StyleSheet.create({
 
   back: {
     fontSize: 24,
+  },
+
+  actionArea: {
+    marginBottom: 20,
+    paddingTop: 10,
   },
 
   card: {

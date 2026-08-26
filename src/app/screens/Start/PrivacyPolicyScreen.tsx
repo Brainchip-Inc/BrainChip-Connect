@@ -1,16 +1,11 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { X } from 'lucide-react-native';
-import React, { useEffect } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React from 'react';
+import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrivacySectionCard } from '../../../components/common/PrivacySectionCard';
-import { usePolicyStore } from '../../store/usePolicyStore';
+import { PRIVACY_POLICY } from '../../content/privacyPolicy';
 import { Colors } from '../../theme/theme';
 import { iconMap } from '../../utils/privacyIconMap';
 
@@ -21,62 +16,7 @@ const PrivacyPolicyScreen = () => {
   const route = useRoute<any>();
   const onAccept = route.params?.onAccept;
 
-  const { privacyPolicy, loading, error, fetchPrivacyPolicy } =
-    usePolicyStore();
-
-  useEffect(() => {
-    fetchPrivacyPolicy();
-  }, [fetchPrivacyPolicy]);
-
-  const content = privacyPolicy;
-
-  /* ================= LOADING ================= */
-  if (loading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ marginTop: 12, color: theme.colors.onSurfaceVariant }}>
-          Loading Privacy Policy…
-        </Text>
-      </View>
-    );
-  }
-
-  /* ================= ERROR ================= */
-  if (error) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 24,
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <Text style={{ fontWeight: '700', marginBottom: 8 }}>
-          Failed to load policy
-        </Text>
-        <Text
-          style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}
-        >
-          {error}
-        </Text>
-        <Button mode="contained" onPress={fetchPrivacyPolicy}>
-          Retry
-        </Button>
-      </View>
-    );
-  }
-
-  if (!content) return null;
+  const content = PRIVACY_POLICY;
 
   return (
     <View
@@ -217,7 +157,6 @@ const PrivacyPolicyScreen = () => {
       >
         <Button
           mode="contained"
-          disabled={loading}
           onPress={() => {
             if (onAccept) onAccept();
             navigation.goBack();

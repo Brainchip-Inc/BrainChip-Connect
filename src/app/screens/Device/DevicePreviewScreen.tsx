@@ -217,7 +217,6 @@ const DevicePreviewScreen: React.FC = () => {
                 rssi,
                 deviceInfo,
                 serviceUUIDs,
-                deviceType,
               })
             }
           >
