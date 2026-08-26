@@ -364,8 +364,8 @@ const PermissionsScreen: React.FC = () => {
               backgroundColor: canProceed ? '#0061ED' : '#E5E7EB',
             }}
             labelStyle={{
+              fontFamily: 'Inter-SemiBold',
               fontSize: 16,
-              fontWeight: '600',
               color: canProceed ? '#FFFFFF' : 'rgba(0,0,0,0.4)',
             }}
           >
