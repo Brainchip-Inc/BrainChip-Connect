@@ -1,15 +1,15 @@
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Text, useTheme } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrivacySectionCard } from '../../components/common/PrivacySectionCard';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import { RouteName, ROUTES } from '../../types/routes';
+import { PRIVACY_POLICY } from '../content/privacyPolicy';
 import { useBleStore } from '../store/useBleStore';
-import { usePolicyStore } from '../store/usePolicyStore';
 import { Colors } from '../theme/theme';
 import { iconMap } from '../utils/privacyIconMap';
 
@@ -22,62 +22,7 @@ const AccountPrivacyPolicyScreen = () => {
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
 
-  const { privacyPolicy, loading, error, fetchPrivacyPolicy } =
-    usePolicyStore();
-
-  useEffect(() => {
-    fetchPrivacyPolicy();
-  }, [fetchPrivacyPolicy]);
-
-  const content = privacyPolicy;
-
-  /* ================= LOADING ================= */
-  if (loading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ marginTop: 12, color: theme.colors.onSurfaceVariant }}>
-          Loading Privacy Policy…
-        </Text>
-      </View>
-    );
-  }
-
-  /* ================= ERROR ================= */
-  if (error) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 24,
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <Text style={{ fontWeight: '700', marginBottom: 8 }}>
-          Failed to load policy
-        </Text>
-        <Text
-          style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}
-        >
-          {error}
-        </Text>
-        <Button mode="contained" onPress={fetchPrivacyPolicy}>
-          Retry
-        </Button>
-      </View>
-    );
-  }
-
-  if (!content) return null;
+  const content = PRIVACY_POLICY;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>

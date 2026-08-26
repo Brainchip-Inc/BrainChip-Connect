@@ -1,15 +1,10 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { FileText, Snowflake, X } from 'lucide-react-native';
-import React, { useEffect } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React from 'react';
+import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTermsStore } from '../../store/useTermsStore';
+import { TERMS_AND_CONDITIONS } from '../../content/termsAndConditions';
 import { Colors } from '../../theme/theme';
 import { PrivacySectionCard } from '../../../components/common/PrivacySectionCard';
 
@@ -20,35 +15,7 @@ const TermsAndConditionsScreen = () => {
   const route = useRoute<any>();
   const onAccept = route.params?.onAccept;
 
-  const { terms, loading, error, fetchTerms } = useTermsStore();
-
-  useEffect(() => {
-    fetchTerms();
-  }, [fetchTerms]);
-
-  const content = terms;
-
-  /* ===== LOADING ===== */
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ marginTop: 10 }}>Loading Terms…</Text>
-      </View>
-    );
-  }
-
-  /* ===== ERROR ===== */
-  if (error) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Error loading Terms</Text>
-        <Button onPress={fetchTerms}>Retry</Button>
-      </View>
-    );
-  }
-
-  if (!content) return null;
+  const content = TERMS_AND_CONDITIONS;
 
   return (
     <View
@@ -113,10 +80,7 @@ const TermsAndConditionsScreen = () => {
 
         {/* Sections */}
         {content.sections?.map((section, idx) => (
-          <PrivacySectionCard
-            key={idx}
-            title={`${idx + 1}. ${section.title}`}
-          >
+          <PrivacySectionCard key={idx} title={`${idx + 1}. ${section.title}`}>
             {section.description && (
               <Text
                 variant="bodyMedium"
@@ -178,7 +142,6 @@ const TermsAndConditionsScreen = () => {
       >
         <Button
           mode="contained"
-          disabled={loading}
           onPress={() => {
             if (onAccept) onAccept();
             navigation.goBack();
