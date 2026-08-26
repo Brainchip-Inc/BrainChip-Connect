@@ -87,12 +87,14 @@ const DevicePreviewScreen: React.FC = () => {
     buttonGap: scale(6, spacing),
   };
 
+  // No Device ID row: the hardware serial is no longer advertised, so nothing
+  // before connecting can fill it. It appears on the device details screen
+  // once the device-info burst has arrived over the connection.
   const deviceDetails = [
     { label: 'Device Type', value: deviceType },
     { label: 'Firmware', value: firmwareVersion },
     { label: 'Protocol', value: bleVersion },
     { label: 'MAC Address', value: macAddress },
-    { label: 'Device ID', value: serviceUUIDs![0] },
   ];
 
   return (
