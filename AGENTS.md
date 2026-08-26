@@ -69,6 +69,21 @@ Note that `npm ci` re-checks peer satisfiability, so a lockfile built with
 `--legacy-peer-deps` will not install. Peer conflicts have to be resolved in
 `package.json`, not hidden in the lockfile.
 
+## The custom font families are not bundled
+
+`src/app/theme/theme.tsx` and eleven screens ask for `Inter-Regular`,
+`Inter-SemiBold`, `Sora-Bold` and friends, but no font file ships in the
+repo: there is no `react-native.config.js`, no `UIAppFonts` entry, and no
+font asset under `android/` or `ios/`. Every one of those families falls
+back to the platform default at the requested size. So a `fontFamily` on
+its own carries no weight, and pairing `fontWeight` with one of these
+names is what actually makes text bold. Two elements that look like they
+should match can therefore render at different weights.
+
+Matching an existing control means copying how it expresses weight, not
+just its family name. Bundling the real faces would change the look of
+every screen at once and is its own piece of work.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
