@@ -1,7 +1,7 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { FileText, Snowflake, X } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TERMS_AND_CONDITIONS } from '../../content/termsAndConditions';
@@ -146,7 +146,8 @@ const TermsAndConditionsScreen = () => {
             if (onAccept) onAccept();
             navigation.goBack();
           }}
-          contentStyle={{ paddingVertical: 8 }}
+          style={styles.button}
+          labelStyle={styles.buttonLabel}
         >
           Accept
         </Button>
@@ -156,3 +157,16 @@ const TermsAndConditionsScreen = () => {
 };
 
 export default TermsAndConditionsScreen;
+
+const styles = StyleSheet.create({
+  button: {
+    borderRadius: 0,
+    backgroundColor: '#0061ED',
+  },
+
+  buttonLabel: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+});
