@@ -1,7 +1,7 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { X } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrivacySectionCard } from '../../../components/common/PrivacySectionCard';
@@ -137,7 +137,7 @@ const PrivacyPolicyScreen = () => {
             marginBottom: 24,
           }}
         >
-          © 2025 BrainChip Holdings Ltd. All rights reserved.
+          © 2026 BrainChip Holdings Ltd. All rights reserved.
         </Text>
       </ScrollView>
 
@@ -161,7 +161,8 @@ const PrivacyPolicyScreen = () => {
             if (onAccept) onAccept();
             navigation.goBack();
           }}
-          contentStyle={{ paddingVertical: 8 }}
+          style={styles.button}
+          labelStyle={styles.buttonLabel}
         >
           Accept
         </Button>
@@ -171,3 +172,16 @@ const PrivacyPolicyScreen = () => {
 };
 
 export default PrivacyPolicyScreen;
+
+const styles = StyleSheet.create({
+  button: {
+    borderRadius: 0,
+    backgroundColor: '#0061ED',
+  },
+
+  buttonLabel: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+});
