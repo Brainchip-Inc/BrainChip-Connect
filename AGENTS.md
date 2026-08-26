@@ -28,6 +28,26 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
+## The app is offline by design
+
+There is no backend. The app was cut over from an internal VPN-only server
+before public launch, and nothing in `src/` may reintroduce network access:
+no `fetch`, no `process.env`, no download URLs. The three features that used
+the server now work locally instead:
+
+- Terms and Privacy content is bundled at build time in `src/app/content/`,
+  typed by `src/types/legalContent.ts`. It is legal text under separate
+  review, so change it only when the reviewed wording changes.
+- Firmware and AI model packages come only from the device's own storage via
+  the document picker; there is no "Download From Server" path.
+- A device is authorized by being visible over BLE. The firmware has no
+  network stack and no authentication handshake, so there is nothing to
+  authenticate against.
+
+Android keeps `android.permission.INTERNET` deliberately, because removing it
+would change the Play Store data-safety declaration; that is a product
+decision, not an oversight.
+
 ## Dependencies are locked, and two pins are load-bearing
 
 `package-lock.json` is committed and npm is the only supported package manager;
