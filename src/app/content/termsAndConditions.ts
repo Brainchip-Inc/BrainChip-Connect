@@ -10,25 +10,25 @@ import { TermsContent } from '../../types/legalContent';
 
 export const TERMS_AND_CONDITIONS: TermsContent = {
   title: 'Terms and Conditions',
-  last_updated: '2025-12-15',
+  last_updated: '2026-08-25',
   banners: [
     {
       title: 'Terms of Service',
       content:
-        'By using Akida Mobile Connect, you agree to these terms and conditions. Please read them carefully before using the application.',
+        'By using BrainChip Connect, you agree to these terms and conditions. Please read them carefully before using the application.',
     },
   ],
   sections: [
     {
       title: 'Acceptance of Terms',
       description:
-        'By downloading, installing, or using Akida Mobile Connect, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use this application.',
+        'By downloading, installing, or using BrainChip Connect, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use this application.',
       items: [],
     },
     {
       title: 'License Grant',
       description:
-        'BrainChip grants you a limited, non-exclusive, non-transferable, revocable license to use Akida Mobile Connect for personal or commercial purposes in connection with BrainChip Edge AI IoT devices. This license does not permit you to:',
+        'BrainChip grants you a limited, non-exclusive, non-transferable, revocable license to use BrainChip Connect for personal or commercial purposes in connection with BrainChip Edge AI IoT devices. This license does not permit you to:',
       items: [
         {
           title: 'Modify, reverse engineer, or decompile the application',
@@ -48,7 +48,7 @@ export const TERMS_AND_CONDITIONS: TermsContent = {
     {
       title: 'Device Compatibility',
       description:
-        'Akida Mobile Connect is designed to work with BrainChip Edge AI IoT devices. The application requires compatible hardware and firmware versions. BrainChip does not guarantee compatibility with all mobile devices or operating system versions.',
+        'BrainChip Connect is designed to work with BrainChip Edge AI IoT devices. The application requires compatible hardware and firmware versions. BrainChip does not guarantee compatibility with all mobile devices or operating system versions.',
       items: [],
     },
     {
@@ -94,7 +94,7 @@ export const TERMS_AND_CONDITIONS: TermsContent = {
     {
       title: 'Intellectual Property',
       description:
-        'All intellectual property rights in Akida Mobile Connect, including but not limited to trademarks, logos, software, and documentation, are owned by BrainChip Holdings Ltd. The Akida™ name and logo are trademarks of BrainChip.',
+        'All intellectual property rights in BrainChip Connect, including but not limited to trademarks, logos, software, and documentation, are owned by BrainChip Holdings Ltd. The Akida™ name and logo are trademarks of BrainChip.',
       items: [],
     },
     {

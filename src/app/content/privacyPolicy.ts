@@ -10,17 +10,17 @@ import { PrivacyPolicyContent } from '../../types/legalContent';
 
 export const PRIVACY_POLICY: PrivacyPolicyContent = {
   title: 'Privacy Policy',
-  last_updated: '2025-12-15',
+  last_updated: '2026-08-25',
   banners: [
     {
       title: 'Your Privacy is Our Priority',
       content:
-        'Akida Mobile Connect is designed with privacy at its core. All data processing happens locally on your device and your connected BrainChip hardware. We do not collect, store, or transmit your personal data to external servers.',
+        'BrainChip Connect is designed with privacy at its core. All data processing happens locally on your device and your connected BrainChip hardware. We do not collect, store, or transmit your personal data to external servers.',
     },
   ],
   sections: [
     {
-      title: 'What Data We Accesss',
+      title: 'What Data We Access',
       icon: 'database',
       description:
         'This app accesses the following data solely for device operation:',
