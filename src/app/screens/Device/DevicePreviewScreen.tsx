@@ -64,20 +64,28 @@ const DevicePreviewScreen: React.FC = () => {
   const maxWidth = width >= 768 ? 600 : width;
 
   // The whole screen has to fit without scrolling, so the vertical rhythm is
-  // driven by the height actually left after the safe area insets. The
-  // breakpoints match GetStartedScreen so the two flows compact in step.
+  // driven by the height actually left after the safe area insets. It is
+  // interpolated rather than snapped to a few breakpoints: at 480pt of usable
+  // height everything is at its tightest and the content only just fits, from
+  // 760pt up it is at its roomiest, and in between it scales with the screen
+  // so the content keeps filling it instead of pooling the slack into one
+  // large gap above the buttons.
   const availableHeight = height - insets.top - insets.bottom;
-  const isCompact = availableHeight < 780;
-  const isVeryCompact = availableHeight < 680;
+  const roominess = Math.max(0, Math.min(1, (availableHeight - 480) / 280));
+  const scale = (tight: number, roomy: number) =>
+    tight + (roomy - tight) * roominess;
 
-  const verticalPadding = isVeryCompact ? 12 : isCompact ? 16 : 24;
-  const blockGap = isVeryCompact ? spacing : isCompact ? spacing * 1.5 : spacing * 2;
-  const iconBoxSize = isVeryCompact ? 56 : isCompact ? 72 : 88;
-  const iconSize = isVeryCompact ? 30 : isCompact ? 40 : 48;
-  const iconBoxGap = isVeryCompact ? 8 : isCompact ? 12 : spacing;
-  const rowPaddingVertical = isVeryCompact ? 8 : isCompact ? 10 : 12;
-  const noticePadding = isVeryCompact ? 10 : isCompact ? 16 : spacing * 1.25;
-  const buttonGap = isVeryCompact ? 8 : isCompact ? 12 : spacing;
+  const metrics = {
+    padding: scale(6, 24),
+    iconBox: Math.round(scale(40, 88)),
+    icon: Math.round(scale(22, 48)),
+    iconGap: scale(4, spacing),
+    blockGap: scale(8, spacing * 2),
+    headerGap: scale(4, spacing),
+    rowPadding: scale(5, 12),
+    noticePadding: scale(8, spacing * 1.25),
+    buttonGap: scale(6, spacing),
+  };
 
   const deviceDetails = [
     { label: 'Device Type', value: deviceType },
@@ -102,32 +110,35 @@ const DevicePreviewScreen: React.FC = () => {
           maxWidth,
           alignSelf: 'center',
           paddingHorizontal: horizontalPadding,
-          paddingTop: verticalPadding,
-          paddingBottom: insets.bottom + verticalPadding,
+          paddingTop: metrics.padding,
+          paddingBottom: insets.bottom + metrics.padding,
         }}
       >
-        {/* CONTENT — takes the room left above the pinned buttons */}
+        {/* CONTENT — takes the room left above the pinned buttons. Centred so
+            whatever room is left over is shared above and below the
+            information; top-aligned at the very tightest, where there is
+            nothing left to share and losing the top would be the worst of it. */}
         <View
           style={{
             flex: 1,
-            justifyContent: isCompact ? 'flex-start' : 'center',
+            justifyContent: roominess === 0 ? 'flex-start' : 'center',
           }}
         >
           {/* TOP ICON */}
           <View style={{ alignItems: 'center' }}>
             <View
               style={{
-                width: iconBoxSize,
-                height: iconBoxSize,
+                width: metrics.iconBox,
+                height: metrics.iconBox,
                 backgroundColor: theme.colors.surface,
                 borderWidth: 1,
                 borderColor: theme.colors.outline,
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: iconBoxGap,
+                marginBottom: metrics.iconGap,
               }}
             >
-              <Bluetooth size={iconSize} color={theme.colors.primary} />
+              <Bluetooth size={metrics.icon} color={theme.colors.primary} />
             </View>
 
             <Text
@@ -142,7 +153,7 @@ const DevicePreviewScreen: React.FC = () => {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                marginTop: isVeryCompact ? 4 : 6,
+                marginTop: scale(4, 6),
               }}
             >
               <View
@@ -168,8 +179,8 @@ const DevicePreviewScreen: React.FC = () => {
             variant="titleMedium"
             style={{
               fontWeight: '600',
-              marginTop: blockGap,
-              marginBottom: isVeryCompact ? 8 : spacing,
+              marginTop: metrics.blockGap,
+              marginBottom: metrics.headerGap,
             }}
           >
             Device Information
@@ -187,7 +198,7 @@ const DevicePreviewScreen: React.FC = () => {
                 <View
                   style={{
                     paddingHorizontal: spacing,
-                    paddingVertical: rowPaddingVertical,
+                    paddingVertical: metrics.rowPadding,
                     flexDirection: 'row',
                     justifyContent: 'space-between',
                   }}
@@ -216,8 +227,8 @@ const DevicePreviewScreen: React.FC = () => {
               backgroundColor: 'rgba(0,97,237,0.05)',
               borderWidth: 1,
               borderColor: 'rgba(0,97,237,0.2)',
-              padding: noticePadding,
-              marginTop: blockGap,
+              padding: metrics.noticePadding,
+              marginTop: metrics.blockGap,
               flexDirection: 'row',
               alignItems: 'center',
             }}
@@ -238,10 +249,10 @@ const DevicePreviewScreen: React.FC = () => {
         </View>
 
         {/* BUTTONS — pinned to the bottom */}
-        <View style={{ marginTop: blockGap }}>
+        <View style={{ marginTop: metrics.blockGap }}>
           <Button
             mode="contained"
-            style={{ marginBottom: buttonGap }}
+            style={{ marginBottom: metrics.buttonGap }}
             onPress={() =>
               navigation.navigate('DeviceConnecting', {
                 deviceId,
