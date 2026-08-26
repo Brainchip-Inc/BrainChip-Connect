@@ -137,7 +137,7 @@ const PrivacyPolicyScreen = () => {
             marginBottom: 24,
           }}
         >
-          © 2025 BrainChip Holdings Ltd. All rights reserved.
+          © 2026 BrainChip Holdings Ltd. All rights reserved.
         </Text>
       </ScrollView>
 
