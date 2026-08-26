@@ -20,7 +20,7 @@ type AboutState = {
 
 export const useAboutStore = create<AboutState>(() => ({
   version: '1.0.0',
-  build: '2025.12.15',
+  build: '2026.08.26',
 
   sections: [
     {
@@ -87,7 +87,7 @@ export const useAboutStore = create<AboutState>(() => ({
         },
         {
           type: 'text',
-          content: '© 2025 BrainChip Holdings Ltd. All rights reserved.',
+          content: '© 2026 BrainChip Holdings Ltd. All rights reserved.',
         },
       ],
     },

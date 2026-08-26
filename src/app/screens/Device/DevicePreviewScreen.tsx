@@ -2,7 +2,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Bluetooth, Shield } from 'lucide-react-native';
 import React, { useEffect } from 'react';
-import { ScrollView, useWindowDimensions, View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 import base64 from 'react-native-base64';
 import { Base64 } from 'react-native-ble-plx';
 import { Button, Divider, Text, useTheme } from 'react-native-paper';
@@ -15,11 +15,11 @@ type DevicePreviewRouteProp = RouteProp<RootParamList, 'DevicePreview'>;
 const DevicePreviewScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
   const route = useRoute<DevicePreviewRouteProp>();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { parsedDeviceInfo, setParsedDeviceInfo} = useBleStore();
-  
+
   const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs } = route.params;
 
   const parseManufacturerData = (mfData: Base64) => {
@@ -63,6 +63,30 @@ const DevicePreviewScreen: React.FC = () => {
   const horizontalPadding = width < 375 ? 16 : 20;
   const maxWidth = width >= 768 ? 600 : width;
 
+  // The whole screen has to fit without scrolling, so the vertical rhythm is
+  // driven by the height actually left after the safe area insets. It is
+  // interpolated rather than snapped to a few breakpoints: at 480pt of usable
+  // height everything is at its tightest and the content only just fits, from
+  // 760pt up it is at its roomiest, and in between it scales with the screen
+  // so the content keeps filling it instead of pooling the slack into one
+  // large gap above the buttons.
+  const availableHeight = height - insets.top - insets.bottom;
+  const roominess = Math.max(0, Math.min(1, (availableHeight - 480) / 280));
+  const scale = (tight: number, roomy: number) =>
+    tight + (roomy - tight) * roominess;
+
+  const metrics = {
+    padding: scale(6, 24),
+    iconBox: Math.round(scale(40, 88)),
+    icon: Math.round(scale(22, 48)),
+    iconGap: scale(4, spacing),
+    blockGap: scale(8, spacing * 2),
+    headerGap: scale(4, spacing),
+    rowPadding: scale(5, 12),
+    noticePadding: scale(8, spacing * 1.25),
+    buttonGap: scale(6, spacing),
+  };
+
   const deviceDetails = [
     { label: 'Device Type', value: deviceType },
     { label: 'Firmware', value: firmwareVersion },
@@ -79,34 +103,47 @@ const DevicePreviewScreen: React.FC = () => {
         paddingTop: insets.top,
       }}
     >
-      <ScrollView
-        contentContainerStyle={{
+      <View
+        style={{
+          flex: 1,
+          width: '100%',
+          maxWidth,
+          alignSelf: 'center',
           paddingHorizontal: horizontalPadding,
-          paddingTop: spacing * 2,
-          paddingBottom: insets.bottom + spacing * 2,
-          alignItems: 'center',
+          paddingTop: metrics.padding,
+          paddingBottom: insets.bottom + metrics.padding,
         }}
       >
-        <View style={{ width: '100%', maxWidth }}>
+        {/* CONTENT — takes the room left above the pinned buttons. Centred so
+            whatever room is left over is shared above and below the
+            information; top-aligned at the very tightest, where there is
+            nothing left to share and losing the top would be the worst of it. */}
+        <View
+          style={{
+            flex: 1,
+            justifyContent: roominess === 0 ? 'flex-start' : 'center',
+          }}
+        >
           {/* TOP ICON */}
-          <View style={{ alignItems: 'center', marginBottom: spacing * 2 }}>
+          <View style={{ alignItems: 'center' }}>
             <View
               style={{
-                width: 100,
-                height: 100,
+                width: metrics.iconBox,
+                height: metrics.iconBox,
                 backgroundColor: theme.colors.surface,
                 borderWidth: 1,
                 borderColor: theme.colors.outline,
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: spacing,
+                marginBottom: metrics.iconGap,
               }}
             >
-              <Bluetooth size={56} color={theme.colors.primary} />
+              <Bluetooth size={metrics.icon} color={theme.colors.primary} />
             </View>
 
             <Text
               variant="headlineMedium"
+              numberOfLines={2}
               style={{ fontWeight: '700', textAlign: 'center' }}
             >
               {deviceName}
@@ -116,7 +153,7 @@ const DevicePreviewScreen: React.FC = () => {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                marginTop: 6,
+                marginTop: scale(4, 6),
               }}
             >
               <View
@@ -140,7 +177,11 @@ const DevicePreviewScreen: React.FC = () => {
           {/* DEVICE INFO */}
           <Text
             variant="titleMedium"
-            style={{ fontWeight: '600', marginBottom: spacing }}
+            style={{
+              fontWeight: '600',
+              marginTop: metrics.blockGap,
+              marginBottom: metrics.headerGap,
+            }}
           >
             Device Information
           </Text>
@@ -150,14 +191,14 @@ const DevicePreviewScreen: React.FC = () => {
               backgroundColor: theme.colors.surface,
               borderWidth: 1,
               borderColor: theme.colors.outline,
-              marginBottom: spacing * 2,
             }}
           >
             {deviceDetails.map((item, index) => (
               <View key={item.label}>
                 <View
                   style={{
-                    padding: spacing,
+                    paddingHorizontal: spacing,
+                    paddingVertical: metrics.rowPadding,
                     flexDirection: 'row',
                     justifyContent: 'space-between',
                   }}
@@ -186,14 +227,14 @@ const DevicePreviewScreen: React.FC = () => {
               backgroundColor: 'rgba(0,97,237,0.05)',
               borderWidth: 1,
               borderColor: 'rgba(0,97,237,0.2)',
-              padding: spacing * 1.25,
-              marginBottom: spacing * 2,
+              padding: metrics.noticePadding,
+              marginTop: metrics.blockGap,
               flexDirection: 'row',
               alignItems: 'center',
             }}
           >
             <Shield size={20} color={theme.colors.primary} />
-            <View style={{ marginLeft: spacing }}>
+            <View style={{ marginLeft: spacing, flex: 1 }}>
               <Text variant="labelMedium" style={{ fontWeight: '600' }}>
                 Secure Connection
               </Text>
@@ -205,11 +246,13 @@ const DevicePreviewScreen: React.FC = () => {
               </Text>
             </View>
           </View>
+        </View>
 
-          {/* BUTTONS */}
+        {/* BUTTONS — pinned to the bottom */}
+        <View style={{ marginTop: metrics.blockGap }}>
           <Button
             mode="contained"
-            style={{ marginBottom: spacing }}
+            style={{ marginBottom: metrics.buttonGap }}
             onPress={() =>
               navigation.navigate('DeviceConnecting', {
                 deviceId,
@@ -227,7 +270,7 @@ const DevicePreviewScreen: React.FC = () => {
             Back
           </Button>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };

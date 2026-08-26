@@ -22,7 +22,7 @@ interface NotificationsState {
 export const useNotificationsStore = create<NotificationsState>(set => ({
   notifications: [
     {
-      date: 'December 26, 2025',
+      date: 'December 26, 2026',
       items: [
         {
           title: 'Vision Lite',
@@ -51,7 +51,7 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
       ],
     },
     {
-      date: 'December 25, 2025',
+      date: 'December 25, 2026',
       items: [
         {
           title: 'IMU Gesture',
@@ -74,7 +74,7 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
       ],
     },
     {
-      date: 'December 24, 2025',
+      date: 'December 24, 2026',
       items: [
         {
           title: 'Anomaly Detection',
