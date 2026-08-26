@@ -14,6 +14,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
+import { useBleCommandStore } from '../../store/useBleCommandStore';
 
 type DeviceDetailsRouteProp = RouteProp<RootParamList, 'DeviceDetails'>;
 
@@ -25,6 +26,12 @@ const DeviceDetailsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
 
   const { deviceId, deviceName, rssi } = route.params;
+
+  // The permanent hardware serial, not the OS Bluetooth handle: on Android
+  // that handle is the resolvable private address, which rotates every
+  // fifteen minutes and identifies nothing. The serial only arrives once the
+  // device-info burst has, so it is null for the first moment on screen.
+  const deviceSerial = useBleCommandStore(state => state.deviceSerial);
 
   const [isConnected, setIsConnected] = useState(true);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
@@ -263,9 +270,15 @@ const DeviceDetailsScreen: React.FC = () => {
                   </Text>
                   <Text
                     variant="bodyMedium"
-                    style={{ marginTop: 2, fontFamily: 'monospace' }}
+                    style={{
+                      marginTop: 2,
+                      fontFamily: 'monospace',
+                      color: deviceSerial
+                        ? theme.colors.onSurface
+                        : theme.colors.onSurfaceVariant,
+                    }}
                   >
-                    {deviceId}
+                    {deviceSerial ?? 'Reading...'}
                   </Text>
                 </View>
               </View>
