@@ -1,7 +1,6 @@
 import { pick } from '@react-native-documents/picker';
 import {
   CheckCircle,
-  CloudDownload,
   Download,
   Folder,
   RefreshCw,
@@ -20,8 +19,7 @@ import {
 import { Button, Portal, Modal, ProgressBar, Text } from 'react-native-paper';
 import BleService from '../../services/ble/bleManager';
 import { useBleStore } from '../../app/store/useBleStore';
-import { useDeviceAuthStore } from '../../app/store/useDeviceAuthStore';
-import { AIModel, useModelStore } from '../../app/store/useModelStore';
+import { AIModel } from '../../types/AIModel';
 import { useBleCommandStore } from '../../app/store/useBleCommandStore';
 import { Colors } from '../../app/theme/theme';
 import RNFS from 'react-native-fs';
@@ -44,11 +42,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
 
   const { connectedDevice } = useBleStore();
   const deviceId = connectedDevice?.id ?? 'Unknown Device';
-  const { models, fetchModels, downloadModel, loading } = useModelStore();
-  const token = useDeviceAuthStore(state => state.token);
   const [localModel, setLocalModel] = useState<AIModel | null>(null);
-  const [showServerModels, setShowServerModels] = useState(false);
-  const [serverLoading, setServerLoading] = useState(false);
   const appList = useBleCommandStore(state => state.appsList);
   const reportedVersion = appList[0]?.modelVersion;
   const currentVersion =
@@ -67,7 +61,6 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
     setScreen('list');
     setProgress(0);
     setLocalModel(null);
-    setShowServerModels(false);
   }, [visible]);
 
   const startUpdate = async (model: AIModel) => {
@@ -78,30 +71,11 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
       return;
     }
 
-    if (!token && !model.local) {
-      Alert.alert('Device not authenticated');
-      return;
-    }
-
     setScreen('updating');
     setProgress(0);
 
     try {
-      let zipPath = '';
-
-      if (model.local) {
-        zipPath = model.localPath!;
-      } else {
-        const downloaded = await downloadModel(
-          model.id,
-          token!,
-          model.filename,
-        );
-        if (!downloaded) {
-          throw new Error('Download failed');
-        }
-        zipPath = downloaded;
-      }
+      const zipPath = model.localPath;
 
       ackSubRef.current = BleService.subscribeToModelAck(deviceId, ack => {
         if (ack === BleService.getAckFlashErase()) {
@@ -138,8 +112,6 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
   const browseLocalModel = async () => {
     setScreen('list');
     try {
-      setShowServerModels(false);
-
       const results = await pick({
         allowMultiSelection: false,
         type: Platform.select({
@@ -167,16 +139,10 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
       const stat = await RNFS.stat(localPath);
 
       const model: AIModel = {
-        id: -1,
-        version: 'Local Model',
         filename: fileName,
         size_kb: Math.round(stat.size / 1024),
-        local: true,
         localPath: localPath,
-        release_notes: 'NA',
-        created_at: new Date().toISOString(),
         description: 'Local model selected from device',
-        filepath: localPath,
       };
 
       setLocalModel(model);
@@ -237,9 +203,9 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
               </Text>
             </View>
 
-            {/* ACTION BUTTONS - only in list mode */}
+            {/* ACTION BUTTON - only in list mode */}
             {screen === 'list' && (
-              <View style={styles.buttonRow}>
+              <View style={styles.actionArea}>
                 <Button
                   mode="contained"
                   icon={({ size, color }) => (
@@ -249,25 +215,6 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
                   style={styles.actionBtn}
                 >
                   Browse Local Model
-                </Button>
-
-                <Button
-                  mode="outlined"
-                  icon={({ size, color }) => (
-                    <CloudDownload size={size} color={color} />
-                  )}
-                  onPress={async () => {
-                    if (!token) return;
-                    setScreen('list');
-                    setLocalModel(null);
-                    setShowServerModels(true);
-                    setServerLoading(true);
-                    await fetchModels(token);
-                    setServerLoading(false);
-                  }}
-                  style={styles.actionBtn}
-                >
-                  Download From Server
                 </Button>
               </View>
             )}
@@ -295,60 +242,6 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
                 </Button>
               </View>
             )}
-
-            {/* SERVER MODELS - LOADING */}
-            {screen === 'list' && showServerModels && serverLoading && (
-              <View style={styles.card}>
-                <RefreshCw size={24} color={Colors.primary} />
-                <Text style={{ marginTop: 10 }}>
-                  Fetching models from server...
-                </Text>
-              </View>
-            )}
-
-            {/* SERVER MODELS - LIST */}
-            {screen === 'list' &&
-              showServerModels &&
-              !serverLoading &&
-              models.map((model, index) => {
-                const isNew = index === 0;
-
-                return (
-                  <View key={model.id} style={styles.card}>
-                    <View style={styles.buildHeaderRow}>
-                      <Text style={styles.label}>Available Version</Text>
-                      {isNew && (
-                        <View style={styles.newBadge}>
-                          <Text style={styles.badgeText}>NEW</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <Text style={styles.newVersion}>{model.version}</Text>
-                    <Text style={styles.releaseTitle}>Release Notes</Text>
-
-                    {model.release_notes
-                      ?.split('\n')
-                      .filter(line => line.trim() !== '')
-                      .map((line, i) => (
-                        <Text key={i} style={styles.bullet}>
-                          {'\u2022'} {line.trim()}
-                        </Text>
-                      ))}
-
-                    <Text style={styles.label}>Size: {model.size_kb} KB</Text>
-
-                    <Button
-                      mode="contained"
-                      style={styles.primaryBtn}
-                      disabled={loading}
-                      onPress={() => startUpdate(model)}
-                    >
-                      Download and Install
-                    </Button>
-                  </View>
-                );
-              })}
 
             {/* UPDATING SCREEN */}
             {screen === 'updating' && (
@@ -507,19 +400,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  releaseTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 12,
-    marginBottom: 4,
-  },
-
-  bullet: {
-    fontSize: 13,
-    color: Colors.primary,
-    marginTop: 4,
-  },
-
   subText: {
     fontFamily: 'Inter',
     fontSize: 13,
@@ -527,9 +407,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  buttonRow: {
-    flexDirection: 'column',
-    gap: 10,
+  actionArea: {
     marginBottom: 16,
     paddingTop: 8,
   },
@@ -550,12 +428,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
-  },
-
-  newBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
   },
 
   localBadge: {

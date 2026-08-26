@@ -42,9 +42,6 @@
 |       ├── otaErrors.ts                     # Central Error codes and error message mapping
         └── otaTypes.ts                      # Type definitions (eg: OTAtype : FW,Model)
 │   │
-│   ├── backend/
-│   │   └── api.ts              # Fetch OTA, Models files
-│   │
 │   └── storage/
 │       └── secureStore.ts      # Persist device info, current firmware and model version
 │
@@ -75,7 +72,6 @@
 | `react-native-ble-plx`                      | BLE scanning, connecting, and reading/writing characteristics              |
 | `react-native-fs`                           | File handling                                                              |
 | `@react-native-async-storage/async-storage` | Non-sensitive local storage                                                |
-| `react-native-keychain`                     | Secure storage for device info or credentials or file info                 |
 | `@react-navigation/native`                  | App navigation framework                                                   |
 | `@react-navigation/native-stack`            | Stack-based navigation                                                     |
 | `react-native-screens`                      | Improves navigation performance by using native screen components          |

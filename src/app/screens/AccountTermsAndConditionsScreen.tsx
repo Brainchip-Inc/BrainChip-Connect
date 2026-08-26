@@ -1,15 +1,15 @@
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, FileText, Snowflake } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Text, useTheme } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrivacySectionCard } from '../../components/common/PrivacySectionCard';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import { RouteName, ROUTES } from '../../types/routes';
+import { TERMS_AND_CONDITIONS } from '../content/termsAndConditions';
 import { useBleStore } from '../store/useBleStore';
-import { useTermsStore } from '../store/useTermsStore';
 import { Colors } from '../theme/theme';
 
 const AccountTermsAndConditionsScreen = () => {
@@ -21,35 +21,7 @@ const AccountTermsAndConditionsScreen = () => {
 
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
 
-  const { terms, loading, error, fetchTerms } = useTermsStore();
-
-  useEffect(() => {
-    fetchTerms();
-  }, [fetchTerms]);
-
-  const content = terms;
-
-  /* ===== LOADING ===== */
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ marginTop: 10 }}>Loading Terms…</Text>
-      </View>
-    );
-  }
-
-  /* ===== ERROR ===== */
-  if (error) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Error loading Terms</Text>
-        <Button onPress={fetchTerms}>Retry</Button>
-      </View>
-    );
-  }
-
-  if (!content) return null;
+  const content = TERMS_AND_CONDITIONS;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
