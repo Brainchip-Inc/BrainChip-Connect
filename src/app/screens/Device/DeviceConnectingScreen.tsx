@@ -9,18 +9,16 @@ import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
-import { useDeviceAuthStore } from '../../store/useDeviceAuthStore';
 import { useBleCommandStore } from '../../store/useBleCommandStore';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
-// Total time we'll wait for connection + auth before giving up
+// Total time we'll wait for the BLE connect before giving up
 const CONNECTION_TIMEOUT_MS = 20000;
 
 const ConnectionSteps = [
-  { id: 1, label: 'Authenticating' },
-  { id: 2, label: 'Establishing connection' },
-  { id: 3, label: 'Syncing configuration' },
+  { id: 1, label: 'Establishing connection' },
+  { id: 2, label: 'Syncing configuration' },
 ];
 
 const DeviceConnectingScreen: React.FC = () => {
@@ -30,8 +28,7 @@ const DeviceConnectingScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs, deviceType } =
-    route.params;
+  const { deviceId, deviceName, rssi, deviceInfo, serviceUUIDs } = route.params;
   const { setConnectedDevice, setConnectionState } = useBleStore();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -50,9 +47,6 @@ const DeviceConnectingScreen: React.FC = () => {
     ? 20
     : Math.min(width * 0.1, 80);
   const maxWidth = isLargeDevice ? 600 : width;
-  const authenticateDevice = useDeviceAuthStore(
-    state => state.authenticateDevice,
-  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -60,15 +54,15 @@ const DeviceConnectingScreen: React.FC = () => {
 
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
-    // Overall timeout covering auth + BLE connect. If the whole flow doesn't
-    // complete within CONNECTION_TIMEOUT_MS we abort and surface an error.
+    // Overall timeout covering the BLE connect. If the flow doesn't complete
+    // within CONNECTION_TIMEOUT_MS we abort and surface an error.
     const overallTimeout = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
         // Best-effort cancel of any in-flight BLE attempt
         BleService.disconnectDevice(deviceId).catch(() => {});
         reject(
           new Error(
-            'Connection timed out. Please check your network and that the device is in range, then try again.',
+            'Connection timed out. Please check that the device is powered on and in range, then try again.',
           ),
         );
       }, CONNECTION_TIMEOUT_MS);
@@ -84,26 +78,15 @@ const DeviceConnectingScreen: React.FC = () => {
       try {
         setConnectionState('connecting');
 
-        const deviceUniqServiceId = serviceUUIDs![0];
-
-        // Race the entire auth + BLE connect flow against the overall timeout
+        // Race the BLE connect flow against the overall timeout
         await Promise.race([
           (async () => {
-            // STEP 1: Authenticate with server
+            // STEP 1: Establish BLE connection
             advanceStep(0);
-            await authenticateDevice(
-              deviceId,
-              deviceName,
-              deviceType,
-              deviceUniqServiceId!,
-            );
-
-            // STEP 2: Establish BLE connection
-            advanceStep(1);
             await BleService.connectDevice(deviceId);
 
-            // STEP 3: Sync configuration (start BLE notifications)
-            advanceStep(2);
+            // STEP 2: Sync configuration (start BLE notifications)
+            advanceStep(1);
           })(),
           overallTimeout,
         ]);
@@ -174,7 +157,7 @@ const DeviceConnectingScreen: React.FC = () => {
         timeoutHandle = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect-once effect; deviceInfo/deviceType/serviceUUIDs are read from route params at connect time and adding them would re-run the whole BLE connect
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect-once effect; deviceInfo/serviceUUIDs are read from route params at connect time and adding them would re-run the whole BLE connect
   }, [
     deviceId,
     deviceName,
