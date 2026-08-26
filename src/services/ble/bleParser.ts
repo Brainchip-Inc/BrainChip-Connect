@@ -8,7 +8,9 @@ export interface DeviceInfo {
   model: string;
   firmware: string;
   hardware: string;
-  protocol: string;
+  // Permanent 64-bit hardware serial, 16 lowercase hex characters. It is not
+  // advertised, so it only exists once the device-info burst has arrived.
+  serial: string;
 }
 export interface AppsList {
   id: AppType;
@@ -174,7 +176,13 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
       };
 
     case BleCommand.DEVICE_INFO: {
-      const [vendor, model, firmware, hardware, protocol] = data.split(',');
+      // Firmware burst, one value per frame, each frame's payload ending in
+      // ',' so the concatenation splits cleanly:
+      //   MF_START manufacturer, MF_MID type, MF_MID version,
+      //   MF_MID firmware, MF_LAST serial.
+      // The serial is the last frame: it is the permanent hardware ID, sent
+      // over the connection rather than advertised.
+      const [vendor, model, firmware, hardware, serial] = data.split(',');
 
       return {
         type: 'DEVICE_INFO',
@@ -183,7 +191,7 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
           model,
           firmware,
           hardware,
-          protocol,
+          serial,
         },
       };
     }
