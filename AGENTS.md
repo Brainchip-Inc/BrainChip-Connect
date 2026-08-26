@@ -44,9 +44,10 @@ the server now work locally instead:
   network stack and no authentication handshake, so there is nothing to
   authenticate against.
 
-Android keeps `android.permission.INTERNET` deliberately, because removing it
-would change the Play Store data-safety declaration; that is a product
-decision, not an oversight.
+Released builds declare no internet permission and communicate only over
+Bluetooth. `android/app/src/debug/AndroidManifest.xml` adds
+`android.permission.INTERNET` and `usesCleartextTraffic` back for development
+builds alone, purely so the Metro dev server stays reachable.
 
 ## Dependencies are locked, and two pins are load-bearing
 
