@@ -7,6 +7,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# `npm ci` executes whatever install scripts the dependency tree carries, so
+# this job runs with a read-only token rather than the repository's write
+# default. Nothing here needs to write.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
