@@ -93,6 +93,18 @@ npx jest
 
 ---
 
+## Pull requests from forks
+
+If you opened this pull request from a fork, its checks do not start on their own. They sit
+waiting until a maintainer approves the run.
+
+That is deliberate rather than a fault, and there is nothing for you to do about it. A pull
+request from a fork is code nobody here has read yet, and running CI on it means executing that
+code, including whatever `npm ci` pulls in, on our infrastructure. A maintainer reads the change
+first, then either approves the run so the checks report normally, or closes the pull request.
+
+---
+
 ## Merging
 
 Pull requests squash into `main`. GitHub builds the squash subject from the pull request
