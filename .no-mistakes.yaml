@@ -9,4 +9,4 @@
 # accepted type and every step name is a valid scope, so this template keeps a
 # pipeline fix commit mergeable.
 commit:
-  fix_message: "chore({{.Step}}): {{.Summary}}"
+  fix_message: 'chore({{.Step}}): {{.Summary}}'
