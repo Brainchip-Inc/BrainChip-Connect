@@ -1,4 +1,4 @@
-package com.sparkmobapp
+package com.brainchip.connect
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

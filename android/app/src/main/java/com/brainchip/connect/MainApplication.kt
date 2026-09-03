@@ -1,4 +1,4 @@
-package com.sparkmobapp
+package com.brainchip.connect
 
 import android.app.Application
 import com.facebook.react.PackageList
