@@ -52,8 +52,7 @@
 │   └── icons/
 │
 ├── scripts/
-│   ├── env.ts
-│   └── build.ts
+│   └── clean_generated_files.sh   # Remove generated files this repo ignores
 │
 ├── docs/                        # Flow doc, technical doc ,
 │   ├── ble-flow.md              # Example doc,
