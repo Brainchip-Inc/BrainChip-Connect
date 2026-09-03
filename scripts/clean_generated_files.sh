@@ -32,7 +32,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGETS=(
   "Gemfile.lock"
   "ios/Podfile.lock"
-  "ios/SparkMobApp.xcworkspace"
+  "ios/BrainChipConnect.xcworkspace"
 )
 
 echo "Mode: $MODE"
