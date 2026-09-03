@@ -4,10 +4,10 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Add durable project-specific notes here as they are discovered through real work.
 
-## One name per thing: BrainChip Connect, AkidaTAG, `com.brainchip.connect`
+## One name per thing: BrainChip Connect, AkidaTag, `com.brainchip.connect`
 
-The app is BrainChip Connect, the board is AkidaTAG, and its firmware lives in
-`Brainchip-Inc/AkidaTAG`. The repo carries no compatibility aliases for the
+The app is BrainChip Connect, the board is AkidaTag, and its firmware lives in
+`Brainchip-Inc/AkidaTag`. The repo carries no compatibility aliases for the
 earlier "Spark" naming: no re-export of the old module path, and no fallback
 read of the old `@spark_*` acceptance keys, which
 `__tests__/acceptanceStorage.test.ts` pins by asserting that a device carrying
@@ -28,7 +28,7 @@ Two identifiers are duplicated across files that no build step keeps in sync:
 
 ## BLE model transfer is pinned to firmware `model_meta_t`
 
-`src/services/ble/bleManager.ts` mirrors a wire protocol owned by the AkidaTAG
+`src/services/ble/bleManager.ts` mirrors a wire protocol owned by the AkidaTag
 firmware repo. When `model_meta_t` gains a field, the app must both extend the
 CRC header in `computeCombinedCRC32` and write the new characteristic during the
 INFO phase; getting only one half right produces either an `INFO CRC FAIL` on
@@ -36,7 +36,7 @@ the board or a model that loads with zeroed metadata.
 
 The authoritative counterparts, read-only from this repo, are
 `utils/send_model_via_ble.py` (working reference sender) and
-`core/interface/ble_services/file_transfer.c` in the AkidaTAG firmware repo.
+`core/interface/ble_services/file_transfer.c` in the AkidaTag firmware repo.
 Two tests pin the app to them, one per half of the contract:
 `__tests__/bleModelInfoCrc.test.ts` fixes the header layout to an exact CRC, and
 `__tests__/bleModelInfoTransfer.test.ts` replays a whole `sendModelZip` against
@@ -50,7 +50,7 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
-## An AkidaTAG board is recognised by its manufacturer data, never by name or UUID
+## An AkidaTag board is recognised by its manufacturer data, never by name or UUID
 
 The firmware advertises no service UUID at all: the 128-bit value it used to
 put in its scan response was the permanent factory serial, and a value that
@@ -68,7 +68,7 @@ before the burst lands. `deviceId` is not a substitute; on Android it is the
 resolvable private address and rotates every fifteen minutes.
 
 The authoritative counterpart, read-only from this repo, is
-`source/core/interface/ble_services/ble_initialization.c` in the AkidaTAG
+`source/core/interface/ble_services/ble_initialization.c` in the AkidaTag
 firmware repo: `adv_manufacturer_data[]` for the advertisement layout and
 `send_device_info_response()` for the frame order.
 

@@ -270,7 +270,7 @@ class BleService {
           return;
         }
 
-        // Only surface AkidaTAG boards. A board advertises no service UUID at
+        // Only surface AkidaTag boards. A board advertises no service UUID at
         // all, so it is identified by the chip ID in its manufacturer data;
         // the name is still required because the list has nothing to show
         // without one, and it is deliberately not matched on because the DK

@@ -4,14 +4,14 @@ import { Buffer } from 'buffer';
 import { Base64 } from 'react-native-ble-plx';
 
 /**
- * ASCII chip ID the AkidaTAG firmware puts at the tail of its manufacturer
+ * ASCII chip ID the AkidaTag firmware puts at the tail of its manufacturer
  * data. It is the only field in the advertisement that identifies the
  * hardware, so it is what discovery matches on.
  */
 export const AKD1500_CHIP_ID = 'AKD1500';
 
 /**
- * Decide whether an advertising device is an AkidaTAG board from its
+ * Decide whether an advertising device is an AkidaTag board from its
  * manufacturer-specific data.
  *
  * The board no longer advertises any service UUID: the 128-bit value it used
@@ -21,7 +21,7 @@ export const AKD1500_CHIP_ID = 'AKD1500';
  * handle discovery has left.
  *
  * The firmware writes 12 ASCII bytes (see `adv_manufacturer_data[]` in
- * `source/core/interface/ble_services/ble_initialization.c` of the AkidaTAG
+ * `source/core/interface/ble_services/ble_initialization.c` of the AkidaTag
  * firmware repo):
  *
  *   bytes 0-1   BLE protocol version, e.g. "53" for BLE 5.3

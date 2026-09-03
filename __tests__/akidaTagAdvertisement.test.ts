@@ -1,5 +1,5 @@
 /**
- * Pins device discovery to what an AkidaTAG board actually broadcasts.
+ * Pins device discovery to what an AkidaTag board actually broadcasts.
  *
  * The board advertises no service UUID at all, so the chip ID in its
  * manufacturer data is the only thing left to match on. Get this wrong in

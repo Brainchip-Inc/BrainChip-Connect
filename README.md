@@ -1,10 +1,10 @@
 # BrainChip Connect
 
-This repository contains **BrainChip Connect**, the companion mobile application for AkidaTAG devices, providing configuration, monitoring, and OTA management.
+This repository contains **BrainChip Connect**, the companion mobile application for AkidaTag devices, providing configuration, monitoring, and OTA management.
 
 The application enables:
 
-- BLE communication with AkidaTAG hardware
+- BLE communication with AkidaTag hardware
 - Device provisioning and configuration
 - Application selection and OTA updates
 - Sensor data visualization
