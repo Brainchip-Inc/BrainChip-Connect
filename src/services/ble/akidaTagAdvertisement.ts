@@ -1,17 +1,17 @@
-// sparkAdvertisement.ts
+// akidaTagAdvertisement.ts
 
 import { Buffer } from 'buffer';
 import { Base64 } from 'react-native-ble-plx';
 
 /**
- * ASCII chip ID the Spark firmware puts at the tail of its manufacturer data.
- * It is the only field in the advertisement that identifies the hardware, so
- * it is what discovery matches on.
+ * ASCII chip ID the AkidaTAG firmware puts at the tail of its manufacturer
+ * data. It is the only field in the advertisement that identifies the
+ * hardware, so it is what discovery matches on.
  */
-export const SPARK_CHIP_ID = 'AKD1500';
+export const AKD1500_CHIP_ID = 'AKD1500';
 
 /**
- * Decide whether an advertising device is a Spark board from its
+ * Decide whether an advertising device is an AkidaTAG board from its
  * manufacturer-specific data.
  *
  * The board no longer advertises any service UUID: the 128-bit value it used
@@ -21,7 +21,7 @@ export const SPARK_CHIP_ID = 'AKD1500';
  * handle discovery has left.
  *
  * The firmware writes 12 ASCII bytes (see `adv_manufacturer_data[]` in
- * `source/core/interface/ble_services/ble_initialization.c` of the spark
+ * `source/core/interface/ble_services/ble_initialization.c` of the AkidaTAG
  * firmware repo):
  *
  *   bytes 0-1   BLE protocol version, e.g. "53" for BLE 5.3
@@ -41,7 +41,7 @@ export const SPARK_CHIP_ID = 'AKD1500';
  * @param manufacturerData Base64 manufacturer data as `Device.manufacturerData`
  *                         reports it, or null when the device advertises none.
  */
-export const isSparkManufacturerData = (
+export const isAkidaTagManufacturerData = (
   manufacturerData: Base64 | null | undefined,
 ): boolean => {
   if (!manufacturerData) {
@@ -52,5 +52,5 @@ export const isSparkManufacturerData = (
   // vendor's payload can never collapse into part of the chip ID.
   const payload = Buffer.from(manufacturerData, 'base64').toString('latin1');
 
-  return payload.includes(SPARK_CHIP_ID);
+  return payload.includes(AKD1500_CHIP_ID);
 };

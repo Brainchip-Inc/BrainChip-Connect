@@ -1,5 +1,5 @@
 /**
- * Pins device discovery to what a Spark board actually broadcasts.
+ * Pins device discovery to what an AkidaTAG board actually broadcasts.
  *
  * The board advertises no service UUID at all, so the chip ID in its
  * manufacturer data is the only thing left to match on. Get this wrong in
@@ -11,9 +11,9 @@
 
 import { Buffer } from 'buffer';
 import {
-  SPARK_CHIP_ID,
-  isSparkManufacturerData,
-} from '../src/services/ble/sparkAdvertisement';
+  AKD1500_CHIP_ID,
+  isAkidaTagManufacturerData,
+} from '../src/services/ble/akidaTagAdvertisement';
 
 const toBase64 = (ascii: string) =>
   Buffer.from(ascii, 'latin1').toString('base64');
@@ -21,28 +21,28 @@ const toBase64 = (ascii: string) =>
 // Exactly what `adv_manufacturer_data[]` puts on the air: 2 bytes BLE protocol
 // version, 3 bytes firmware version, 7 bytes chip ID, and no company
 // identifier in front of them.
-const SPARK_ADVERTISEMENT = toBase64('53000AKD1500');
+const AKIDA_TAG_ADVERTISEMENT = toBase64('53000AKD1500');
 
-describe('isSparkManufacturerData', () => {
+describe('isAkidaTagManufacturerData', () => {
   it('matches the firmware advertisement byte for byte', () => {
-    expect(isSparkManufacturerData(SPARK_ADVERTISEMENT)).toBe(true);
+    expect(isAkidaTagManufacturerData(AKIDA_TAG_ADVERTISEMENT)).toBe(true);
   });
 
   it('matches whatever firmware version the board reports', () => {
-    expect(isSparkManufacturerData(toBase64('53241AKD1500'))).toBe(true);
-    expect(isSparkManufacturerData(toBase64('50999AKD1500'))).toBe(true);
+    expect(isAkidaTagManufacturerData(toBase64('53241AKD1500'))).toBe(true);
+    expect(isAkidaTagManufacturerData(toBase64('50999AKD1500'))).toBe(true);
   });
 
   it('still matches if the platform strips a two-byte company identifier', () => {
     // A platform that treats the leading "53" as the company id hands over the
     // remaining ten bytes, which shifts the chip ID from offset 5 to offset 3.
-    expect(isSparkManufacturerData(toBase64('000AKD1500'))).toBe(true);
+    expect(isAkidaTagManufacturerData(toBase64('000AKD1500'))).toBe(true);
   });
 
   it('still matches if the platform prepends a company identifier', () => {
-    expect(isSparkManufacturerData(toBase64('\x59\x00' + '53000AKD1500'))).toBe(
-      true,
-    );
+    expect(
+      isAkidaTagManufacturerData(toBase64('\x59\x00' + '53000AKD1500')),
+    ).toBe(true);
   });
 
   it('rejects another vendor advertising binary manufacturer data', () => {
@@ -50,19 +50,19 @@ describe('isSparkManufacturerData', () => {
       0x4c, 0x00, 0x07, 0x19, 0x01, 0x20, 0x2b, 0x60, 0x8f,
     ]).toString('base64');
 
-    expect(isSparkManufacturerData(headphones)).toBe(false);
+    expect(isAkidaTagManufacturerData(headphones)).toBe(false);
   });
 
   it('rejects a device advertising no manufacturer data', () => {
-    expect(isSparkManufacturerData(null)).toBe(false);
-    expect(isSparkManufacturerData(undefined)).toBe(false);
-    expect(isSparkManufacturerData('')).toBe(false);
+    expect(isAkidaTagManufacturerData(null)).toBe(false);
+    expect(isAkidaTagManufacturerData(undefined)).toBe(false);
+    expect(isAkidaTagManufacturerData('')).toBe(false);
   });
 
   it('rejects a near miss on the chip ID', () => {
-    expect(isSparkManufacturerData(toBase64('53000AKD1000'))).toBe(false);
-    expect(isSparkManufacturerData(toBase64('53000akd1500'))).toBe(false);
-    expect(isSparkManufacturerData(toBase64('53000AKD150'))).toBe(false);
+    expect(isAkidaTagManufacturerData(toBase64('53000AKD1000'))).toBe(false);
+    expect(isAkidaTagManufacturerData(toBase64('53000akd1500'))).toBe(false);
+    expect(isAkidaTagManufacturerData(toBase64('53000AKD150'))).toBe(false);
   });
 
   it('does not let a high byte collapse into part of the chip ID', () => {
@@ -74,10 +74,10 @@ describe('isSparkManufacturerData', () => {
       Buffer.from('1500', 'latin1'),
     ]).toString('base64');
 
-    expect(isSparkManufacturerData(split)).toBe(false);
+    expect(isAkidaTagManufacturerData(split)).toBe(false);
   });
 
   it('exports the chip ID the firmware comment documents', () => {
-    expect(SPARK_CHIP_ID).toBe('AKD1500');
+    expect(AKD1500_CHIP_ID).toBe('AKD1500');
   });
 });
