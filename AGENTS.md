@@ -4,9 +4,27 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Add durable project-specific notes here as they are discovered through real work.
 
+## One name per thing: BrainChip Connect, AkidaTAG, `com.brainchip.connect`
+
+The app is BrainChip Connect, the board is AkidaTAG, and its firmware lives in
+`Brainchip-Inc/AkidaTAG`. The repo carries no compatibility aliases for the
+earlier "Spark" naming, so a reference to it anywhere is a leftover.
+
+Two identifiers are duplicated across files that no build step keeps in sync:
+
+- `com.brainchip.connect` is the Android `applicationId`, the Android
+  `namespace` and the iOS `PRODUCT_BUNDLE_IDENTIFIER`. The two platforms
+  deliberately share one string.
+- `BrainChipConnect` is the npm package name, the Gradle root project, the
+  Xcode project, target and `PRODUCT_NAME`, and the React Native component
+  registered from `app.json`. `getMainComponentName()` in `MainActivity.kt` and
+  `startReactNative(withModuleName:)` in `AppDelegate.swift` repeat that last
+  one as a literal; a mismatch there builds fine and fails at launch with no
+  view mounted.
+
 ## BLE model transfer is pinned to firmware `model_meta_t`
 
-`src/services/ble/bleManager.ts` mirrors a wire protocol owned by the spark
+`src/services/ble/bleManager.ts` mirrors a wire protocol owned by the AkidaTAG
 firmware repo. When `model_meta_t` gains a field, the app must both extend the
 CRC header in `computeCombinedCRC32` and write the new characteristic during the
 INFO phase; getting only one half right produces either an `INFO CRC FAIL` on
@@ -14,7 +32,7 @@ the board or a model that loads with zeroed metadata.
 
 The authoritative counterparts, read-only from this repo, are
 `utils/send_model_via_ble.py` (working reference sender) and
-`core/interface/ble_services/file_transfer.c` in the spark firmware repo.
+`core/interface/ble_services/file_transfer.c` in the AkidaTAG firmware repo.
 Two tests pin the app to them, one per half of the contract:
 `__tests__/bleModelInfoCrc.test.ts` fixes the header layout to an exact CRC, and
 `__tests__/bleModelInfoTransfer.test.ts` replays a whole `sendModelZip` against
@@ -28,15 +46,15 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
-## A Spark board is recognised by its manufacturer data, never by name or UUID
+## An AkidaTAG board is recognised by its manufacturer data, never by name or UUID
 
 The firmware advertises no service UUID at all: the 128-bit value it used to
 put in its scan response was the permanent factory serial, and a value that
 never changes defeats the rotating private address. So the only thing in the
 advertisement that identifies the hardware is the chip ID in the 12 ASCII
-bytes of manufacturer data, which is what `isSparkManufacturerData` in
-`src/services/ble/sparkAdvertisement.ts` matches on, pinned by
-`__tests__/sparkAdvertisement.test.ts`. Names are cosmetic and differ between
+bytes of manufacturer data, which is what `isAkidaTagManufacturerData` in
+`src/services/ble/akidaTagAdvertisement.ts` matches on, pinned by
+`__tests__/akidaTagAdvertisement.test.ts`. Names are cosmetic and differ between
 the tag and the DK, so they must not become a filter.
 
 The serial now arrives instead as the last frame of the `CMD_DEVICE_INFO`
@@ -46,8 +64,8 @@ before the burst lands. `deviceId` is not a substitute; on Android it is the
 resolvable private address and rotates every fifteen minutes.
 
 The authoritative counterpart, read-only from this repo, is
-`source/core/interface/ble_services/ble_initialization.c` in the spark firmware
-repo: `adv_manufacturer_data[]` for the advertisement layout and
+`source/core/interface/ble_services/ble_initialization.c` in the AkidaTAG
+firmware repo: `adv_manufacturer_data[]` for the advertisement layout and
 `send_device_info_response()` for the frame order.
 
 ## The app is offline by design

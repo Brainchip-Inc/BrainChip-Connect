@@ -1,4 +1,4 @@
-# Spark Mobile App - Setup and Run Guide
+# BrainChip Connect - Setup and Run Guide
 
 ## Overview
 
@@ -30,7 +30,7 @@ bundle -v
 
 ```bash
 git clone <repository-url>
-cd spark-phone
+cd BrainChip-Connect
 git checkout <branch-name>
 npm install
 ```
@@ -100,16 +100,16 @@ npm run ios
 For real device builds, Xcode must be opened for signing setup.
 
 ```bash
-open ios/SparkMobApp.xcworkspace
+open ios/BrainChipConnect.xcworkspace
 ```
 
 In Xcode:
 
-1. Select project `SparkMobApp` in the navigator.
-2. Select target `SparkMobApp` -> `Signing & Capabilities`.
+1. Select project `BrainChipConnect` in the navigator.
+2. Select target `BrainChipConnect` -> `Signing & Capabilities`.
 3. Turn on `Automatically manage signing`.
 4. Choose your Apple Developer `Team`.
-5. If needed, set a unique bundle identifier (for example `com.<name>.sparkmobapp`).
+5. If needed, set a unique bundle identifier (for example `com.<name>.brainchipconnect`).
 6. Connect your iPhone, select it as run destination, then click Run.
 
 Device notes:
@@ -163,7 +163,7 @@ Use `--apply` to delete known generated files (safe to regenerate later).
 ## Troubleshooting
 
 - iOS signing error:
-  `Signing for "SparkMobApp" requires a development team`
+  `Signing for "BrainChipConnect" requires a development team`
   Fix in Xcode `Signing & Capabilities` by selecting your team.
 
 - Metro port conflict:
@@ -387,7 +387,7 @@ npm run ios
 ### 🔹 Archive Build (IPA)
 
 ```bash
-open ios/SparkMobApp.xcworkspace
+open ios/BrainChipConnect.xcworkspace
 ```
 
 ### Steps:

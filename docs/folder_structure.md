@@ -1,4 +1,4 @@
-## 📱 Spark Phone App
+## 📱 BrainChip Connect
 
 ### Table of Contents
 

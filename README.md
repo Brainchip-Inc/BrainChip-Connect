@@ -1,10 +1,10 @@
-# Project Spark – Mobile Application
+# BrainChip Connect
 
-This repository contains the **companion mobile application** for **Project Spark**, providing configuration, monitoring, and OTA management for Project Spark devices.
+This repository contains **BrainChip Connect**, the companion mobile application for AkidaTAG devices, providing configuration, monitoring, and OTA management.
 
 The application enables:
 
-- BLE communication with Project Spark hardware
+- BLE communication with AkidaTAG hardware
 - Device provisioning and configuration
 - Application selection and OTA updates
 - Sensor data visualization
