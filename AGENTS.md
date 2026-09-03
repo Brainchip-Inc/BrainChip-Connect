@@ -8,7 +8,11 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 The app is BrainChip Connect, the board is AkidaTAG, and its firmware lives in
 `Brainchip-Inc/AkidaTAG`. The repo carries no compatibility aliases for the
-earlier "Spark" naming, so a reference to it anywhere is a leftover.
+earlier "Spark" naming: no re-export of the old module path, and no fallback
+read of the old `@spark_*` acceptance keys, which
+`__tests__/acceptanceStorage.test.ts` pins by asserting that a device carrying
+only those keys is asked to accept again. Apart from that test and this
+paragraph, a "Spark" reference anywhere is a leftover.
 
 Two identifiers are duplicated across files that no build step keeps in sync:
 

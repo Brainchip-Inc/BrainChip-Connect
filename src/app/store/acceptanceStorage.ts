@@ -29,11 +29,15 @@ export const getAcceptanceState = async (): Promise<AcceptanceState> => {
   }
 };
 
-export const setPrivacyAcceptedPersisted = async (value: boolean): Promise<void> => {
+export const setPrivacyAcceptedPersisted = async (
+  value: boolean,
+): Promise<void> => {
   await AsyncStorage.setItem(ACCEPTANCE_KEYS.privacy, String(value));
 };
 
-export const setTermsAcceptedPersisted = async (value: boolean): Promise<void> => {
+export const setTermsAcceptedPersisted = async (
+  value: boolean,
+): Promise<void> => {
   await AsyncStorage.setItem(ACCEPTANCE_KEYS.terms, String(value));
 };
 
