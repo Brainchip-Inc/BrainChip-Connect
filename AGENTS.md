@@ -91,7 +91,16 @@ the server now work locally instead:
 Released builds declare no internet permission and communicate only over
 Bluetooth. `android/app/src/debug/AndroidManifest.xml` adds
 `android.permission.INTERNET` and `usesCleartextTraffic` back for development
-builds alone, purely so the Metro dev server stays reachable.
+builds alone, purely so the Metro dev server stays reachable. That file is
+local-only and has never been tracked: `.gitignore` excludes
+`android/app/src/debug/`, so it is absent from a fresh checkout and each
+developer writes it by hand before a development build can reach Metro. All it
+needs to be is a debug-variant manifest for the Android manifest merger to
+overlay on the main one, declaring
+`<uses-permission android:name="android.permission.INTERNET" />` and setting
+`android:usesCleartextTraffic="true"` on its `<application>` element; the main
+manifest sets neither, so no `tools:replace`, and therefore no `tools`
+namespace, is required.
 
 ## Dependencies are locked, and two pins are load-bearing
 
