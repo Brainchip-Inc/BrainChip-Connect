@@ -1,0 +1,12 @@
+# Repository overrides for the no-mistakes pipeline.
+
+# Subject template for commits the pipeline authors itself when it fixes a
+# finding. The default is "no-mistakes({{.Step}}): {{.Summary}}", whose literal
+# `no-mistakes` type is rejected by this repository's required format check:
+# .github/ci-gates/check-subject.sh accepts only the Conventional Commits types
+# it lists in ALLOWED_TYPES, and .github/workflows/ci-gates-format.yml runs it
+# over every non-merge commit subject on a pull request into main. `chore` is an
+# accepted type and every step name is a valid scope, so this template keeps a
+# pipeline fix commit mergeable.
+commit:
+  fix_message: "chore({{.Step}}): {{.Summary}}"
