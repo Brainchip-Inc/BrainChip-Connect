@@ -141,6 +141,11 @@ adb devices
 
 ### 3. Run Android App
 
+Before your first development build, create `android/app/src/debug/AndroidManifest.xml`
+by hand. It is local-only and gitignored, so a fresh checkout does not have it, and
+without it the app cannot reach Metro and red-screens with `Unable to load script`.
+See "The app is offline by design" in `AGENTS.md` for what the file must contain.
+
 With Metro already running:
 
 ```bash

@@ -35,9 +35,9 @@ INFO phase; getting only one half right produces either an `INFO CRC FAIL` on
 the board or a model that loads with zeroed metadata.
 
 The authoritative counterparts, read-only from this repo, are
-`utils/send_model_via_ble.py` (working reference sender) and
-`core/interface/ble_services/file_transfer.c` in the AkidaTag firmware repo.
-Two tests pin the app to them, one per half of the contract:
+`source/utils/send_model_via_ble.py` (working reference sender) and
+`source/core/interface/ble_services/file_transfer.c` in the AkidaTag firmware
+repo. Two tests pin the app to them, one per half of the contract:
 `__tests__/bleModelInfoCrc.test.ts` fixes the header layout to an exact CRC, and
 `__tests__/bleModelInfoTransfer.test.ts` replays a whole `sendModelZip` against
 a fake peripheral that rebuilds `model_meta_t` from the characteristics it
