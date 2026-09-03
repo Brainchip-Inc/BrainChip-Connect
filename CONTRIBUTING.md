@@ -74,7 +74,7 @@ Three checks are required before a pull request can merge into `main`:
   It does not check JavaScript or TypeScript formatting: the `@react-native` eslint config only
   extends `eslint-config-prettier`, which switches off the rules that would conflict with
   prettier rather than running it, and no `prettier/prettier` rule is enabled anywhere. Nothing
-  in CI enforces formatting today, so run `npx prettier --write` on what you touch.
+  in CI enforces code formatting today, so run `npx prettier --write` on what you touch.
 - **lint** runs shellcheck over the shell scripts a pull request changed, and ruff if a Python
   file ever appears.
 

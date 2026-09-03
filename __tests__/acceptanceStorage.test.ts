@@ -14,7 +14,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getAcceptanceState,
-  setAcceptancePersisted,
   setPrivacyAcceptedPersisted,
   setTermsAcceptedPersisted,
 } from '../src/app/store/acceptanceStorage';
@@ -37,10 +36,8 @@ describe('acceptance persistence', () => {
   });
 
   it('remembers both acceptances across a relaunch', async () => {
-    await setAcceptancePersisted({
-      privacyAccepted: true,
-      termsAccepted: true,
-    });
+    await setPrivacyAcceptedPersisted(true);
+    await setTermsAcceptedPersisted(true);
 
     await expect(getAcceptanceState()).resolves.toEqual({
       privacyAccepted: true,
@@ -58,17 +55,16 @@ describe('acceptance persistence', () => {
     await expect(
       AsyncStorage.getItem('@brainchip_connect_terms_accepted'),
     ).resolves.toBe('true');
-    await expect(AsyncStorage.getAllKeys()).resolves.toEqual([
+    const keys = await AsyncStorage.getAllKeys();
+    expect([...keys].sort()).toEqual([
       '@brainchip_connect_privacy_accepted',
       '@brainchip_connect_terms_accepted',
     ]);
   });
 
   it('carries a withdrawn acceptance back to the acceptance screen', async () => {
-    await setAcceptancePersisted({
-      privacyAccepted: true,
-      termsAccepted: true,
-    });
+    await setPrivacyAcceptedPersisted(true);
+    await setTermsAcceptedPersisted(true);
     await setTermsAcceptedPersisted(false);
 
     await expect(getAcceptanceState()).resolves.toEqual({
