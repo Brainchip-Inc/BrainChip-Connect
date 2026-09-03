@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const ACCEPTANCE_KEYS = {
-  privacy: '@spark_privacy_accepted',
-  terms: '@spark_terms_accepted',
+  privacy: '@brainchip_connect_privacy_accepted',
+  terms: '@brainchip_connect_terms_accepted',
 } as const;
 
 export interface AcceptanceState {
