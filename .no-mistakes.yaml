@@ -6,7 +6,9 @@
 # .github/ci-gates/check-subject.sh accepts only the Conventional Commits types
 # it lists in ALLOWED_TYPES, and .github/workflows/ci-gates-format.yml runs it
 # over every non-merge commit subject on a pull request into main. `chore` is an
-# accepted type and every step name is a valid scope, so this template keeps a
-# pipeline fix commit mergeable.
+# accepted type and every step name is a valid scope, so this template gives a
+# pipeline fix commit an allowed type and scope. The summary is still free-form,
+# and check-subject.sh holds it to the same 100-character ceiling and
+# lowercase-first-word rule as any other subject.
 commit:
   fix_message: 'chore({{.Step}}): {{.Summary}}'
