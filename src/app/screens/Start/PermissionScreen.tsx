@@ -27,7 +27,7 @@ const cardData = [
   {
     title: 'Bluetooth',
     subtitle:
-      'Required to discover and connect to your Brainchip Edge AI devices via BLE.',
+      'Required to discover and connect to your BrainChip Edge AI devices via BLE.',
     Icon: BleIcon,
     required: true,
   },

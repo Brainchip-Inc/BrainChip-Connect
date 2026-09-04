@@ -7,10 +7,10 @@ import RNFS from 'react-native-fs';
 import { unzip } from 'react-native-zip-archive';
 import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
+import { isAkidaTagManufacturerData } from './akidaTagAdvertisement';
 import { BleCommand } from './bleCommands';
 import { parseBinaryFrame, parseBleMessage } from './bleParser';
 import { buildCommand } from './buildCommand';
-import { isSparkManufacturerData } from './sparkAdvertisement';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -270,12 +270,15 @@ class BleService {
           return;
         }
 
-        // Only surface Spark boards. A board advertises no service UUID at
+        // Only surface AkidaTag boards. A board advertises no service UUID at
         // all, so it is identified by the chip ID in its manufacturer data;
         // the name is still required because the list has nothing to show
         // without one, and it is deliberately not matched on because the DK
         // advertises a different name from the tag.
-        if (!device.name || !isSparkManufacturerData(device.manufacturerData)) {
+        if (
+          !device.name ||
+          !isAkidaTagManufacturerData(device.manufacturerData)
+        ) {
           return;
         }
 

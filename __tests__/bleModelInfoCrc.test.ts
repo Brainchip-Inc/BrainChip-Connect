@@ -6,7 +6,7 @@
  * program_info bytes. Any drift in that layout makes the board reject every
  * model transfer with "INFO CRC FAIL", so the expected value below is an exact
  * number cross-checked against the reference sender
- * (spark/source/utils/send_model_via_ble.py).
+ * (AkidaTag/source/utils/send_model_via_ble.py).
  *
  * @format
  */

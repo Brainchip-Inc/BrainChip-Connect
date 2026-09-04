@@ -15,7 +15,7 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
-target 'SparkMobApp' do
+target 'BrainChipConnect' do
   config = use_native_modules!
 
   use_react_native!(
