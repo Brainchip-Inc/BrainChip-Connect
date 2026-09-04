@@ -32,7 +32,7 @@ bundle -v
 git clone <repository-url>
 cd BrainChip-Connect
 git checkout <branch-name>
-npm install
+npm ci
 ```
 
 The app is fully offline: it needs no environment variables and talks to no
@@ -222,7 +222,7 @@ Use `--apply` to delete known generated files (safe to regenerate later).
   rm -rf ios/Pods ios/Podfile.lock
   rm -rf ~/Library/Developer/Xcode/DerivedData
 
-  npm install
+  npm ci
   bundle install
 
   cd ios
