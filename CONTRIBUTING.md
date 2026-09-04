@@ -11,7 +11,7 @@ suggested. A pull request whose title or commits do not follow it cannot be merg
 
 Every commit subject, and every pull request title, reads:
 
-> *type(scope): concise message*
+> _type(scope): concise message_
 
 **Rules:**
 
@@ -47,20 +47,20 @@ passes it and is still a bad subject.
 
 ### Allowed types
 
-| Type         | When to Use |
-|--------------|-------------|
-| **feat**     | Adding a new feature or enhancement. |
-| **fix**      | Fixing a bug. |
-| **docs**     | Documentation-only changes (README, comments, docs folder). |
-| **style**    | Code style or formatting changes that do **not** affect functionality. |
+| Type         | When to Use                                                                       |
+| ------------ | --------------------------------------------------------------------------------- |
+| **feat**     | Adding a new feature or enhancement.                                              |
+| **fix**      | Fixing a bug.                                                                     |
+| **docs**     | Documentation-only changes (README, comments, docs folder).                       |
+| **style**    | Code style or formatting changes that do **not** affect functionality.            |
 | **refactor** | Restructuring code without changing behavior; **use this for most file renames**. |
-| **perf**     | Performance improvements. |
-| **test**     | Adding or updating tests. |
-| **build**    | Build system or tooling changes (Gradle, Podfile, Metro, scripts). |
-| **ci**       | Changes to CI/CD configuration (GitHub Actions, pipelines). |
-| **chore**    | Routine maintenance tasks (dependency updates, cleanup). |
-| **config**   | Configuration and tooling settings. |
-| **revert**   | Reverting a previous commit. |
+| **perf**     | Performance improvements.                                                         |
+| **test**     | Adding or updating tests.                                                         |
+| **build**    | Build system or tooling changes (Gradle, Podfile, Metro, scripts).                |
+| **ci**       | Changes to CI/CD configuration (GitHub Actions, pipelines).                       |
+| **chore**    | Routine maintenance tasks (dependency updates, cleanup).                          |
+| **config**   | Configuration and tooling settings.                                               |
+| **revert**   | Reverting a previous commit.                                                      |
 
 ---
 
@@ -98,7 +98,7 @@ npx jest
 ## Merging
 
 Pull requests squash into `main`. GitHub builds the squash subject from the pull request
-title and appends the number, so the title *is* the commit that lands. The squash body is
+title and appends the number, so the title _is_ the commit that lands. The squash body is
 blank unless whoever merges writes one.
 
 ---
