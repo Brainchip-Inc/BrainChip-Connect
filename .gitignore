@@ -127,3 +127,6 @@ ios/*.dSYM
 
 # docs folder
 docs/local/*
+
+# Local-only helper scripts
+scripts/sync.sh
