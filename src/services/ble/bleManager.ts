@@ -1379,7 +1379,7 @@ class BleService {
   ): Promise<FirmwareUpdateOutcome> => {
     if (!expectedSerial) {
       log('Board reported no serial, so it cannot be recognised after reboot');
-      return { status: 'unconfirmed' };
+      return { status: 'unconfirmed', reason: 'unidentifiable' };
     }
 
     const deviceId = await this.reconnectToBoard(
@@ -1388,14 +1388,14 @@ class BleService {
       log,
     );
     if (!deviceId) {
-      return { status: 'unconfirmed' };
+      return { status: 'unconfirmed', reason: 'unanswered' };
     }
 
     try {
       const active = await this.readActiveImage(deviceId);
       if (!active) {
         log('Board would not report its running image');
-        return { status: 'unconfirmed' };
+        return { status: 'unconfirmed', reason: 'unanswered' };
       }
 
       if (active.hash === stagedHash) {

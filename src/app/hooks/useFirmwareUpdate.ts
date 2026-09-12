@@ -7,6 +7,7 @@ import {
   getTrustedKeyHash,
   rememberTrustedKeyHash,
 } from '../../services/firmware/trustedKeyStorage';
+import { UnconfirmedReason } from '../../types/firmwareUpdate';
 import { useBleCommandStore } from '../store/useBleCommandStore';
 import { useBleStore } from '../store/useBleStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
@@ -41,8 +42,14 @@ export type FirmwareUpdateStage =
   | { kind: 'checking' }
   | { kind: 'installed'; version: string }
   | { kind: 'rejected'; runningVersion: string | null }
-  | { kind: 'unconfirmed' }
+  | { kind: 'unconfirmed'; reason: UnconfirmedReason }
   | { kind: 'failed'; detail: string };
+
+/** The stages an update finishes in, as opposed to passes through. */
+export type FirmwareUpdateEnding = Extract<
+  FirmwareUpdateStage,
+  { kind: 'installed' | 'rejected' | 'unconfirmed' | 'failed' }
+>;
 
 const BUSY_STAGES = ['sending', 'restarting', 'checking'];
 
@@ -215,7 +222,7 @@ export const useFirmwareUpdate = () => {
         return;
       }
 
-      setStage({ kind: 'unconfirmed' });
+      setStage({ kind: 'unconfirmed', reason: outcome.reason });
     } catch (error: any) {
       setStage({
         kind: 'failed',

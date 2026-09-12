@@ -89,6 +89,7 @@ jest.mock('react-native-zip-archive', () => ({
 class SimulatedBoard {
   acceptsUpdate = true;
   failUploadAtOffset: number | null = null;
+  reportsImagesAfterReboot = true;
 
   staged = false;
   rebooted = false;
@@ -101,6 +102,7 @@ class SimulatedBoard {
   reset(acceptsUpdate: boolean) {
     this.acceptsUpdate = acceptsUpdate;
     this.failUploadAtOffset = null;
+    this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
     this.resetCount = 0;
@@ -127,6 +129,10 @@ class SimulatedBoard {
   }
 
   private imageList() {
+    if (this.rebooted && !this.reportsImagesAfterReboot) {
+      return { images: [] };
+    }
+
     const running = this.rebooted && this.acceptsUpdate;
     const images: object[] = [
       {
@@ -339,8 +345,22 @@ describe('performFota against a simulated board', () => {
       BleService.performFota(DEVICE_ID, FIRMWARE_PATH, {
         expectedSerial: null,
       }),
-    ).resolves.toEqual({ status: 'unconfirmed' });
+    ).resolves.toEqual({ status: 'unconfirmed', reason: 'unidentifiable' });
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
+    expect(mockBoard.resetCount).toBe(1);
+  }, 60000);
+
+  it('reports unconfirmed when the board comes back but will not say what it runs', async () => {
+    // The board is recognised by its serial and is reachable, so the app did
+    // get to ask; it is the answer that never came. The screen has to tell
+    // those two apart.
+    mockBoard.reset(true);
+    mockBoard.reportsImagesAfterReboot = false;
+
+    await expect(runUpdate()).resolves.toEqual({
+      status: 'unconfirmed',
+      reason: 'unanswered',
+    });
     expect(mockBoard.resetCount).toBe(1);
   }, 60000);
 

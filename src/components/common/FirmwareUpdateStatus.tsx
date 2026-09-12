@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import {
+  FirmwareUpdateEnding,
   FirmwareUpdateStage,
   SigningKeyWarning,
 } from '../../app/hooks/useFirmwareUpdate';
@@ -80,13 +81,16 @@ const ProgressCard = ({
  * Report what the board did with the firmware, once it has been asked.
  *
  * A refused update names no cause. The board never reports why it turned an
- * image down, so anything beyond "it did not install" would be a guess.
+ * image down, so anything beyond "it did not install" would be a guess. An
+ * update that could not be confirmed says which of the two things went wrong,
+ * because being unable to recognise the board and being unable to get an
+ * answer out of it are not the same news.
  */
 const OutcomeCard = ({
   stage,
   onDone,
 }: {
-  stage: FirmwareUpdateStage;
+  stage: FirmwareUpdateEnding;
   onDone: () => void;
 }) => {
   if (stage.kind === 'installed') {
@@ -149,12 +153,13 @@ const OutcomeCard = ({
     <View style={styles.outcome}>
       <Text style={styles.title}>Could not confirm the update</Text>
       <Text style={styles.body}>
-        The firmware was sent and your AkidaTag restarted, but the app could not
-        reconnect to check which version it is now running.
+        {stage.reason === 'unidentifiable'
+          ? 'The firmware was sent and your AkidaTag restarted, but it never reported the serial number that tells one AkidaTag from another. The app could not be sure it was asking the same board, so it did not ask.'
+          : 'The firmware was sent and your AkidaTag restarted, but it did not answer when the app asked which firmware it is now running.'}
       </Text>
       <Text style={styles.body}>
-        Reconnect to the board from the device list and open this screen again
-        to see its firmware version.
+        Select your AkidaTag in the device list to see the firmware version it
+        is running now.
       </Text>
       <Button mode="contained" style={styles.action} onPress={onDone}>
         Reconnect
