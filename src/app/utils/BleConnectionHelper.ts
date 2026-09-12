@@ -83,19 +83,32 @@ class BleConnectionHelper {
   /* ---------------------------------- */
 
   /**
-   * Drop the current device and send the user back to the device list.
+   * Record that the app is no longer holding a link to the board.
    *
-   * Used when the session really is over, so the connection is closed and the
-   * board has to be picked again. A firmware update reconnects to the board
-   * itself rather than coming through here.
+   * Whatever closed the link has to come through here, because the screens
+   * read the store rather than the radio: an update that ends by disconnecting
+   * and says nothing leaves the app claiming a board it cannot talk to, and
+   * the next command fails with a disconnection the user was never told about.
    */
-  returnToDeviceList = () => {
+  markConnectionClosed() {
+    this.currentDeviceId = null;
     this.disconnectHandled = false;
     this.isExpectedReboot = false;
 
     const { setConnectedDevice, setConnectionState } = useBleStore.getState();
     setConnectedDevice(null);
     setConnectionState('disconnected');
+  }
+
+  /**
+   * Drop the current device and send the user back to the device list.
+   *
+   * Reached once the link is already gone, so there is nothing to resume and
+   * the board has to be picked again. A firmware update reconnects to the
+   * board itself rather than coming through here.
+   */
+  returnToDeviceList = () => {
+    this.markConnectionClosed();
 
     this.navigationRef?.reset({
       index: 0,

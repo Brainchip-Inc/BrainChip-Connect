@@ -23,5 +23,58 @@ export type FirmwareUpdateOutcome =
  */
 export type UnconfirmedReason = 'unidentifiable' | 'unanswered';
 
+/**
+ * How far a transfer got before it failed, which decides what the app can
+ * honestly say was left on the board.
+ *
+ * `sending` is the image never having reached the board in full, so nothing on
+ * it changed. `installing` is the board having stored the whole image and then
+ * not installing it, which leaves that image in its spare slot.
+ */
+export type FirmwareTransferStep = 'sending' | 'installing';
+
 /** Stage of an update in flight, for the screen to describe to the user. */
-export type FirmwareUpdatePhase = 'sending' | 'restarting' | 'checking';
+export type FirmwareUpdatePhase =
+  | 'sending'
+  | 'installing'
+  | 'restarting'
+  | 'checking';
+
+/** Firmware the user picked, with what its header says about it. */
+export interface SelectedFirmware {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  version: string;
+  keyHash: string | null;
+}
+
+/** A picked file signed with a different key than this board last accepted. */
+export interface SigningKeyWarning {
+  fileKeyHash: string;
+  boardKeyHash: string;
+}
+
+/**
+ * Where an update has got to, and how it ended.
+ *
+ * The three failing endings are deliberately distinct: `rejected` is the board
+ * refusing to run firmware it accepted the transfer of, `failed` is the
+ * transfer itself going wrong, and `unconfirmed` is the app being unable to
+ * find out either way.
+ */
+export type FirmwareUpdateStage =
+  | { kind: 'idle' }
+  | { kind: 'sending'; percent: number }
+  | { kind: 'restarting' }
+  | { kind: 'checking' }
+  | { kind: 'installed'; version: string }
+  | { kind: 'rejected'; runningVersion: string | null }
+  | { kind: 'unconfirmed'; reason: UnconfirmedReason }
+  | { kind: 'failed'; failedWhile: FirmwareTransferStep; detail: string };
+
+/** The stages an update finishes in, as opposed to passes through. */
+export type FirmwareUpdateEnding = Extract<
+  FirmwareUpdateStage,
+  { kind: 'installed' | 'rejected' | 'unconfirmed' | 'failed' }
+>;

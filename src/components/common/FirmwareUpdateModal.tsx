@@ -11,7 +11,6 @@ import { Button, Modal, Portal, Text } from 'react-native-paper';
 import { useFirmwareUpdate } from '../../app/hooks/useFirmwareUpdate';
 import { useFirmwareStore } from '../../app/store/useFirmwareStore';
 import { Colors } from '../../app/theme/theme';
-import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import FirmwareUpdateStatus, {
   SigningKeyWarningCard,
 } from './FirmwareUpdateStatus';
@@ -34,6 +33,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     isBusy,
     browseForFirmware,
     startUpdate,
+    endUpdate,
   } = useFirmwareUpdate();
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
@@ -42,16 +42,16 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
   const [showUninstallProgress, setShowUninstallProgress] = useState(false);
   const [uninstallProgress, setUninstallProgress] = useState(0);
 
-  const finishUpdate = () => {
+  const closeModal = () => {
     onClose();
-    BleConnectionHelper.returnToDeviceList();
+    endUpdate();
   };
 
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={onClose}
+        onDismiss={closeModal}
         contentContainerStyle={styles.modalContainer}
         dismissable={!isBusy}
       >
@@ -71,7 +71,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             </View>
 
             <TouchableOpacity
-              onPress={onClose}
+              onPress={closeModal}
               style={styles.closeBtn}
               disabled={isBusy}
             >
@@ -120,7 +120,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             <FirmwareUpdateStatus
               stage={stage}
               sentVersion={selected?.version ?? null}
-              onDone={finishUpdate}
+              onDone={closeModal}
             />
 
             {/* ACTION BUTTON */}

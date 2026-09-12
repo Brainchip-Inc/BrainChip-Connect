@@ -13,7 +13,6 @@ import { useFirmwareUpdate } from '../hooks/useFirmwareUpdate';
 import { useBleStore } from '../store/useBleStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
 import { Colors } from '../theme/theme';
-import BleConnectionHelper from '../utils/BleConnectionHelper';
 
 const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
@@ -26,9 +25,19 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     stage,
     keyWarning,
     isBusy,
+    hasFinished,
     browseForFirmware,
     startUpdate,
+    endUpdate,
   } = useFirmwareUpdate();
+
+  const leaveScreen = () => {
+    if (hasFinished) {
+      endUpdate();
+      return;
+    }
+    navigation.goBack();
+  };
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
 
@@ -52,7 +61,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         {/* HEADER – FULL WIDTH */}
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+            <TouchableOpacity onPress={leaveScreen}>
               <ChevronLeft size={20} color={Colors.black} />
             </TouchableOpacity>
 
@@ -125,7 +134,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
           <FirmwareUpdateStatus
             stage={stage}
             sentVersion={selected?.version ?? null}
-            onDone={BleConnectionHelper.returnToDeviceList}
+            onDone={endUpdate}
           />
 
           <View style={styles.actionArea}>

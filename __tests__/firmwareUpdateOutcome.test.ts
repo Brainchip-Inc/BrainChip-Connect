@@ -17,6 +17,7 @@
  */
 
 import { decode, Encoder } from 'cbor-x';
+import { FirmwareUpdatePhase } from '../src/types/firmwareUpdate';
 
 const encoder = new Encoder({
   useRecords: false,
@@ -89,6 +90,7 @@ jest.mock('react-native-zip-archive', () => ({
 class SimulatedBoard {
   acceptsUpdate = true;
   failUploadAtOffset: number | null = null;
+  refusesToConfirm = false;
   reportsImagesAfterReboot = true;
 
   staged = false;
@@ -102,6 +104,7 @@ class SimulatedBoard {
   reset(acceptsUpdate: boolean) {
     this.acceptsUpdate = acceptsUpdate;
     this.failUploadAtOffset = null;
+    this.refusesToConfirm = false;
     this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
@@ -199,7 +202,7 @@ class SimulatedBoard {
       return { rc: 0, off: this.uploadedBytes };
     }
     if (group === 1 && command === 0 && op === 2) {
-      return { rc: 0 };
+      return { rc: this.refusesToConfirm ? 3 : 0 };
     }
     return { rc: 0 };
   }
@@ -303,10 +306,17 @@ jest.mock('react-native-ble-plx', () => {
 
 const BleService = require('../src/services/ble/bleManager').default;
 
-/** Run one whole update against the board as currently configured. */
-const runUpdate = () =>
+/**
+ * Run one whole update against the board as currently configured.
+ *
+ * @param phases - Collects the phases the update announces, which is how the
+ *   screen later tells a transfer that never landed from one the board took
+ *   and then refused.
+ */
+const runUpdate = (phases: FirmwareUpdatePhase[] = []) =>
   BleService.performFota(DEVICE_ID, FIRMWARE_PATH, {
     expectedSerial: DEVICE_SERIAL,
+    onPhase: (phase: FirmwareUpdatePhase) => phases.push(phase),
   });
 
 describe('performFota against a simulated board', () => {
@@ -365,10 +375,29 @@ describe('performFota against a simulated board', () => {
   }, 60000);
 
   it('throws when the transfer itself fails, rather than resolving', async () => {
+    // Nothing of the image reached the board, so the installing phase is never
+    // announced and the screen can say nothing on the board was changed.
     mockBoard.reset(true);
     mockBoard.failUploadAtOffset = 0;
+    const phases: FirmwareUpdatePhase[] = [];
 
-    await expect(runUpdate()).rejects.toThrow('Upload error at offset 0');
+    await expect(runUpdate(phases)).rejects.toThrow('Upload error at offset 0');
+    expect(phases).not.toContain('installing');
+    expect(mockBoard.resetCount).toBe(0);
+  }, 60000);
+
+  it('announces the installing phase before the board refuses to install', async () => {
+    // The whole image did reach the board and is sitting in its spare slot, so
+    // the screen must not claim nothing on the board was changed.
+    mockBoard.reset(true);
+    mockBoard.refusesToConfirm = true;
+    const phases: FirmwareUpdatePhase[] = [];
+
+    await expect(runUpdate(phases)).rejects.toThrow(
+      'The board would not install the firmware, error 3.',
+    );
+    expect(phases).toContain('installing');
+    expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
     expect(mockBoard.resetCount).toBe(0);
   }, 60000);
 });

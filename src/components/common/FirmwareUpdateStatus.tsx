@@ -1,13 +1,13 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
+import { Colors } from '../../app/theme/theme';
+import { formatKeyFingerprint } from '../../services/firmware/mcubootImage';
 import {
   FirmwareUpdateEnding,
   FirmwareUpdateStage,
   SigningKeyWarning,
-} from '../../app/hooks/useFirmwareUpdate';
-import { Colors } from '../../app/theme/theme';
-import { formatKeyFingerprint } from '../../services/firmware/mcubootImage';
+} from '../../types/firmwareUpdate';
 
 interface FirmwareUpdateStatusProps {
   stage: FirmwareUpdateStage;
@@ -81,10 +81,10 @@ const ProgressCard = ({
  * Report what the board did with the firmware, once it has been asked.
  *
  * A refused update names no cause. The board never reports why it turned an
- * image down, so anything beyond "it did not install" would be a guess. An
- * update that could not be confirmed says which of the two things went wrong,
- * because being unable to recognise the board and being unable to get an
- * answer out of it are not the same news.
+ * image down, so anything beyond "it did not install" would be a guess. Where
+ * the app does know more it says so: which of the two ways it failed to
+ * confirm an update, and whether a failed transfer got the whole image onto
+ * the board before it went wrong.
  */
 const OutcomeCard = ({
   stage,
@@ -138,8 +138,9 @@ const OutcomeCard = ({
       <View style={[styles.outcome, { borderColor: Colors.warning }]}>
         <Text style={styles.title}>Update failed</Text>
         <Text style={styles.body}>
-          The firmware could not be sent to your AkidaTag. The board is still
-          running its previous firmware and nothing on it was changed.
+          {stage.failedWhile === 'sending'
+            ? 'The firmware could not be sent to your AkidaTag. The board is still running its previous firmware and nothing on it was changed.'
+            : 'Your AkidaTag took the whole firmware file but did not install it. The board is still running its previous firmware.'}
         </Text>
         <Text style={styles.detail}>Details: {stage.detail}</Text>
         <Button mode="contained" style={styles.action} onPress={onDone}>
