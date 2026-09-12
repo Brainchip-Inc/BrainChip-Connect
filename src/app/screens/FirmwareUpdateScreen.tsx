@@ -1,38 +1,34 @@
-import { pick } from '@react-native-documents/picker';
 import { ChevronLeft, Cpu, Folder } from 'lucide-react-native';
 import React, { useState } from 'react';
-import {
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import FirmwareUpdateStatus, {
+  SigningKeyWarningCard,
+} from '../../components/common/FirmwareUpdateStatus';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
-import bleService from '../../services/ble/bleManager';
-import { FirmwareBuild } from '../../types/FirmwareBuild';
 import { RouteName, ROUTES } from '../../types/routes';
+import { useFirmwareUpdate } from '../hooks/useFirmwareUpdate';
 import { useBleStore } from '../store/useBleStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
 import { Colors } from '../theme/theme';
-import RNFS from 'react-native-fs';
+import BleConnectionHelper from '../utils/BleConnectionHelper';
 
 const FirmwareUpdateScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.SETTINGS);
-  const [isInstalling, setIsInstalling] = useState(false);
-  const [progress, setProgress] = useState(0);
   const { connectedDevice } = useBleStore();
-  const [selectedFile, setSelectedFile] = useState<{
-    name: string;
-    size: number;
-    uri: string;
-  } | null>(null);
+
+  const {
+    selected,
+    stage,
+    keyWarning,
+    isBusy,
+    browseForFirmware,
+    startUpdate,
+  } = useFirmwareUpdate();
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
 
@@ -41,141 +37,6 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
   const [showUninstallConfirm, setShowUninstallConfirm] = useState(false);
   const [showUninstallProgress, setShowUninstallProgress] = useState(false);
   const [uninstallProgress, setUninstallProgress] = useState(0);
-
-  const runFirmwareUpdate = async (
-    deviceId: string,
-    filePath: string,
-    build: FirmwareBuild,
-  ) => {
-    try {
-      const connected = await bleService.isDeviceConnected(deviceId);
-
-      if (!connected) {
-        Alert.alert('Device disconnected');
-        return;
-      }
-
-      setIsInstalling(true);
-      setProgress(0);
-
-      const exists = await RNFS.exists(filePath);
-
-      if (!exists) {
-        Alert.alert('Firmware file not found');
-        return;
-      }
-
-      // useBleCommandStore.getState().stopNotifications();
-
-      await bleService.performFota(
-        deviceId,
-        filePath,
-        percent => setProgress(percent),
-        msg => console.log('[FOTA]', msg),
-      );
-
-      Alert.alert('Success', 'Firmware updated successfully');
-
-      setInstalledBuild(build);
-
-      setSelectedFile(null);
-    } catch (error: any) {
-      if (__DEV__) console.error('[FOTA ERROR]', error);
-      Alert.alert(
-        'Firmware Update Failed',
-        error?.message ?? 'The firmware update did not complete.',
-      );
-    } finally {
-      setIsInstalling(false);
-      setProgress(0);
-    }
-  };
-
-  const browseLocalFirmware = async () => {
-    setSelectedFile(null);
-
-    try {
-      const results = await pick({
-        allowMultiSelection: false,
-        type: Platform.select({
-          ios: ['public.data'],
-          android: ['*/*'],
-        }),
-        copyTo: 'cachesDirectory',
-      });
-
-      const result = results[0];
-
-      const fileName = result.name ?? 'firmware.bin';
-
-      if (
-        !fileName.toLowerCase().endsWith('.bin') &&
-        !fileName.toLowerCase().endsWith('.zip')
-      ) {
-        Alert.alert(
-          'Invalid File',
-          'Please select a .bin or .zip firmware file',
-        );
-        return;
-      }
-
-      // Prefer copied path
-      const sourceUri = (result as any).fileCopyUri ?? result.uri;
-
-      if (!sourceUri) {
-        Alert.alert('Invalid file path');
-        return;
-      }
-
-      // Clean URI
-      const cleanUri = sourceUri.replace('file://', '');
-
-      // Copy to stable path inside app cache
-      const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
-
-      if (await RNFS.exists(localPath)) await RNFS.unlink(localPath);
-
-      await RNFS.copyFile(cleanUri, localPath);
-
-      const stat = await RNFS.stat(localPath);
-
-      setSelectedFile({
-        name: fileName,
-        size: stat.size,
-        uri: localPath,
-      });
-
-      if (__DEV__) console.log('Local firmware copied to:', localPath);
-    } catch (err: any) {
-      if (__DEV__) console.log('File picker error:', err?.message);
-
-      if (err?.message !== 'User cancelled the picker') {
-        Alert.alert('File selection failed');
-      }
-    }
-  };
-
-  const localBuild: FirmwareBuild | null = selectedFile
-    ? {
-        title: selectedFile.name,
-        description: 'Local firmware selected from device',
-        version: 'Local',
-        size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
-        useCases: ['Local Firmware'],
-      }
-    : null;
-
-  const startLocalUpdate = async () => {
-    if (!selectedFile || !localBuild || !connectedDevice?.id) {
-      Alert.alert(
-        'Installation Failed',
-        'No Device Connected or firmware selected',
-      );
-      return;
-    }
-
-    await runFirmwareUpdate(connectedDevice.id, selectedFile.uri, localBuild);
-  };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -241,7 +102,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                 {/* META */}
                 <Text style={styles.meta}>
                   Version: {installedBuild.version} &nbsp; Size:{' '}
-                  {installedBuild.size} &nbsp; 2024-12-15
+                  {installedBuild.size}
                 </Text>
 
                 {/* ACTION BUTTONS */}
@@ -261,20 +122,29 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
             )}
           </View>
 
+          <FirmwareUpdateStatus
+            stage={stage}
+            sentVersion={selected?.version ?? null}
+            onDone={BleConnectionHelper.returnToDeviceList}
+          />
+
           <View style={styles.actionArea}>
             <Button
               mode="contained"
               icon={({ size, color }) => <Folder size={size} color={color} />}
-              onPress={browseLocalFirmware}
+              onPress={browseForFirmware}
+              disabled={isBusy}
             >
               Browse Local Firmware
             </Button>
           </View>
 
-          {localBuild && (
+          {selected && (
             <View style={styles.card}>
-              <Text style={styles.buildTitle}>{localBuild.title}</Text>
-              <Text style={styles.subText}>{localBuild.description}</Text>
+              <Text style={styles.buildTitle}>{selected.name}</Text>
+              <Text style={styles.subText}>
+                Local firmware selected from device
+              </Text>
 
               <Text style={styles.label}>Source</Text>
 
@@ -283,32 +153,29 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
               </View>
 
               <View style={{ flexDirection: 'row', gap: 16 }}>
-                <Text style={styles.meta}>Version: {localBuild.version}</Text>
-                <Text style={styles.meta}>Size: {localBuild.size}</Text>
+                <Text style={styles.meta}>Version: {selected.version}</Text>
+                <Text style={styles.meta}>
+                  Size: {(selected.sizeBytes / 1024).toFixed(2)} KB
+                </Text>
               </View>
 
-              {isInstalling && (
-                <>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[styles.progressFill, { width: `${progress}%` }]}
-                    />
-                  </View>
-
-                  <Text style={styles.progressText}>
-                    Installing… {progress.toFixed(2)}%
-                  </Text>
-                </>
+              {keyWarning ? (
+                <SigningKeyWarningCard
+                  warning={keyWarning}
+                  fileName={selected.name}
+                  onSendAnyway={startUpdate}
+                  onChooseAnotherFile={browseForFirmware}
+                />
+              ) : (
+                <Button
+                  mode="contained"
+                  style={styles.installBtn}
+                  disabled={isBusy}
+                  onPress={startUpdate}
+                >
+                  {isBusy ? 'Installing…' : 'Install This Build'}
+                </Button>
               )}
-
-              <Button
-                mode="contained"
-                style={styles.installBtn}
-                disabled={isInstalling}
-                onPress={startLocalUpdate}
-              >
-                {isInstalling ? 'Installing…' : 'Install This Build'}
-              </Button>
             </View>
           )}
         </View>
