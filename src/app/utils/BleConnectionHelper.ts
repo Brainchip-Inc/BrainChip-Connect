@@ -35,6 +35,25 @@ class BleConnectionHelper {
     this.currentDeviceId = null;
   }
 
+  /**
+   * Point the app at the same board under the address it restarted on.
+   *
+   * A board that reboots comes back on a different Bluetooth address, so the
+   * id held for it goes stale while the board itself is still the connected
+   * one. Only the id changes; the rest of what is known about the device is
+   * still true.
+   *
+   * @param deviceId - Id the board answered on after restarting.
+   */
+  updateConnectedDeviceId(deviceId: string) {
+    this.currentDeviceId = deviceId;
+
+    const { connectedDevice, setConnectedDevice } = useBleStore.getState();
+    if (connectedDevice) {
+      setConnectedDevice({ ...connectedDevice, id: deviceId });
+    }
+  }
+
   markManualDisconnect() {
     this.isManualDisconnect = true;
   }
@@ -66,8 +85,9 @@ class BleConnectionHelper {
   /**
    * Drop the current device and send the user back to the device list.
    *
-   * The board's Bluetooth address changes when it restarts, so there is
-   * nothing to resume: reconnecting always means picking it again.
+   * Used when the session really is over, so the connection is closed and the
+   * board has to be picked again. A firmware update reconnects to the board
+   * itself rather than coming through here.
    */
   returnToDeviceList = () => {
     this.disconnectHandled = false;

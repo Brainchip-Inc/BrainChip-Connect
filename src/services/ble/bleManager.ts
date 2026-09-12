@@ -1250,22 +1250,17 @@ class BleService {
    * device-info burst is the only thing that tells two boards apart.
    *
    * @param deviceId - Candidate to try.
-   * @param expectedSerial - Serial the board reported before the update, or
-   *   null to accept the first AkidaTag that answers.
+   * @param expectedSerial - Serial the board reported before the update.
    * @returns True with the connection left open; false after disconnecting.
    */
   private isSameBoard = async (
     deviceId: string,
-    expectedSerial: string | null,
+    expectedSerial: string,
   ): Promise<boolean> => {
     try {
       await this.connectDevice(deviceId);
     } catch {
       return false;
-    }
-
-    if (!expectedSerial) {
-      return true;
     }
 
     const serial = await this.readDeviceSerial(
@@ -1295,7 +1290,7 @@ class BleService {
    */
   private reconnectToBoard = async (
     previousDeviceId: string,
-    expectedSerial: string | null,
+    expectedSerial: string,
     log: (msg: string) => void,
   ): Promise<string | null> => {
     const deadline = Date.now() + REBOOT_RECONNECT_TIMEOUT_MS;
@@ -1310,6 +1305,7 @@ class BleService {
       for (const candidate of candidates) {
         if (await this.isSameBoard(candidate, expectedSerial)) {
           log(`Reconnected to ${candidate}`);
+          BleConnectionHelper.updateConnectedDeviceId(candidate);
           return candidate;
         }
       }
@@ -1364,13 +1360,15 @@ class BleService {
    * Decide whether an update took, by asking the board what it is running.
    *
    * @param previousDeviceId - Id the board had before it restarted.
-   * @param expectedSerial - Serial the board reported before the update.
+   * @param expectedSerial - Serial the board reported before the update, or
+   *   null if it never reported one.
    * @param stagedHash - Hash the board reported for the image it stored.
    * @param sentVersion - Version of the image that was sent.
    * @param log - Sink for the protocol trace.
    * @returns Installed when the board came back running the staged image,
    *   rejected when it came back running something else, and unconfirmed when
-   *   it could not be reached or would not answer.
+   *   it could not be reached, would not answer, or cannot be told apart from
+   *   any other AkidaTag in range.
    */
   private verifyFirmwareInstalled = async (
     previousDeviceId: string,
@@ -1379,6 +1377,11 @@ class BleService {
     sentVersion: string,
     log: (msg: string) => void,
   ): Promise<FirmwareUpdateOutcome> => {
+    if (!expectedSerial) {
+      log('Board reported no serial, so it cannot be recognised after reboot');
+      return { status: 'unconfirmed' };
+    }
+
     const deviceId = await this.reconnectToBoard(
       previousDeviceId,
       expectedSerial,
@@ -1421,8 +1424,8 @@ class BleService {
    * @param deviceId - Board to update, connected.
    * @param filePath - A `.bin`, or a `.zip` holding exactly one.
    * @param options - `expectedSerial` is the board's permanent serial, used to
-   *   recognise it again after the reboot; without it the first AkidaTag that
-   *   answers is taken to be the same board.
+   *   recognise it again after the reboot; without it the outcome is
+   *   unconfirmed, because no other identifier survives the reboot.
    * @returns Whether the firmware installed, was refused, or could not be
    *   checked. The board never says why it refused an image.
    * @throws If another update is already running, or the transfer itself

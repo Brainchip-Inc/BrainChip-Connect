@@ -1,5 +1,5 @@
 /**
- * Drives `performFota` against a simulated board through all three endings.
+ * Drives `performFota` against a simulated board through each of its endings.
  *
  * The bug this pins: a board refuses firmware signed with a key it does not
  * trust silently, on the next boot, long after the transfer has succeeded.
@@ -324,6 +324,22 @@ describe('performFota against a simulated board', () => {
       status: 'rejected',
       runningVersion: '1.1.1',
     });
+    expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
+    expect(mockBoard.resetCount).toBe(1);
+  }, 60000);
+
+  it('reports unconfirmed when there is no serial to recognise the board by', async () => {
+    // Older firmware ends the device-info burst before the serial frame. The
+    // board is then indistinguishable from any other AkidaTag in range after
+    // the reboot, so whatever answers first cannot be asked what it is
+    // running.
+    mockBoard.reset(true);
+
+    await expect(
+      BleService.performFota(DEVICE_ID, FIRMWARE_PATH, {
+        expectedSerial: null,
+      }),
+    ).resolves.toEqual({ status: 'unconfirmed' });
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
     expect(mockBoard.resetCount).toBe(1);
   }, 60000);
