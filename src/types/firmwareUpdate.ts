@@ -6,8 +6,12 @@
  * after the transfer itself has succeeded, so nothing during the transfer can
  * report it. `rejected` is that case, and it is the only thing the board makes
  * knowable: it never says why it refused an image. `not-restarted` is the
- * board never having rebooted to look at the image at all, which the still
- * present image itself proves, since a refused one is erased.
+ * board never having rebooted to look at the image at all, which the staged
+ * slot's trailer still marking that image pending is what shows, since the
+ * bootloader scrambles that trailer as soon as it has looked; where a board
+ * does not report the flag at all, the image still being there stands in. A
+ * board that leaves a refused image in place is therefore not mistaken for
+ * one that never booted.
  */
 export type FirmwareUpdateOutcome =
   | { status: 'installed'; version: string }
@@ -24,9 +28,10 @@ export type FirmwareUpdateOutcome =
  * be recognised after the reboot and is never asked. `unreachable` is the board
  * never coming back within reach, so nothing is known about it past the moment
  * the firmware was sent. `unrecognised` is a board answering the scan and then
- * not proving it is the one that was updated, which is not the same as finding
- * nothing. `unanswered` is the board coming back and not saying which image it
- * is running.
+ * never saying which board it is, which is not the same as finding nothing;
+ * meeting a board that names itself as a different one is not that case, since
+ * it says nothing about the board being looked for. `unanswered` is the board
+ * coming back and not saying which image it is running.
  */
 export type UnconfirmedReason =
   | 'unidentifiable'

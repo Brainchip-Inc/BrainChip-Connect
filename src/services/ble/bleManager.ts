@@ -1281,21 +1281,22 @@ class BleService {
    * @param expectedSerial - Serial the board reported before the update.
    * @param connectTimeoutMs - How long to let the connect request hang before
    *   giving up on this candidate.
-   * @returns `same` with the connection left open, `other` after disconnecting
-   *   a board that would not prove it is the one, and `no-answer` when the
-   *   candidate could not be connected to at all. The middle case is worth
-   *   keeping apart: it is the app having found a board and not been able to
-   *   name it, which is not the same as having found nothing.
+   * @returns `same` with the connection left open, `no-serial` after
+   *   disconnecting a board that answered but never said which board it is,
+   *   and `not-it` for everything else, which is a board that named itself as
+   *   a different one and a candidate that could not be connected to alike.
+   *   Only `no-serial` says anything about the board being looked for: a board
+   *   that gave a different serial is simply some other AkidaTag in the room.
    */
   private isSameBoard = async (
     deviceId: string,
     expectedSerial: string,
     connectTimeoutMs: number,
-  ): Promise<'same' | 'other' | 'no-answer'> => {
+  ): Promise<'same' | 'no-serial' | 'not-it'> => {
     try {
       await this.connectDevice(deviceId, connectTimeoutMs);
     } catch {
-      return 'no-answer';
+      return 'not-it';
     }
 
     const serial = await this.readDeviceSerial(
@@ -1309,7 +1310,7 @@ class BleService {
     try {
       await this.bleManager.cancelDeviceConnection(deviceId);
     } catch {}
-    return 'other';
+    return serial === null ? 'no-serial' : 'not-it';
   };
 
   /**
@@ -1321,18 +1322,19 @@ class BleService {
    * @param previousDeviceId - Id the board had before it restarted.
    * @param expectedSerial - Serial the board reported before the update.
    * @param log - Sink for the protocol trace.
-   * @returns The id to talk to, or null with whether any board answered at
-   *   all, which is what separates a board that never came back from one that
-   *   came back and would not say which board it is.
+   * @returns The id to talk to, or null with whether a board answered and
+   *   would not say which board it is, which is what separates the board
+   *   never coming back from it coming back nameless. Meeting some other
+   *   AkidaTag counts as neither.
    */
   private reconnectToBoard = async (
     previousDeviceId: string,
     expectedSerial: string,
     log: (msg: string) => void,
-  ): Promise<{ deviceId: string | null; reachedABoard: boolean }> => {
+  ): Promise<{ deviceId: string | null; foundBoardWithoutSerial: boolean }> => {
     const deadline = Date.now() + REBOOT_RECONNECT_TIMEOUT_MS;
     let triedPreviousId = false;
-    let reachedABoard = false;
+    let foundBoardWithoutSerial = false;
 
     while (Date.now() < deadline) {
       const candidates = triedPreviousId
@@ -1357,14 +1359,15 @@ class BleService {
         );
         if (verdict === 'same') {
           log(`Reconnected to ${candidate}`);
-          return { deviceId: candidate, reachedABoard: true };
+          return { deviceId: candidate, foundBoardWithoutSerial: false };
         }
-        reachedABoard = reachedABoard || verdict === 'other';
+        foundBoardWithoutSerial =
+          foundBoardWithoutSerial || verdict === 'no-serial';
       }
     }
 
     log('Board did not come back within the reconnect timeout');
-    return { deviceId: null, reachedABoard };
+    return { deviceId: null, foundBoardWithoutSerial };
   };
 
   /**
@@ -1455,7 +1458,7 @@ class BleService {
       };
     }
 
-    const { deviceId, reachedABoard } = await this.reconnectToBoard(
+    const { deviceId, foundBoardWithoutSerial } = await this.reconnectToBoard(
       previousDeviceId,
       expectedSerial,
       log,
@@ -1464,7 +1467,7 @@ class BleService {
       return {
         outcome: {
           status: 'unconfirmed',
-          reason: reachedABoard ? 'unrecognised' : 'unreachable',
+          reason: foundBoardWithoutSerial ? 'unrecognised' : 'unreachable',
         },
         reconnectedDeviceId: null,
       };

@@ -26,6 +26,7 @@ const encoder = new Encoder({
 
 const DEVICE_ID = 'AA:BB:CC:DD:EE:FF';
 const DEVICE_SERIAL = '0011223344556677';
+const OTHER_DEVICE_SERIAL = '8899aabbccddeeff';
 
 const OLD_HASH = Buffer.from('11'.repeat(32), 'hex');
 const NEW_HASH = Buffer.from('22'.repeat(32), 'hex');
@@ -93,6 +94,7 @@ class SimulatedBoard {
   keepsStagedImageAfterReboot = false;
   ignoresResetCommand = false;
   reportsSerial = true;
+  reportsDifferentSerial = false;
   reportsImagesAfterReboot = true;
 
   staged = false;
@@ -111,6 +113,7 @@ class SimulatedBoard {
     this.keepsStagedImageAfterReboot = false;
     this.ignoresResetCommand = false;
     this.reportsSerial = true;
+    this.reportsDifferentSerial = false;
     this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
@@ -132,11 +135,16 @@ class SimulatedBoard {
    *
    * Firmware that predates the serial frame ends the burst one frame early,
    * which is what `reportsSerial` models: everything else about the board is
-   * normal, it simply never says which board it is.
+   * normal, it simply never says which board it is. `reportsDifferentSerial`
+   * is the other thing that can answer a scan, some second AkidaTag in the
+   * room, which names itself perfectly well and is simply not the one.
    */
   sendDeviceInfo() {
+    const serial = this.reportsDifferentSerial
+      ? OTHER_DEVICE_SERIAL
+      : DEVICE_SERIAL;
     const values = this.reportsSerial
-      ? ['AKIDA', 'TYPE', '5.3', '1.2.3', DEVICE_SERIAL]
+      ? ['AKIDA', 'TYPE', '5.3', '1.2.3', serial]
       : ['AKIDA', 'TYPE', '5.3', '1.2.3'];
     values.forEach((value, index) => {
       const frameType = index === 0 ? 1 : index === values.length - 1 ? 3 : 2;
@@ -419,6 +427,34 @@ describe('performFota against a simulated board', () => {
       await expect(update).resolves.toEqual({
         status: 'unconfirmed',
         reason: 'unrecognised',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  }, 60000);
+
+  it('does not blame a second AkidaTag for not identifying itself', async () => {
+    // Some other board in the room answering the scan says nothing at all
+    // about the one being looked for: it named itself, and the name was not
+    // the one wanted. The board being looked for was never reached.
+    mockBoard.reset(true);
+    mockBoard.reportsDifferentSerial = true;
+    jest.useFakeTimers();
+
+    try {
+      let settled = false;
+      const update = runUpdate().finally(() => {
+        settled = true;
+      });
+
+      for (let elapsed = 0; elapsed < 400000 && !settled; elapsed += 1000) {
+        await jest.advanceTimersByTimeAsync(1000);
+      }
+
+      expect(settled).toBe(true);
+      await expect(update).resolves.toEqual({
+        status: 'unconfirmed',
+        reason: 'unreachable',
       });
     } finally {
       jest.useRealTimers();
