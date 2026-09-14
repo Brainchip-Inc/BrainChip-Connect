@@ -1123,8 +1123,7 @@ class BleService {
    *
    * @param deviceId - Board to write to, connected.
    * @param binaryPath - Signed image to send.
-   * @param report - Sinks for the upload percentage and for the move to the
-   *   installing phase, which is the point the board has the whole image.
+   * @param onProgress - Called with the percentage uploaded so far.
    * @param log - Sink for the protocol trace.
    * @returns The hash the board reports for the image it stored, which is how
    *   the same image is recognised again after the reboot.
@@ -1134,10 +1133,7 @@ class BleService {
   private uploadAndConfirm = async (
     deviceId: string,
     binaryPath: string,
-    report: {
-      onProgress?: (percent: number) => void;
-      onPhase?: (phase: FirmwareUpdatePhase) => void;
-    },
+    onProgress: ((percent: number) => void) | undefined,
     log: (msg: string) => void,
   ): Promise<string> => {
     await this.requestFotaMtu(deviceId);
@@ -1153,7 +1149,7 @@ class BleService {
       log(`Boot mode: ${await this.queryBootMode(deviceId)}`);
       log(`Images: ${JSON.stringify(await this.sendImageList(deviceId))}`);
 
-      await this.sendFirmwareFile(deviceId, binaryPath, report.onProgress);
+      await this.sendFirmwareFile(deviceId, binaryPath, onProgress);
       log('Upload complete');
 
       const updatedList = await this.sendImageList(deviceId);
@@ -1161,7 +1157,6 @@ class BleService {
       if (!staged?.hash) {
         throw new Error('The board did not store the firmware that was sent.');
       }
-      report.onPhase?.('installing');
 
       const confirmed = await this.confirmFirmware(
         deviceId,
@@ -1373,7 +1368,8 @@ class BleService {
    * @returns Installed when the board came back running the staged image,
    *   rejected when it came back running something else, and unconfirmed when
    *   it could not be reached, would not answer, or cannot be told apart from
-   *   any other AkidaTag in range.
+   *   any other AkidaTag in range. A board that did come back is left
+   *   connected, since the app has just proved it is the same one.
    */
   private verifyFirmwareInstalled = async (
     previousDeviceId: string,
@@ -1393,28 +1389,22 @@ class BleService {
       log,
     );
     if (!deviceId) {
+      return { status: 'unconfirmed', reason: 'unreachable' };
+    }
+
+    const active = await this.readActiveImage(deviceId);
+    if (!active) {
+      log('Board would not report its running image');
       return { status: 'unconfirmed', reason: 'unanswered' };
     }
 
-    try {
-      const active = await this.readActiveImage(deviceId);
-      if (!active) {
-        log('Board would not report its running image');
-        return { status: 'unconfirmed', reason: 'unanswered' };
-      }
-
-      if (active.hash === stagedHash) {
-        log('Board is running the firmware that was sent');
-        return { status: 'installed', version: sentVersion };
-      }
-
-      log('Board came back on its previous firmware');
-      return { status: 'rejected', runningVersion: active.version };
-    } finally {
-      try {
-        await this.disconnectDevice(deviceId);
-      } catch {}
+    if (active.hash === stagedHash) {
+      log('Board is running the firmware that was sent');
+      return { status: 'installed', version: sentVersion };
     }
+
+    log('Board came back on its previous firmware');
+    return { status: 'rejected', runningVersion: active.version };
   };
 
   /**
@@ -1486,7 +1476,7 @@ class BleService {
       const stagedHash = await this.uploadAndConfirm(
         deviceId,
         extracted.binaryPath,
-        options,
+        options.onProgress,
         log,
       );
 

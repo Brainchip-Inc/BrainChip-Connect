@@ -17,7 +17,6 @@
  */
 
 import { decode, Encoder } from 'cbor-x';
-import { FirmwareUpdatePhase } from '../src/types/firmwareUpdate';
 
 const encoder = new Encoder({
   useRecords: false,
@@ -306,17 +305,10 @@ jest.mock('react-native-ble-plx', () => {
 
 const BleService = require('../src/services/ble/bleManager').default;
 
-/**
- * Run one whole update against the board as currently configured.
- *
- * @param phases - Collects the phases the update announces, which is how the
- *   screen later tells a transfer that never landed from one the board took
- *   and then refused.
- */
-const runUpdate = (phases: FirmwareUpdatePhase[] = []) =>
+/** Run one whole update against the board as currently configured. */
+const runUpdate = () =>
   BleService.performFota(DEVICE_ID, FIRMWARE_PATH, {
     expectedSerial: DEVICE_SERIAL,
-    onPhase: (phase: FirmwareUpdatePhase) => phases.push(phase),
   });
 
 describe('performFota against a simulated board', () => {
@@ -362,8 +354,8 @@ describe('performFota against a simulated board', () => {
 
   it('reports unconfirmed when the board comes back but will not say what it runs', async () => {
     // The board is recognised by its serial and is reachable, so the app did
-    // get to ask; it is the answer that never came. The screen has to tell
-    // those two apart.
+    // get to ask; it is the answer that never came. That is a different fact
+    // from a board that never came back, and it is announced differently.
     mockBoard.reset(true);
     mockBoard.reportsImagesAfterReboot = false;
 
@@ -375,28 +367,20 @@ describe('performFota against a simulated board', () => {
   }, 60000);
 
   it('throws when the transfer itself fails, rather than resolving', async () => {
-    // Nothing of the image reached the board, so the installing phase is never
-    // announced and the screen can say nothing on the board was changed.
     mockBoard.reset(true);
     mockBoard.failUploadAtOffset = 0;
-    const phases: FirmwareUpdatePhase[] = [];
 
-    await expect(runUpdate(phases)).rejects.toThrow('Upload error at offset 0');
-    expect(phases).not.toContain('installing');
+    await expect(runUpdate()).rejects.toThrow('Upload error at offset 0');
     expect(mockBoard.resetCount).toBe(0);
   }, 60000);
 
-  it('announces the installing phase before the board refuses to install', async () => {
-    // The whole image did reach the board and is sitting in its spare slot, so
-    // the screen must not claim nothing on the board was changed.
+  it('throws when the board will not mark the image it stored for install', async () => {
     mockBoard.reset(true);
     mockBoard.refusesToConfirm = true;
-    const phases: FirmwareUpdatePhase[] = [];
 
-    await expect(runUpdate(phases)).rejects.toThrow(
+    await expect(runUpdate()).rejects.toThrow(
       'The board would not install the firmware, error 3.',
     );
-    expect(phases).toContain('installing');
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
     expect(mockBoard.resetCount).toBe(0);
   }, 60000);

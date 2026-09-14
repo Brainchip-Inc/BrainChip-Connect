@@ -25,6 +25,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     stage,
     keyWarning,
     isBusy,
+    canInstall,
     browseForFirmware,
     startUpdate,
   } = useFirmwareUpdate();
@@ -168,7 +169,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                 <Button
                   mode="contained"
                   style={styles.installBtn}
-                  disabled={isBusy}
+                  disabled={!canInstall}
                   onPress={startUpdate}
                 >
                   {isBusy ? 'Installing…' : 'Install This Build'}

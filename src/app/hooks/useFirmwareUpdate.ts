@@ -10,6 +10,7 @@ import {
 } from '../../services/firmware/trustedKeyStorage';
 import {
   FirmwareUpdateEnding,
+  FirmwareUpdateOutcome,
   FirmwareUpdateStage,
   SelectedFirmware,
   SigningKeyWarning,
@@ -20,6 +21,18 @@ import { useFirmwareStore } from '../store/useFirmwareStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 
 const BUSY_STAGES = ['sending', 'restarting', 'checking'];
+
+/**
+ * Decide whether an ending leaves the app holding the board.
+ *
+ * The update reconnects to the board and keeps it, so the only outcomes that
+ * end without one are those where it never got back to it.
+ *
+ * @param outcome - What the update turned out to be.
+ * @returns True when there is no board left to talk to.
+ */
+const isBoardLost = (outcome: FirmwareUpdateOutcome): boolean =>
+  outcome.status === 'unconfirmed' && outcome.reason !== 'unanswered';
 
 /**
  * Copy a picked file into the app's cache under its own name.
@@ -58,6 +71,7 @@ const cacheFirmwareFile = async (
  */
 export const useFirmwareUpdate = () => {
   const deviceSerial = useBleCommandStore(state => state.deviceSerial);
+  const connectedDevice = useBleStore(state => state.connectedDevice);
 
   const [selected, setSelected] = useState<SelectedFirmware | null>(null);
   const [keyWarning, setKeyWarning] = useState<SigningKeyWarning | null>(null);
@@ -151,10 +165,6 @@ export const useFirmwareUpdate = () => {
     setKeyWarning(null);
     setStage({ kind: 'sending', percent: 0 });
 
-    // Only the board itself can say whether it took the whole image, and it
-    // says so before it is asked to install it. That is what separates a
-    // transfer that never landed from one the board then refused.
-    let boardStoredImage = false;
     let ending: FirmwareUpdateEnding;
 
     try {
@@ -162,9 +172,6 @@ export const useFirmwareUpdate = () => {
         expectedSerial: deviceSerial,
         onProgress: percent => setStage({ kind: 'sending', percent }),
         onPhase: phase => {
-          if (phase === 'installing') {
-            boardStoredImage = true;
-          }
           if (phase === 'restarting') {
             setStage({ kind: 'restarting' });
           }
@@ -174,7 +181,9 @@ export const useFirmwareUpdate = () => {
         },
       });
 
-      BleConnectionHelper.markConnectionClosed();
+      if (isBoardLost(outcome)) {
+        BleConnectionHelper.markConnectionClosed();
+      }
       ending = outcome;
 
       if (outcome.status === 'installed') {
@@ -193,7 +202,6 @@ export const useFirmwareUpdate = () => {
     } catch (error: any) {
       ending = {
         status: 'failed',
-        failedWhile: boardStoredImage ? 'installing' : 'sending',
         detail: error?.message ?? 'The firmware update did not complete.',
       };
     }
@@ -204,11 +212,14 @@ export const useFirmwareUpdate = () => {
     Alert.alert(title, message);
   }, [clearSelection, deviceSerial, selected]);
 
+  const isBusy = BUSY_STAGES.includes(stage.kind);
+
   return {
     selected,
     stage,
     keyWarning,
-    isBusy: BUSY_STAGES.includes(stage.kind),
+    isBusy,
+    canInstall: Boolean(selected) && Boolean(connectedDevice) && !isBusy,
     browseForFirmware,
     startUpdate,
   };

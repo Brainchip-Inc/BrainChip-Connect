@@ -16,9 +16,9 @@ const ENDINGS: FirmwareUpdateEnding[] = [
   { status: 'installed', version: '1.2.0' },
   { status: 'rejected', runningVersion: '1.1.1' },
   { status: 'unconfirmed', reason: 'unidentifiable' },
+  { status: 'unconfirmed', reason: 'unreachable' },
   { status: 'unconfirmed', reason: 'unanswered' },
-  { status: 'failed', failedWhile: 'sending', detail: 'Upload error' },
-  { status: 'failed', failedWhile: 'installing', detail: 'error 3' },
+  { status: 'failed', detail: 'Upload error at offset 0' },
 ];
 
 describe('describeUpdateEnding', () => {
@@ -60,26 +60,29 @@ describe('describeUpdateEnding', () => {
     expect(message).not.toMatch(/null|undefined/);
   });
 
-  it('claims nothing was changed only when the image never reached the board', () => {
-    const neverArrived = describeUpdateEnding({
+  it('claims nothing was left on the board only where the board erased it', () => {
+    // A transfer can fail with half the image already written to the spare
+    // slot, so the only ending that can promise an untouched board is the one
+    // where the bootloader itself threw the image away.
+    const failed = describeUpdateEnding({
       status: 'failed',
-      failedWhile: 'sending',
-      detail: 'Upload error at offset 0',
-    });
-    const arrivedButUninstalled = describeUpdateEnding({
-      status: 'failed',
-      failedWhile: 'installing',
-      detail: 'The board would not install the firmware, error 3.',
+      detail: 'Upload error at offset 50000',
     });
 
-    expect(neverArrived.message).toContain('nothing on it was changed');
-    expect(arrivedButUninstalled.message).not.toContain('nothing on it');
-    expect(arrivedButUninstalled.message).toContain(
-      'took the whole firmware file',
-    );
-    expect(arrivedButUninstalled.message).toContain(
-      'The board would not install the firmware, error 3.',
-    );
+    expect(failed.message).toContain('still running its previous firmware');
+    expect(failed.message).not.toMatch(/nothing on (it|the board)/);
+    expect(failed.message).toContain('Upload error at offset 50000');
+  });
+
+  it('does not say a board it never reached restarted or was asked anything', () => {
+    const unreachable = describeUpdateEnding({
+      status: 'unconfirmed',
+      reason: 'unreachable',
+    });
+
+    expect(unreachable.message).toContain('could not reach your AkidaTag');
+    expect(unreachable.message).not.toContain('restarted');
+    expect(unreachable.message).not.toContain('did not answer');
   });
 
   it('says a success is a success only for a confirmed install', () => {

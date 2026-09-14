@@ -130,14 +130,14 @@ const DeviceApplicationsScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!deviceId) return;
+    if (!connectedDevice) return;
 
     useBleCommandStore.getState().startDeviceSession(connectedDevice);
 
     return () => {
       useBleCommandStore.getState().endDeviceSession();
     };
-  }, [deviceId, connectedDevice]);
+  }, [connectedDevice]);
 
   const handleDeploy = async (app: AppsList) => {
     if (!deviceId) {

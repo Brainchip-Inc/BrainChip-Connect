@@ -1,10 +1,46 @@
-import { FirmwareUpdateEnding } from '../../types/firmwareUpdate';
+import {
+  FirmwareUpdateEnding,
+  UnconfirmedReason,
+} from '../../types/firmwareUpdate';
 
 /** The alert that tells the user how a firmware update ended. */
 export interface UpdateAnnouncement {
   title: string;
   message: string;
 }
+
+/**
+ * Say why an update could not be confirmed, in terms of what the app got as
+ * far as doing.
+ *
+ * A board that never came back is not described as having restarted or as
+ * having been asked anything: the app lost it after the firmware was sent and
+ * knows nothing past that point.
+ *
+ * @param reason - Where the confirmation stopped.
+ * @returns The sentence explaining that ending.
+ */
+const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
+  if (reason === 'unidentifiable') {
+    return (
+      'The firmware was sent and your AkidaTag restarted, but it never ' +
+      'reported the serial number that tells one AkidaTag from another. The ' +
+      'app could not be sure it was asking the same board, so it did not ask.'
+    );
+  }
+
+  if (reason === 'unreachable') {
+    return (
+      'The firmware was sent, but the app could not reach your AkidaTag ' +
+      'again afterwards, so there is no telling what the board did with it.'
+    );
+  }
+
+  return (
+    'The firmware was sent and your AkidaTag restarted, but it did not ' +
+    'answer when the app asked which firmware it is now running.'
+  );
+};
 
 /**
  * Put into words what the board did with the firmware, saying only what the
@@ -47,32 +83,18 @@ export const describeUpdateEnding = (
   }
 
   if (ending.status === 'failed') {
-    const wentWrong =
-      ending.failedWhile === 'sending'
-        ? 'The firmware could not be sent to your AkidaTag. The board is ' +
-          'still running its previous firmware and nothing on it was changed.'
-        : 'Your AkidaTag took the whole firmware file but did not install ' +
-          'it. The board is still running its previous firmware.';
-
     return {
       title: 'Update failed',
-      message: `${wentWrong}\n\nDetails: ${ending.detail}`,
+      message:
+        'The firmware update did not complete. Your AkidaTag is still ' +
+        `running its previous firmware.\n\nDetails: ${ending.detail}`,
     };
   }
-
-  const couldNotAsk =
-    ending.reason === 'unidentifiable'
-      ? 'The firmware was sent and your AkidaTag restarted, but it never ' +
-        'reported the serial number that tells one AkidaTag from another. ' +
-        'The app could not be sure it was asking the same board, so it did ' +
-        'not ask.'
-      : 'The firmware was sent and your AkidaTag restarted, but it did not ' +
-        'answer when the app asked which firmware it is now running.';
 
   return {
     title: 'Could not confirm the update',
     message:
-      `${couldNotAsk}\n\nSelect your AkidaTag in the device list to see the ` +
-      'firmware version it is running now.',
+      `${describeMissedConfirmation(ending.reason)}\n\nSelect your AkidaTag ` +
+      'in the device list to see the firmware version it is running now.',
   };
 };

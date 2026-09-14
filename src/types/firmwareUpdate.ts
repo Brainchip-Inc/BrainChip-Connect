@@ -16,29 +16,20 @@ export type FirmwareUpdateOutcome =
  * Why an update could not be confirmed, which decides what the app can honestly
  * tell the user about it.
  *
- * `unidentifiable` is the board never having reported the serial that tells one
- * AkidaTag from another, so it cannot be recognised after the reboot and is
- * never asked. `unanswered` is the board having been asked and not answered,
- * whether it never came back within reach or would not report its image.
+ * Each is a different fact about the board. `unidentifiable` is the board never
+ * having reported the serial that tells one AkidaTag from another, so it cannot
+ * be recognised after the reboot and is never asked. `unreachable` is the board
+ * never coming back within reach, so nothing is known about it past the moment
+ * the firmware was sent. `unanswered` is the board coming back and not saying
+ * which image it is running.
  */
-export type UnconfirmedReason = 'unidentifiable' | 'unanswered';
-
-/**
- * How far a transfer got before it failed, which decides what the app can
- * honestly say was left on the board.
- *
- * `sending` is the image never having reached the board in full, so nothing on
- * it changed. `installing` is the board having stored the whole image and then
- * not installing it, which leaves that image in its spare slot.
- */
-export type FirmwareTransferStep = 'sending' | 'installing';
+export type UnconfirmedReason =
+  | 'unidentifiable'
+  | 'unreachable'
+  | 'unanswered';
 
 /** Stage of an update in flight, for the screen to describe to the user. */
-export type FirmwareUpdatePhase =
-  | 'sending'
-  | 'installing'
-  | 'restarting'
-  | 'checking';
+export type FirmwareUpdatePhase = 'sending' | 'restarting' | 'checking';
 
 /** Firmware the user picked, with what its header says about it. */
 export interface SelectedFirmware {
@@ -72,4 +63,4 @@ export type FirmwareUpdateStage =
  */
 export type FirmwareUpdateEnding =
   | FirmwareUpdateOutcome
-  | { status: 'failed'; failedWhile: FirmwareTransferStep; detail: string };
+  | { status: 'failed'; detail: string };

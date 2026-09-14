@@ -31,6 +31,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     stage,
     keyWarning,
     isBusy,
+    canInstall,
     browseForFirmware,
     startUpdate,
   } = useFirmwareUpdate();
@@ -155,7 +156,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
                   <Button
                     mode="contained"
                     style={styles.installBtn}
-                    disabled={isBusy}
+                    disabled={!canInstall}
                     onPress={startUpdate}
                   >
                     {isBusy ? 'Installing...' : 'Install This Build'}
