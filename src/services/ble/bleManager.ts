@@ -31,6 +31,14 @@ const REBOOT_RECONNECT_TIMEOUT_MS = 150000;
 /** Length of one scan while waiting for a restarted board to advertise. */
 const REBOOT_SCAN_WINDOW_MS = 6000;
 
+/**
+ * How long one attempt at reconnecting to a restarted board may hang. iOS
+ * never gives up on a connect request of its own accord, and the address the
+ * board had before the reboot is usually stale on Android, so an attempt that
+ * is going nowhere has to be abandoned for the next scan to happen at all.
+ */
+const REBOOT_CONNECT_TIMEOUT_MS = 10000;
+
 /** How long to wait for a board to answer with its hardware serial. */
 const SERIAL_READ_TIMEOUT_MS = 6000;
 
@@ -329,10 +337,20 @@ class BleService {
 
   /**
    * Connect to a BLE device and discover its services/characteristics.
+   *
+   * @param deviceId - Device to connect to.
+   * @param timeoutMs - How long to let the request hang, or undefined to wait
+   *   as long as the platform will, which on iOS is forever.
    */
-  connectDevice = async (deviceId: string): Promise<Device> => {
+  connectDevice = async (
+    deviceId: string,
+    timeoutMs?: number,
+  ): Promise<Device> => {
     try {
-      const device = await this.bleManager.connectToDevice(deviceId);
+      const device = await this.bleManager.connectToDevice(
+        deviceId,
+        timeoutMs === undefined ? undefined : { timeout: timeoutMs },
+      );
       const updatedDevice = await device.requestMTU(this.CHUNK_SIZE);
 
       this.negotiatedMTU = updatedDevice.mtu ?? 23;
@@ -1104,9 +1122,7 @@ class BleService {
    * @returns The image's version and signing key fingerprint.
    * @throws If the file is not AkidaTag firmware.
    */
-  private readImageHeader = async (
-    binaryPath: string,
-  ): Promise<McubootImage> =>
+  private readImageHeader = async (binaryPath: string): Promise<McubootImage> =>
     parseMcubootImage(
       Buffer.from(await RNFS.readFile(binaryPath, 'base64'), 'base64'),
     );
@@ -1263,14 +1279,17 @@ class BleService {
    *
    * @param deviceId - Candidate to try.
    * @param expectedSerial - Serial the board reported before the update.
+   * @param connectTimeoutMs - How long to let the connect request hang before
+   *   giving up on this candidate.
    * @returns True with the connection left open; false after disconnecting.
    */
   private isSameBoard = async (
     deviceId: string,
     expectedSerial: string,
+    connectTimeoutMs: number,
   ): Promise<boolean> => {
     try {
-      await this.connectDevice(deviceId);
+      await this.connectDevice(deviceId, connectTimeoutMs);
     } catch {
       return false;
     }
@@ -1315,7 +1334,18 @@ class BleService {
       triedPreviousId = true;
 
       for (const candidate of candidates) {
-        if (await this.isSameBoard(candidate, expectedSerial)) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          break;
+        }
+
+        const attemptTimeoutMs = Math.min(
+          REBOOT_CONNECT_TIMEOUT_MS,
+          remainingMs,
+        );
+        if (
+          await this.isSameBoard(candidate, expectedSerial, attemptTimeoutMs)
+        ) {
           log(`Reconnected to ${candidate}`);
           return candidate;
         }

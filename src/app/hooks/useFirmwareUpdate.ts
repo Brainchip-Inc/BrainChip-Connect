@@ -19,8 +19,6 @@ import { useBleStore } from '../store/useBleStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 
-const BUSY_STAGES = ['sending', 'restarting', 'checking'];
-
 /**
  * Put the app's connection state back in step with the radio.
  *
@@ -215,7 +213,7 @@ export const useFirmwareUpdate = () => {
     Alert.alert(title, message);
   }, [clearSelection, deviceSerial, selected]);
 
-  const isBusy = BUSY_STAGES.includes(stage.kind);
+  const isBusy = stage.kind !== 'idle';
 
   return {
     selected,

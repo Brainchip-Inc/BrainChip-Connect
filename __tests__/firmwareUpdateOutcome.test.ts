@@ -96,6 +96,7 @@ class SimulatedBoard {
   rebooted = false;
   resetCount = 0;
   uploadedBytes = 0;
+  connectOptions: ({ timeout?: number } | undefined)[] = [];
 
   private notify: ((frame: Buffer) => void) | null = null;
   private notifyUart: ((frame: string) => void) | null = null;
@@ -109,6 +110,7 @@ class SimulatedBoard {
     this.rebooted = false;
     this.resetCount = 0;
     this.uploadedBytes = 0;
+    this.connectOptions = [];
   }
 
   onSmpNotify(listener: (frame: Buffer) => void) {
@@ -262,7 +264,12 @@ jest.mock('react-native-ble-plx', () => {
   return {
     State: { PoweredOn: 'PoweredOn' },
     BleManager: jest.fn().mockImplementation(() => ({
-      connectToDevice: jest.fn(async () => device),
+      connectToDevice: jest.fn(
+        async (_id: string, options?: { timeout?: number }) => {
+          mockBoard.connectOptions.push(options);
+          return device;
+        },
+      ),
       devices: jest.fn(async () => [device]),
       isDeviceConnected: jest.fn(async () => true),
       cancelDeviceConnection: jest.fn(async () => device),
@@ -321,6 +328,24 @@ describe('performFota against a simulated board', () => {
     });
     expect(mockBoard.resetCount).toBe(1);
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
+  }, 60000);
+
+  it('bounds the connect attempts it makes looking for the restarted board', async () => {
+    // iOS never abandons a connect request on its own, so an unbounded attempt
+    // at a board that never comes back leaves the update neither resolved nor
+    // rejected and the user watching "Checking the board" forever.
+    mockBoard.reset(true);
+
+    await expect(runUpdate()).resolves.toEqual({
+      status: 'installed',
+      version: '1.2.0',
+    });
+
+    expect(mockBoard.connectOptions.length).toBeGreaterThan(0);
+    mockBoard.connectOptions.forEach(options => {
+      expect(options?.timeout).toBeGreaterThan(0);
+      expect(options?.timeout).toBeLessThanOrEqual(10000);
+    });
   }, 60000);
 
   it('reports a refused update instead of success', async () => {

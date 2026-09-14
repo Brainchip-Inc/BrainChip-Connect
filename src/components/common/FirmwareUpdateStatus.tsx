@@ -18,7 +18,6 @@ interface SigningKeyWarningCardProps {
   warning: SigningKeyWarning;
   fileName: string;
   onSendAnyway: () => void;
-  onChooseAnotherFile: () => void;
 }
 
 /**
@@ -86,7 +85,6 @@ export const SigningKeyWarningCard = ({
   warning,
   fileName,
   onSendAnyway,
-  onChooseAnotherFile,
 }: SigningKeyWarningCardProps) => (
   <View style={[styles.outcome, { borderColor: Colors.warning }]}>
     <Text style={styles.title}>This file may not install</Text>
@@ -101,13 +99,6 @@ export const SigningKeyWarningCard = ({
     </Text>
     <Button mode="outlined" style={styles.action} onPress={onSendAnyway}>
       Send it anyway
-    </Button>
-    <Button
-      mode="contained"
-      style={styles.action}
-      onPress={onChooseAnotherFile}
-    >
-      Choose a different file
     </Button>
   </View>
 );

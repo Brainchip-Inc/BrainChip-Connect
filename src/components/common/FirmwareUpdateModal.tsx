@@ -150,7 +150,6 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
                     warning={keyWarning}
                     fileName={selected.name}
                     onSendAnyway={startUpdate}
-                    onChooseAnotherFile={browseForFirmware}
                   />
                 ) : (
                   <Button

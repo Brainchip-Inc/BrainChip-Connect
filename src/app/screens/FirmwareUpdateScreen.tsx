@@ -163,7 +163,6 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                   warning={keyWarning}
                   fileName={selected.name}
                   onSendAnyway={startUpdate}
-                  onChooseAnotherFile={browseForFirmware}
                 />
               ) : (
                 <Button
