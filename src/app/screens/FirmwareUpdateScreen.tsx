@@ -162,7 +162,6 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
 
               {keyWarning ? (
                 <SigningKeyWarningCard
-                  warning={keyWarning}
                   fileName={selected.name}
                   onSendAnyway={startUpdate}
                   disabled={!canInstall}

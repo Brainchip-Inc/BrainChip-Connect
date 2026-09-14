@@ -11,10 +11,7 @@
  */
 
 import { Buffer } from 'buffer';
-import {
-  formatKeyFingerprint,
-  parseMcubootImage,
-} from '../src/services/firmware/mcubootImage';
+import { parseMcubootImage } from '../src/services/firmware/mcubootImage';
 
 const IMAGE_MAGIC = 0x96f3b83d;
 const TLV_INFO_MAGIC_PROTECTED = 0x6908;
@@ -112,14 +109,6 @@ describe('parseMcubootImage', () => {
     const truncated = buildImage().subarray(0, 96 + 2);
     expect(() => parseMcubootImage(truncated)).toThrow(
       'This firmware file is incomplete.',
-    );
-  });
-});
-
-describe('formatKeyFingerprint', () => {
-  it('keeps the ends a person compares and drops the middle', () => {
-    expect(formatKeyFingerprint('a91c0000000000000000000000007e04')).toBe(
-      'a91c…7e04',
     );
   });
 });

@@ -149,7 +149,6 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
 
                 {keyWarning ? (
                   <SigningKeyWarningCard
-                    warning={keyWarning}
                     fileName={selected.name}
                     onSendAnyway={startUpdate}
                     disabled={!canInstall}

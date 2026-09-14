@@ -3,11 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Modal, Portal, Text } from 'react-native-paper';
 import { Colors } from '../../app/theme/theme';
 import { describeUpdateEnding } from '../../services/firmware/firmwareUpdateAnnouncement';
-import { formatKeyFingerprint } from '../../services/firmware/mcubootImage';
 import {
   FirmwareUpdateEnding,
   FirmwareUpdateStage,
-  SigningKeyWarning,
 } from '../../types/firmwareUpdate';
 
 interface FirmwareUpdateStatusProps {
@@ -18,7 +16,6 @@ interface FirmwareUpdateStatusProps {
 }
 
 interface SigningKeyWarningCardProps {
-  warning: SigningKeyWarning;
   fileName: string;
   onSendAnyway: () => void;
   disabled: boolean;
@@ -111,12 +108,13 @@ const OutcomeBody = ({
 /**
  * Warn before the upload that a board is unlikely to accept this file.
  *
- * This is the one place a signing key is named, because it is the one place
- * the app knows both keys for certain: the file's own, and the one that signed
- * the last firmware this board took.
+ * The fingerprints behind this warning stay out of it. They are what the app
+ * compared, but a hex digest means nothing to someone holding a board, and
+ * spelling out which key signed what invites reading the refusal that may
+ * follow as proven to be the key's fault, which the board never says. The
+ * development log keeps them for whoever is diagnosing a report.
  */
 export const SigningKeyWarningCard = ({
-  warning,
   fileName,
   onSendAnyway,
   disabled,
@@ -124,13 +122,8 @@ export const SigningKeyWarningCard = ({
   <View style={[styles.outcome, { borderColor: Colors.warning }]}>
     <Text style={styles.title}>This file may not install</Text>
     <Text style={styles.body}>
-      {fileName} is signed with key {formatKeyFingerprint(warning.fileKeyHash)}.
-      The last firmware this board accepted was signed with{' '}
-      {formatKeyFingerprint(warning.boardKeyHash)}.
-    </Text>
-    <Text style={styles.body}>
-      If your board still only trusts that key it will refuse this file and keep
-      running its current firmware.
+      {fileName} is signed with a different signing key and may not be accepted
+      by the board.
     </Text>
     <Button
       mode="outlined"

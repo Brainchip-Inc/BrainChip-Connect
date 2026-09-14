@@ -97,12 +97,3 @@ export const parseMcubootImage = (image: Buffer): McubootImage => {
     keyHash: keyHash ? keyHash.toString('hex') : null,
   };
 };
-
-/**
- * Shorten a key fingerprint to something a person can compare at a glance.
- *
- * @param keyHash - Full lowercase hex fingerprint.
- * @returns Its first and last four characters, joined by an ellipsis.
- */
-export const formatKeyFingerprint = (keyHash: string): string =>
-  `${keyHash.slice(0, 4)}…${keyHash.slice(-4)}`;

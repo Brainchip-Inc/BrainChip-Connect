@@ -145,6 +145,14 @@ export const useFirmwareUpdate = () => {
         : null;
 
       if (image.keyHash && boardKeyHash && image.keyHash !== boardKeyHash) {
+        // The warning itself names neither key, so this is the only place the
+        // two digests behind it can be read when a report has to be diagnosed.
+        if (__DEV__) {
+          console.log(
+            `[FOTA] signing key mismatch: file ${image.keyHash}, ` +
+              `board ${boardKeyHash}`,
+          );
+        }
         setKeyWarning({ fileKeyHash: image.keyHash, boardKeyHash });
       }
     } catch (error: unknown) {
