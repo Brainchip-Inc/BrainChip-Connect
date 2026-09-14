@@ -33,7 +33,6 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     isBusy,
     browseForFirmware,
     startUpdate,
-    endUpdate,
   } = useFirmwareUpdate();
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
@@ -42,16 +41,11 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
   const [showUninstallProgress, setShowUninstallProgress] = useState(false);
   const [uninstallProgress, setUninstallProgress] = useState(0);
 
-  const closeModal = () => {
-    onClose();
-    endUpdate();
-  };
-
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={closeModal}
+        onDismiss={onClose}
         contentContainerStyle={styles.modalContainer}
         dismissable={!isBusy}
       >
@@ -71,7 +65,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             </View>
 
             <TouchableOpacity
-              onPress={closeModal}
+              onPress={onClose}
               style={styles.closeBtn}
               disabled={isBusy}
             >
@@ -120,7 +114,6 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             <FirmwareUpdateStatus
               stage={stage}
               sentVersion={selected?.version ?? null}
-              onDone={closeModal}
             />
 
             {/* ACTION BUTTON */}

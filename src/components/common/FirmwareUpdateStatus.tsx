@@ -4,7 +4,6 @@ import { Button, Text } from 'react-native-paper';
 import { Colors } from '../../app/theme/theme';
 import { formatKeyFingerprint } from '../../services/firmware/mcubootImage';
 import {
-  FirmwareUpdateEnding,
   FirmwareUpdateStage,
   SigningKeyWarning,
 } from '../../types/firmwareUpdate';
@@ -13,7 +12,6 @@ interface FirmwareUpdateStatusProps {
   stage: FirmwareUpdateStage;
   /** Version read out of the selected file, shown while the board installs. */
   sentVersion: string | null;
-  onDone: () => void;
 }
 
 interface SigningKeyWarningCardProps {
@@ -78,98 +76,6 @@ const ProgressCard = ({
 };
 
 /**
- * Report what the board did with the firmware, once it has been asked.
- *
- * A refused update names no cause. The board never reports why it turned an
- * image down, so anything beyond "it did not install" would be a guess. Where
- * the app does know more it says so: which of the two ways it failed to
- * confirm an update, and whether a failed transfer got the whole image onto
- * the board before it went wrong.
- */
-const OutcomeCard = ({
-  stage,
-  onDone,
-}: {
-  stage: FirmwareUpdateEnding;
-  onDone: () => void;
-}) => {
-  if (stage.kind === 'installed') {
-    return (
-      <View style={[styles.outcome, { borderColor: Colors.success }]}>
-        <Text style={[styles.title, { color: Colors.success }]}>
-          Update installed
-        </Text>
-        <Text style={styles.body}>
-          Your AkidaTag is now running firmware {stage.version}.
-        </Text>
-        <Text style={styles.body}>
-          Confirmed with the board after it restarted.
-        </Text>
-        <Button mode="contained" style={styles.action} onPress={onDone}>
-          Done
-        </Button>
-      </View>
-    );
-  }
-
-  if (stage.kind === 'rejected') {
-    return (
-      <View style={[styles.outcome, { borderColor: Colors.error }]}>
-        <Text style={[styles.title, { color: Colors.error }]}>
-          Update did not install
-        </Text>
-        <Text style={styles.body}>
-          Your AkidaTag is still running
-          {stage.runningVersion
-            ? ` firmware ${stage.runningVersion}`
-            : ' its previous firmware'}
-          . It did not accept the firmware you sent and restarted on its
-          previous version. Nothing on the board was changed.
-        </Text>
-        <Button mode="contained" style={styles.action} onPress={onDone}>
-          Done
-        </Button>
-      </View>
-    );
-  }
-
-  if (stage.kind === 'failed') {
-    return (
-      <View style={[styles.outcome, { borderColor: Colors.warning }]}>
-        <Text style={styles.title}>Update failed</Text>
-        <Text style={styles.body}>
-          {stage.failedWhile === 'sending'
-            ? 'The firmware could not be sent to your AkidaTag. The board is still running its previous firmware and nothing on it was changed.'
-            : 'Your AkidaTag took the whole firmware file but did not install it. The board is still running its previous firmware.'}
-        </Text>
-        <Text style={styles.detail}>Details: {stage.detail}</Text>
-        <Button mode="contained" style={styles.action} onPress={onDone}>
-          Done
-        </Button>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.outcome}>
-      <Text style={styles.title}>Could not confirm the update</Text>
-      <Text style={styles.body}>
-        {stage.reason === 'unidentifiable'
-          ? 'The firmware was sent and your AkidaTag restarted, but it never reported the serial number that tells one AkidaTag from another. The app could not be sure it was asking the same board, so it did not ask.'
-          : 'The firmware was sent and your AkidaTag restarted, but it did not answer when the app asked which firmware it is now running.'}
-      </Text>
-      <Text style={styles.body}>
-        Select your AkidaTag in the device list to see the firmware version it
-        is running now.
-      </Text>
-      <Button mode="contained" style={styles.action} onPress={onDone}>
-        Reconnect
-      </Button>
-    </View>
-  );
-};
-
-/**
  * Warn before the upload that a board is unlikely to accept this file.
  *
  * This is the one place a signing key is named, because it is the one place
@@ -207,26 +113,20 @@ export const SigningKeyWarningCard = ({
 );
 
 /**
- * Render whichever of the update's states is current, and nothing when idle.
+ * Show what the update is doing, and nothing once it is over.
+ *
+ * How an update ended is announced instead of drawn, so that it reaches the
+ * user whether or not they stayed on this screen to watch.
  */
 const FirmwareUpdateStatus = ({
   stage,
   sentVersion,
-  onDone,
 }: FirmwareUpdateStatusProps) => {
   if (stage.kind === 'idle') {
     return null;
   }
 
-  if (
-    stage.kind === 'sending' ||
-    stage.kind === 'restarting' ||
-    stage.kind === 'checking'
-  ) {
-    return <ProgressCard stage={stage} sentVersion={sentVersion} />;
-  }
-
-  return <OutcomeCard stage={stage} onDone={onDone} />;
+  return <ProgressCard stage={stage} sentVersion={sentVersion} />;
 };
 
 export default FirmwareUpdateStatus;
@@ -251,12 +151,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 13,
     color: Colors.text.secondary,
-    marginBottom: 8,
-  },
-
-  detail: {
-    fontSize: 12,
-    color: Colors.text.tertiary,
     marginBottom: 8,
   },
 

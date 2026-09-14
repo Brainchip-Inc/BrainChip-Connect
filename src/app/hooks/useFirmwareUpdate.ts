@@ -1,20 +1,25 @@
 import { pick } from '@react-native-documents/picker';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import bleService from '../../services/ble/bleManager';
+import { describeUpdateEnding } from '../../services/firmware/firmwareUpdateAnnouncement';
 import {
   getTrustedKeyHash,
   rememberTrustedKeyHash,
 } from '../../services/firmware/trustedKeyStorage';
+import {
+  FirmwareUpdateEnding,
+  FirmwareUpdateStage,
+  SelectedFirmware,
+  SigningKeyWarning,
+} from '../../types/firmwareUpdate';
 import { useBleCommandStore } from '../store/useBleCommandStore';
 import { useBleStore } from '../store/useBleStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
-import { useFirmwareUpdateStore } from '../store/useFirmwareUpdateStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 
 const BUSY_STAGES = ['sending', 'restarting', 'checking'];
-const FINISHED_STAGES = ['installed', 'rejected', 'unconfirmed', 'failed'];
 
 /**
  * Copy a picked file into the app's cache under its own name.
@@ -45,24 +50,26 @@ const cacheFirmwareFile = async (
  * update, and reporting what the board actually did with it.
  *
  * Both firmware screens drive this, so the wording and the state machine
- * cannot drift apart between them. The state itself lives in a store rather
- * than in the screen, so an update that outlasts the screen it was started
- * from still has its outcome to show when the user comes back.
+ * cannot drift apart between them. The ending is announced rather than drawn,
+ * because a board takes up to two minutes to restart and be asked what it is
+ * running, and the user is free to walk away from the screen meanwhile: an
+ * alert reaches them wherever they are, where a card only reaches them if
+ * they happen to still be looking at it.
  */
 export const useFirmwareUpdate = () => {
   const deviceSerial = useBleCommandStore(state => state.deviceSerial);
-  const {
-    selected,
-    keyWarning,
-    stage,
-    setSelected,
-    setKeyWarning,
-    setStage,
-    reset,
-  } = useFirmwareUpdateStore();
+
+  const [selected, setSelected] = useState<SelectedFirmware | null>(null);
+  const [keyWarning, setKeyWarning] = useState<SigningKeyWarning | null>(null);
+  const [stage, setStage] = useState<FirmwareUpdateStage>({ kind: 'idle' });
+
+  const clearSelection = useCallback(() => {
+    setSelected(null);
+    setKeyWarning(null);
+  }, []);
 
   const browseForFirmware = useCallback(async () => {
-    reset();
+    clearSelection();
 
     let localPath: string;
     let fileName: string;
@@ -124,7 +131,7 @@ export const useFirmwareUpdate = () => {
         error?.message ?? 'This file could not be read as firmware.',
       );
     }
-  }, [deviceSerial, reset, setKeyWarning, setSelected]);
+  }, [clearSelection, deviceSerial]);
 
   const startUpdate = useCallback(async () => {
     const deviceId = useBleStore.getState().connectedDevice?.id;
@@ -148,6 +155,7 @@ export const useFirmwareUpdate = () => {
     // says so before it is asked to install it. That is what separates a
     // transfer that never landed from one the board then refused.
     let boardStoredImage = false;
+    let ending: FirmwareUpdateEnding;
 
     try {
       const outcome = await bleService.performFota(deviceId, selected.path, {
@@ -167,6 +175,7 @@ export const useFirmwareUpdate = () => {
       });
 
       BleConnectionHelper.markConnectionClosed();
+      ending = outcome;
 
       if (outcome.status === 'installed') {
         if (deviceSerial && selected.keyHash) {
@@ -179,62 +188,28 @@ export const useFirmwareUpdate = () => {
           size: `${(selected.sizeBytes / 1024).toFixed(2)} KB`,
           useCases: ['Local Firmware'],
         });
-        setSelected(null);
-        setStage({ kind: 'installed', version: outcome.version });
-        return;
+        clearSelection();
       }
-
-      if (outcome.status === 'rejected') {
-        setStage({
-          kind: 'rejected',
-          runningVersion: outcome.runningVersion,
-        });
-        return;
-      }
-
-      setStage({ kind: 'unconfirmed', reason: outcome.reason });
     } catch (error: any) {
-      setStage({
-        kind: 'failed',
+      ending = {
+        status: 'failed',
         failedWhile: boardStoredImage ? 'installing' : 'sending',
         detail: error?.message ?? 'The firmware update did not complete.',
-      });
-    }
-  }, [deviceSerial, selected, setKeyWarning, setSelected, setStage]);
-
-  /**
-   * The one ending an update has, whichever control the user reaches for.
-   *
-   * Closing the outcome card, closing the modal and backing out of the screen
-   * all land here, so there is a single place that gives up the board and puts
-   * the app back where it can pick one again. It does nothing while an update
-   * is still running or has not been started, which is what lets the user
-   * leave and come back to an update in flight rather than being held there.
-   */
-  const endUpdate = useCallback(async () => {
-    if (!FINISHED_STAGES.includes(stage.kind)) {
-      return;
+      };
     }
 
-    const openDeviceId = useBleStore.getState().connectedDevice?.id;
-    if (openDeviceId) {
-      try {
-        await bleService.disconnectDevice(openDeviceId);
-      } catch {}
-    }
+    setStage({ kind: 'idle' });
 
-    reset();
-    BleConnectionHelper.returnToDeviceList();
-  }, [reset, stage.kind]);
+    const { title, message } = describeUpdateEnding(ending);
+    Alert.alert(title, message);
+  }, [clearSelection, deviceSerial, selected]);
 
   return {
     selected,
     stage,
     keyWarning,
     isBusy: BUSY_STAGES.includes(stage.kind),
-    hasFinished: FINISHED_STAGES.includes(stage.kind),
     browseForFirmware,
     startUpdate,
-    endUpdate,
   };
 };

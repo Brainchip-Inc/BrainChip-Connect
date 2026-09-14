@@ -25,19 +25,9 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     stage,
     keyWarning,
     isBusy,
-    hasFinished,
     browseForFirmware,
     startUpdate,
-    endUpdate,
   } = useFirmwareUpdate();
-
-  const leaveScreen = () => {
-    if (hasFinished) {
-      endUpdate();
-      return;
-    }
-    navigation.goBack();
-  };
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
 
@@ -61,7 +51,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
         {/* HEADER – FULL WIDTH */}
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
-            <TouchableOpacity onPress={leaveScreen}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
               <ChevronLeft size={20} color={Colors.black} />
             </TouchableOpacity>
 
@@ -134,7 +124,6 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
           <FirmwareUpdateStatus
             stage={stage}
             sentVersion={selected?.version ?? null}
-            onDone={endUpdate}
           />
 
           <View style={styles.actionArea}>

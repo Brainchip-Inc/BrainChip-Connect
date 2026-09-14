@@ -55,26 +55,21 @@ export interface SigningKeyWarning {
   boardKeyHash: string;
 }
 
-/**
- * Where an update has got to, and how it ended.
- *
- * The three failing endings are deliberately distinct: `rejected` is the board
- * refusing to run firmware it accepted the transfer of, `failed` is the
- * transfer itself going wrong, and `unconfirmed` is the app being unable to
- * find out either way.
- */
+/** How far an update in flight has got, for the screen to describe. */
 export type FirmwareUpdateStage =
   | { kind: 'idle' }
   | { kind: 'sending'; percent: number }
   | { kind: 'restarting' }
-  | { kind: 'checking' }
-  | { kind: 'installed'; version: string }
-  | { kind: 'rejected'; runningVersion: string | null }
-  | { kind: 'unconfirmed'; reason: UnconfirmedReason }
-  | { kind: 'failed'; failedWhile: FirmwareTransferStep; detail: string };
+  | { kind: 'checking' };
 
-/** The stages an update finishes in, as opposed to passes through. */
-export type FirmwareUpdateEnding = Extract<
-  FirmwareUpdateStage,
-  { kind: 'installed' | 'rejected' | 'unconfirmed' | 'failed' }
->;
+/**
+ * How an update ended, which is every way it can stop.
+ *
+ * The three failing endings are deliberately distinct: `rejected` is the board
+ * refusing to run firmware it accepted the transfer of, `failed` is the
+ * transfer itself going wrong before the board ever restarted, and
+ * `unconfirmed` is the app being unable to find out either way.
+ */
+export type FirmwareUpdateEnding =
+  | FirmwareUpdateOutcome
+  | { status: 'failed'; failedWhile: FirmwareTransferStep; detail: string };
