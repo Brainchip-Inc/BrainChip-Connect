@@ -10,7 +10,10 @@
  */
 
 import { describeUpdateEnding } from '../src/services/firmware/firmwareUpdateAnnouncement';
-import { FirmwareUpdateEnding } from '../src/types/firmwareUpdate';
+import {
+  FirmwareUpdateEnding,
+  UnconfirmedReason,
+} from '../src/types/firmwareUpdate';
 
 const ENDINGS: FirmwareUpdateEnding[] = [
   { status: 'installed', version: '1.2.0' },
@@ -48,9 +51,18 @@ describe('describeUpdateEnding', () => {
     expect(title).toBe('Update did not install');
     expect(message).toBe(
       'Your AkidaTag is still running firmware 1.1.1. It did not accept the ' +
-        'firmware you sent and restarted on its previous version. Nothing on ' +
-        'the board was changed.',
+        'firmware you sent and restarted on its previous version.',
     );
+  });
+
+  it('never claims nothing on the board was changed', () => {
+    // A refused image is written to the spare slot before the board ever
+    // looks at it, and on the board this bug was found on it stays there.
+    ENDINGS.forEach(ending => {
+      expect(describeUpdateEnding(ending).message).not.toMatch(
+        /nothing on (it|the board)/i,
+      );
+    });
   });
 
   it('does not invent a version the board never reported', () => {
@@ -94,15 +106,25 @@ describe('describeUpdateEnding', () => {
     expect(message).not.toContain('Nothing on the board was changed');
   });
 
-  it('does not say a board it never reached restarted or was asked anything', () => {
-    const unreachable = describeUpdateEnding({
-      status: 'unconfirmed',
-      reason: 'unreachable',
-    });
+  it('never claims a restart it did not watch happen', () => {
+    // None of these endings involves the app seeing the board come back on a
+    // new image, so none of them may say it restarted. Only the unreachable
+    // wording used to get this right.
+    const reasons: UnconfirmedReason[] = [
+      'unidentifiable',
+      'unreachable',
+      'unanswered',
+    ];
 
-    expect(unreachable.message).toContain('could not reach your AkidaTag');
-    expect(unreachable.message).not.toContain('restarted');
-    expect(unreachable.message).not.toContain('did not answer');
+    reasons.forEach(reason => {
+      const { message } = describeUpdateEnding({
+        status: 'unconfirmed',
+        reason,
+      });
+
+      expect(message).toContain('The firmware was sent');
+      expect(message).not.toMatch(/restart/i);
+    });
   });
 
   it('says a success is a success only for a confirmed install', () => {

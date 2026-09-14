@@ -1,9 +1,11 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Text } from 'react-native-paper';
+import { Button, Modal, Portal, Text } from 'react-native-paper';
 import { Colors } from '../../app/theme/theme';
+import { describeUpdateEnding } from '../../services/firmware/firmwareUpdateAnnouncement';
 import { formatKeyFingerprint } from '../../services/firmware/mcubootImage';
 import {
+  FirmwareUpdateEnding,
   FirmwareUpdateStage,
   SigningKeyWarning,
 } from '../../types/firmwareUpdate';
@@ -12,6 +14,7 @@ interface FirmwareUpdateStatusProps {
   stage: FirmwareUpdateStage;
   /** Version read out of the selected file, shown while the board installs. */
   sentVersion: string | null;
+  onDone: () => void;
 }
 
 interface SigningKeyWarningCardProps {
@@ -27,11 +30,11 @@ interface SigningKeyWarningCardProps {
  * for the first and answering for the second, and only the second can tell the
  * user anything.
  */
-const ProgressCard = ({
+const ProgressBody = ({
   stage,
   sentVersion,
 }: {
-  stage: FirmwareUpdateStage;
+  stage: Exclude<FirmwareUpdateStage, { kind: 'idle' | 'done' }>;
   sentVersion: string | null;
 }) => {
   if (stage.kind === 'sending') {
@@ -75,6 +78,32 @@ const ProgressCard = ({
 };
 
 /**
+ * Report what the board did with the firmware, once its answer is in.
+ *
+ * The board never says why it turned an image down, so a refusal is stated
+ * without a cause; every other ending says only what the app watched happen.
+ */
+const OutcomeBody = ({
+  ending,
+  onDone,
+}: {
+  ending: FirmwareUpdateEnding;
+  onDone: () => void;
+}) => {
+  const { title, message } = describeUpdateEnding(ending);
+
+  return (
+    <View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.body}>{message}</Text>
+      <Button mode="contained" style={styles.action} onPress={onDone}>
+        Done
+      </Button>
+    </View>
+  );
+};
+
+/**
  * Warn before the upload that a board is unlikely to accept this file.
  *
  * This is the one place a signing key is named, because it is the one place
@@ -104,25 +133,57 @@ export const SigningKeyWarningCard = ({
 );
 
 /**
- * Show what the update is doing, and nothing once it is over.
+ * The one modal an update runs behind, from the first byte to the answer.
  *
- * How an update ended is announced instead of drawn, so that it reaches the
- * user whether or not they stayed on this screen to watch.
+ * It opens when the install starts, names each step as it happens, and then
+ * holds the result until the user presses Done. There is nothing to dismiss it
+ * with before that: an update the app has stopped following would leave the
+ * board mid-flash with nobody watching, and the steps are what tell the user
+ * the two-minute silence while the board restarts is expected.
  */
 const FirmwareUpdateStatus = ({
   stage,
   sentVersion,
+  onDone,
 }: FirmwareUpdateStatusProps) => {
   if (stage.kind === 'idle') {
     return null;
   }
 
-  return <ProgressCard stage={stage} sentVersion={sentVersion} />;
+  return (
+    <Portal>
+      <Modal
+        visible
+        dismissable={false}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <View style={styles.modal}>
+          {stage.kind === 'done' ? (
+            <OutcomeBody ending={stage.ending} onDone={onDone} />
+          ) : (
+            <ProgressBody stage={stage} sentVersion={sentVersion} />
+          )}
+        </View>
+      </Modal>
+    </Portal>
+  );
 };
 
 export default FirmwareUpdateStatus;
 
 const styles = StyleSheet.create({
+  modalContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+
+  modal: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    padding: 20,
+  },
+
   outcome: {
     borderWidth: 1,
     borderColor: Colors.border.light,

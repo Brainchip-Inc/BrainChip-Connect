@@ -34,6 +34,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     canInstall,
     browseForFirmware,
     startUpdate,
+    dismissOutcome,
   } = useFirmwareUpdate();
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
@@ -115,6 +116,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             <FirmwareUpdateStatus
               stage={stage}
               sentVersion={selected?.version ?? null}
+              onDone={dismissOutcome}
             />
 
             {/* ACTION BUTTON */}

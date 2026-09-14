@@ -28,6 +28,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     canInstall,
     browseForFirmware,
     startUpdate,
+    dismissOutcome,
   } = useFirmwareUpdate();
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
@@ -125,6 +126,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
           <FirmwareUpdateStatus
             stage={stage}
             sentVersion={selected?.version ?? null}
+            onDone={dismissOutcome}
           />
 
           <View style={styles.actionArea}>

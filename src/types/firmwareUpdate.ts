@@ -46,12 +46,20 @@ export interface SigningKeyWarning {
   boardKeyHash: string;
 }
 
-/** How far an update in flight has got, for the screen to describe. */
+/**
+ * Where an update has got to, from the moment the user starts it until they
+ * close the result.
+ *
+ * `done` is not a fifth step so much as the same modal's last screenful: the
+ * update reports each step as it happens and then stays up holding the answer
+ * until the user has read it.
+ */
 export type FirmwareUpdateStage =
   | { kind: 'idle' }
   | { kind: 'sending'; percent: number }
   | { kind: 'restarting' }
-  | { kind: 'checking' };
+  | { kind: 'checking' }
+  | { kind: 'done'; ending: FirmwareUpdateEnding };
 
 /**
  * How an update ended, which is every way it can stop.

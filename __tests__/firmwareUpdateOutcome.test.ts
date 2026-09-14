@@ -91,6 +91,7 @@ class SimulatedBoard {
   failUploadAtOffset: number | null = null;
   refusesToConfirm = false;
   keepsStagedImageAfterReboot = false;
+  ignoresResetCommand = false;
   reportsImagesAfterReboot = true;
 
   staged = false;
@@ -107,6 +108,7 @@ class SimulatedBoard {
     this.failUploadAtOffset = null;
     this.refusesToConfirm = false;
     this.keepsStagedImageAfterReboot = false;
+    this.ignoresResetCommand = false;
     this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
@@ -150,6 +152,10 @@ class SimulatedBoard {
       },
     ];
 
+    // The trailer that marks an image pending survives right up until the
+    // bootloader looks at it; refusing the image is what scrambles it. So an
+    // image the board never booted to is still pending, and one it turned down
+    // is listed, where it is listed at all, with the flag cleared.
     if (this.staged && (!this.rebooted || this.keepsStagedImageAfterReboot)) {
       images.push({
         slot: 1,
@@ -157,6 +163,7 @@ class SimulatedBoard {
         hash: new Uint8Array(NEW_HASH),
         active: false,
         confirmed: false,
+        pending: !this.rebooted,
       });
     }
 
@@ -183,8 +190,12 @@ class SimulatedBoard {
       return body?.query === 'mode' ? { mode: 0 } : { bootloader: 'MCUboot' };
     }
     if (group === 0 && command === 5) {
-      this.resetCount += 1;
-      this.rebooted = true;
+      // A reset is answered with silence either way, so a board that never
+      // acted on it looks exactly like one that did from the phone's side.
+      if (!this.ignoresResetCommand) {
+        this.resetCount += 1;
+        this.rebooted = true;
+      }
       return null;
     }
     if (group === 1 && command === 0 && op === 0) {
@@ -376,17 +387,18 @@ describe('performFota against a simulated board', () => {
   }, 60000);
 
   it('reports a board that never restarted, rather than calling it refused', async () => {
-    // The bootloader erases an image it refuses, so an image still sitting in
-    // the spare slot proves the board never booted to look at it. Saying it
-    // was refused would be wrong twice over: the board did not restart, and
-    // the firmware is still there to install on the next power cycle.
-    mockBoard.reset(false);
-    mockBoard.keepsStagedImageAfterReboot = true;
+    // The reset never took effect, so the board is still up on its old
+    // firmware with the image waiting in the spare slot. Calling that a
+    // refusal would be wrong twice over: the board never looked at the image,
+    // and it will install on the next power cycle.
+    mockBoard.reset(true);
+    mockBoard.ignoresResetCommand = true;
 
     await expect(runUpdate()).resolves.toEqual({
       status: 'not-restarted',
       runningVersion: '1.1.1',
     });
+    expect(mockBoard.rebooted).toBe(false);
   }, 60000);
 
   it('reports a refused update instead of success', async () => {
@@ -400,6 +412,21 @@ describe('performFota against a simulated board', () => {
     });
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
     expect(mockBoard.resetCount).toBe(1);
+  }, 60000);
+
+  it('still reports a refusal when the board leaves the image it turned down in place', async () => {
+    // The bootloader is not required to erase what it refuses, and the board
+    // that produced this bug does not. The image list then looks like the
+    // not-restarted case apart from the trailer, which is why the trailer and
+    // not the image's presence is what the two are told apart by.
+    mockBoard.reset(false);
+    mockBoard.keepsStagedImageAfterReboot = true;
+
+    await expect(runUpdate()).resolves.toEqual({
+      status: 'rejected',
+      runningVersion: '1.1.1',
+    });
+    expect(mockBoard.rebooted).toBe(true);
   }, 60000);
 
   it('reports unconfirmed when there is no serial to recognise the board by', async () => {

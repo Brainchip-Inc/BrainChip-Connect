@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import bleService from '../../services/ble/bleManager';
-import { describeUpdateEnding } from '../../services/firmware/firmwareUpdateAnnouncement';
 import {
   getTrustedKeyHash,
   rememberTrustedKeyHash,
@@ -66,11 +65,9 @@ const cacheFirmwareFile = async (
  * update, and reporting what the board actually did with it.
  *
  * Both firmware screens drive this, so the wording and the state machine
- * cannot drift apart between them. The ending is announced rather than drawn,
- * because a board takes up to two minutes to restart and be asked what it is
- * running, and the user is free to walk away from the screen meanwhile: an
- * alert reaches them wherever they are, where a card only reaches them if
- * they happen to still be looking at it.
+ * cannot drift apart between them. One modal follows the whole update, from
+ * the first byte sent to the answer the board gives once it is back, and the
+ * ending is the last thing it shows rather than a separate announcement.
  */
 export const useFirmwareUpdate = () => {
   const deviceSerial = useBleCommandStore(state => state.deviceSerial);
@@ -207,11 +204,10 @@ export const useFirmwareUpdate = () => {
     }
 
     await forgetBoardUnlessStillConnected();
-    setStage({ kind: 'idle' });
-
-    const { title, message } = describeUpdateEnding(ending);
-    Alert.alert(title, message);
+    setStage({ kind: 'done', ending });
   }, [clearSelection, deviceSerial, selected]);
+
+  const dismissOutcome = useCallback(() => setStage({ kind: 'idle' }), []);
 
   const isBusy = stage.kind !== 'idle';
 
@@ -223,5 +219,6 @@ export const useFirmwareUpdate = () => {
     canInstall: Boolean(selected) && Boolean(connectedDevice) && !isBusy,
     browseForFirmware,
     startUpdate,
+    dismissOutcome,
   };
 };

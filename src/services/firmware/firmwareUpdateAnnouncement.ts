@@ -3,7 +3,7 @@ import {
   UnconfirmedReason,
 } from '../../types/firmwareUpdate';
 
-/** The alert that tells the user how a firmware update ended. */
+/** What the update modal says once the board's answer is in. */
 export interface UpdateAnnouncement {
   title: string;
   message: string;
@@ -23,9 +23,9 @@ export interface UpdateAnnouncement {
 const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
   if (reason === 'unidentifiable') {
     return (
-      'The firmware was sent and your AkidaTag restarted, but it never ' +
-      'reported the serial number that tells one AkidaTag from another. The ' +
-      'app could not be sure it was asking the same board, so it did not ask.'
+      'The firmware was sent, but this AkidaTag never reported the serial ' +
+      'number that tells one board from another. The app could not be sure ' +
+      'which board it would be talking to afterwards, so it did not ask.'
     );
   }
 
@@ -37,8 +37,8 @@ const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
   }
 
   return (
-    'The firmware was sent and your AkidaTag restarted, but it did not ' +
-    'answer when the app asked which firmware it is now running.'
+    'The firmware was sent and the app reached your AkidaTag again ' +
+    'afterwards, but the board would not say which firmware it is running.'
   );
 };
 
@@ -54,7 +54,7 @@ const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
  * the user with different things to do.
  *
  * @param ending - How the update turned out.
- * @returns Title and message to announce, wherever the user happens to be.
+ * @returns Title and message for the update modal to show.
  */
 export const describeUpdateEnding = (
   ending: FirmwareUpdateEnding,
@@ -77,8 +77,7 @@ export const describeUpdateEnding = (
       title: 'Update did not install',
       message:
         `Your AkidaTag is still running ${running}. It did not accept the ` +
-        'firmware you sent and restarted on its previous version. Nothing on ' +
-        'the board was changed.',
+        'firmware you sent and restarted on its previous version.',
     };
   }
 
