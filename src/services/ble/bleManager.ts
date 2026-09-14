@@ -1357,16 +1357,21 @@ class BleService {
   };
 
   /**
-   * Ask a rebooted board which image it is running.
+   * Ask a rebooted board which images it holds.
    *
    * @param deviceId - Board to ask, connected.
-   * @returns The running image's version and hash, or null if the board would
-   *   not answer. The hash is the board's own, so it compares directly with
-   *   the one it reported for the staged image before the reboot.
+   * @returns The running image's version and hash, and the hashes of every
+   *   slot, or null if the board would not answer. The hashes are the board's
+   *   own, so they compare directly with the one it reported for the staged
+   *   image before the reboot.
    */
-  private readActiveImage = async (
+  private readImages = async (
     deviceId: string,
-  ): Promise<{ version: string | null; hash: string } | null> => {
+  ): Promise<{
+    version: string | null;
+    hash: string;
+    slotHashes: string[];
+  } | null> => {
     this.pendingFotaResponse = null;
     this.fotaResolver = null;
     this.fotaRejecter = null;
@@ -1389,6 +1394,9 @@ class BleService {
       return {
         version: typeof active.version === 'string' ? active.version : null,
         hash: Buffer.from(active.hash).toString('hex'),
+        slotHashes: images
+          .filter(img => img.hash)
+          .map(img => Buffer.from(img.hash).toString('hex')),
       };
     } catch {
       return null;
@@ -1407,11 +1415,12 @@ class BleService {
    * @param sentVersion - Version of the image that was sent.
    * @param log - Sink for the protocol trace.
    * @returns Installed when the board came back running the staged image,
-   *   rejected when it came back running something else, and unconfirmed when
-   *   it could not be reached, would not answer, or cannot be told apart from
-   *   any other AkidaTag in range, alongside the id the board answered on. A
-   *   board that did come back is left connected, since the app has just
-   *   proved it is the same one.
+   *   rejected when it booted back onto its previous one, not-restarted when
+   *   it never rebooted at all, and unconfirmed when it could not be reached,
+   *   would not answer, or cannot be told apart from any other AkidaTag in
+   *   range, alongside the id the board answered on. A board that did come
+   *   back is left connected, since the app has just proved it is the same
+   *   one.
    */
   private verifyFirmwareInstalled = async (
     previousDeviceId: string,
@@ -1443,8 +1452,8 @@ class BleService {
       };
     }
 
-    const active = await this.readActiveImage(deviceId);
-    if (!active) {
+    const images = await this.readImages(deviceId);
+    if (!images) {
       log('Board would not report its running image');
       return {
         outcome: { status: 'unconfirmed', reason: 'unanswered' },
@@ -1452,7 +1461,7 @@ class BleService {
       };
     }
 
-    if (active.hash === stagedHash) {
+    if (images.hash === stagedHash) {
       log('Board is running the firmware that was sent');
       return {
         outcome: { status: 'installed', version: sentVersion },
@@ -1460,9 +1469,19 @@ class BleService {
       };
     }
 
+    // The bootloader erases an image it refuses, so one still sitting in a
+    // slot means the board never booted to look at it.
+    if (images.slotHashes.includes(stagedHash)) {
+      log('Board never restarted, and still holds the firmware that was sent');
+      return {
+        outcome: { status: 'not-restarted', runningVersion: images.version },
+        reconnectedDeviceId: deviceId,
+      };
+    }
+
     log('Board came back on its previous firmware');
     return {
-      outcome: { status: 'rejected', runningVersion: active.version },
+      outcome: { status: 'rejected', runningVersion: images.version },
       reconnectedDeviceId: deviceId,
     };
   };
@@ -1493,7 +1512,6 @@ class BleService {
       expectedSerial?: string | null;
       onProgress?: (percent: number) => void;
       onPhase?: (phase: FirmwareUpdatePhase) => void;
-      onLog?: (msg: string) => void;
     } = {},
   ): Promise<FirmwareUpdateOutcome> {
     if (this.otaInProgress) {
@@ -1512,7 +1530,6 @@ class BleService {
 
     const log = (msg: string) => {
       if (__DEV__) console.log('[FOTA]', msg);
-      options.onLog?.(msg);
     };
 
     this.cleanupMonitors();

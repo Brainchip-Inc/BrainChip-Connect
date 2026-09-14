@@ -15,6 +15,7 @@ import { FirmwareUpdateEnding } from '../src/types/firmwareUpdate';
 const ENDINGS: FirmwareUpdateEnding[] = [
   { status: 'installed', version: '1.2.0' },
   { status: 'rejected', runningVersion: '1.1.1' },
+  { status: 'not-restarted', runningVersion: '1.1.1' },
   { status: 'unconfirmed', reason: 'unidentifiable' },
   { status: 'unconfirmed', reason: 'unreachable' },
   { status: 'unconfirmed', reason: 'unanswered' },
@@ -23,7 +24,9 @@ const ENDINGS: FirmwareUpdateEnding[] = [
 
 describe('describeUpdateEnding', () => {
   it('gives every ending its own statement', () => {
-    const messages = ENDINGS.map(ending => describeUpdateEnding(ending).message);
+    const messages = ENDINGS.map(
+      ending => describeUpdateEnding(ending).message,
+    );
 
     expect(new Set(messages).size).toBe(ENDINGS.length);
   });
@@ -72,6 +75,23 @@ describe('describeUpdateEnding', () => {
     expect(failed.message).toContain('still running its previous firmware');
     expect(failed.message).not.toMatch(/nothing on (it|the board)/);
     expect(failed.message).toContain('Upload error at offset 50000');
+  });
+
+  it('does not call a board that never restarted a refusal', () => {
+    // The image is still on the board and will install on the next power
+    // cycle, so the refusal wording would be wrong twice and would leave the
+    // user surprised when the firmware turns up anyway.
+    const { title, message } = describeUpdateEnding({
+      status: 'not-restarted',
+      runningVersion: '1.1.1',
+    });
+
+    expect(title).not.toContain('did not install');
+    expect(message).toContain('did not restart');
+    expect(message).toContain('still running firmware 1.1.1');
+    expect(message).toContain('powered off and on');
+    expect(message).not.toContain('did not accept');
+    expect(message).not.toContain('Nothing on the board was changed');
   });
 
   it('does not say a board it never reached restarted or was asked anything', () => {

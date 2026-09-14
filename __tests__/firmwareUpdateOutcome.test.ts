@@ -90,13 +90,14 @@ class SimulatedBoard {
   acceptsUpdate = true;
   failUploadAtOffset: number | null = null;
   refusesToConfirm = false;
+  keepsStagedImageAfterReboot = false;
   reportsImagesAfterReboot = true;
 
   staged = false;
   rebooted = false;
   resetCount = 0;
   uploadedBytes = 0;
-  connectOptions: ({ timeout?: number } | undefined)[] = [];
+  comesBackAfterReboot = true;
 
   private notify: ((frame: Buffer) => void) | null = null;
   private notifyUart: ((frame: string) => void) | null = null;
@@ -105,12 +106,13 @@ class SimulatedBoard {
     this.acceptsUpdate = acceptsUpdate;
     this.failUploadAtOffset = null;
     this.refusesToConfirm = false;
+    this.keepsStagedImageAfterReboot = false;
     this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
     this.resetCount = 0;
     this.uploadedBytes = 0;
-    this.connectOptions = [];
+    this.comesBackAfterReboot = true;
   }
 
   onSmpNotify(listener: (frame: Buffer) => void) {
@@ -148,7 +150,7 @@ class SimulatedBoard {
       },
     ];
 
-    if (this.staged && !this.rebooted) {
+    if (this.staged && (!this.rebooted || this.keepsStagedImageAfterReboot)) {
       images.push({
         slot: 1,
         version: NEW_VERSION,
@@ -264,10 +266,24 @@ jest.mock('react-native-ble-plx', () => {
   return {
     State: { PoweredOn: 'PoweredOn' },
     BleManager: jest.fn().mockImplementation(() => ({
+      // Models what a BLE stack does with a board that is not there: the
+      // request hangs until the caller's own timeout expires, and forever if
+      // it did not set one, which is CoreBluetooth's documented behaviour.
       connectToDevice: jest.fn(
         async (_id: string, options?: { timeout?: number }) => {
-          mockBoard.connectOptions.push(options);
-          return device;
+          if (mockBoard.comesBackAfterReboot) {
+            return device;
+          }
+
+          return new Promise((_resolve, reject) => {
+            if (options?.timeout === undefined) {
+              return;
+            }
+            setTimeout(
+              () => reject(new Error('Device connection timed out')),
+              options.timeout,
+            );
+          });
         },
       ),
       devices: jest.fn(async () => [device]),
@@ -330,21 +346,46 @@ describe('performFota against a simulated board', () => {
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
   }, 60000);
 
-  it('bounds the connect attempts it makes looking for the restarted board', async () => {
-    // iOS never abandons a connect request on its own, so an unbounded attempt
-    // at a board that never comes back leaves the update neither resolved nor
-    // rejected and the user watching "Checking the board" forever.
+  it('gives up on a board that never comes back, instead of waiting forever', async () => {
+    // iOS never abandons a connect request of its own accord, so every attempt
+    // has to carry its own bound. Without one the update settles neither way
+    // and the user watches "Checking the board" until they force-quit, which
+    // is the silence this whole change exists to remove.
     mockBoard.reset(true);
+    mockBoard.comesBackAfterReboot = false;
+    jest.useFakeTimers();
+
+    try {
+      let settled = false;
+      const update = runUpdate().finally(() => {
+        settled = true;
+      });
+
+      for (let elapsed = 0; elapsed < 400000 && !settled; elapsed += 1000) {
+        await jest.advanceTimersByTimeAsync(1000);
+      }
+
+      expect(settled).toBe(true);
+      await expect(update).resolves.toEqual({
+        status: 'unconfirmed',
+        reason: 'unreachable',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  }, 60000);
+
+  it('reports a board that never restarted, rather than calling it refused', async () => {
+    // The bootloader erases an image it refuses, so an image still sitting in
+    // the spare slot proves the board never booted to look at it. Saying it
+    // was refused would be wrong twice over: the board did not restart, and
+    // the firmware is still there to install on the next power cycle.
+    mockBoard.reset(false);
+    mockBoard.keepsStagedImageAfterReboot = true;
 
     await expect(runUpdate()).resolves.toEqual({
-      status: 'installed',
-      version: '1.2.0',
-    });
-
-    expect(mockBoard.connectOptions.length).toBeGreaterThan(0);
-    mockBoard.connectOptions.forEach(options => {
-      expect(options?.timeout).toBeGreaterThan(0);
-      expect(options?.timeout).toBeLessThanOrEqual(10000);
+      status: 'not-restarted',
+      runningVersion: '1.1.1',
     });
   }, 60000);
 

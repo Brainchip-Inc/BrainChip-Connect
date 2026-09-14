@@ -5,11 +5,14 @@
  * A wrongly signed image is refused by the bootloader on the next boot, long
  * after the transfer itself has succeeded, so nothing during the transfer can
  * report it. `rejected` is that case, and it is the only thing the board makes
- * knowable: it never says why it refused an image.
+ * knowable: it never says why it refused an image. `not-restarted` is the
+ * board never having rebooted to look at the image at all, which the still
+ * present image itself proves, since a refused one is erased.
  */
 export type FirmwareUpdateOutcome =
   | { status: 'installed'; version: string }
   | { status: 'rejected'; runningVersion: string | null }
+  | { status: 'not-restarted'; runningVersion: string | null }
   | { status: 'unconfirmed'; reason: UnconfirmedReason };
 
 /**
@@ -23,10 +26,7 @@ export type FirmwareUpdateOutcome =
  * the firmware was sent. `unanswered` is the board coming back and not saying
  * which image it is running.
  */
-export type UnconfirmedReason =
-  | 'unidentifiable'
-  | 'unreachable'
-  | 'unanswered';
+export type UnconfirmedReason = 'unidentifiable' | 'unreachable' | 'unanswered';
 
 /** Step of an update the board owns, which the app can only wait through. */
 export type FirmwareUpdatePhase = 'restarting' | 'checking';

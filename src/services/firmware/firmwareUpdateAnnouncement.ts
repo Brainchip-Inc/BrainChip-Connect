@@ -82,6 +82,20 @@ export const describeUpdateEnding = (
     };
   }
 
+  if (ending.status === 'not-restarted') {
+    const running = ending.runningVersion
+      ? `firmware ${ending.runningVersion}`
+      : 'the firmware it was running before';
+
+    return {
+      title: 'Your AkidaTag did not restart',
+      message:
+        `The firmware was sent, but the board did not restart, so it is ` +
+        `still running ${running}. The firmware you sent is waiting on it ` +
+        'and may install the next time the board is powered off and on.',
+    };
+  }
+
   if (ending.status === 'failed') {
     return {
       title: 'Update failed',
