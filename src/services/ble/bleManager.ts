@@ -7,12 +7,41 @@ import RNFS from 'react-native-fs';
 import { unzip } from 'react-native-zip-archive';
 import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
+import {
+  FirmwareUpdateOutcome,
+  FirmwareUpdatePhase,
+} from '../../types/firmwareUpdate';
+import { McubootImage, parseMcubootImage } from '../firmware/mcubootImage';
 import { isAkidaTagManufacturerData } from './akidaTagAdvertisement';
 import { BleCommand } from './bleCommands';
 import { parseBinaryFrame, parseBleMessage } from './bleParser';
+import { FirmwareUpdateError } from '../firmware/firmwareUpdateError';
 import { buildCommand } from './buildCommand';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
+
+/** Grace period before the app starts looking for a board it just restarted. */
+const REBOOT_SETTLE_MS = 4000;
+
+/**
+ * How long to keep looking for a restarted board. Installing an image means
+ * copying it out of external SPI flash, so a board can be away for minutes.
+ */
+const REBOOT_RECONNECT_TIMEOUT_MS = 150000;
+
+/** Length of one scan while waiting for a restarted board to advertise. */
+const REBOOT_SCAN_WINDOW_MS = 6000;
+
+/**
+ * How long one attempt at reconnecting to a restarted board may hang. iOS
+ * never gives up on a connect request of its own accord, and the address the
+ * board had before the reboot is usually stale on Android, so an attempt that
+ * is going nowhere has to be abandoned for the next scan to happen at all.
+ */
+const REBOOT_CONNECT_TIMEOUT_MS = 10000;
+
+/** How long to wait for a board to answer with its hardware serial. */
+const SERIAL_READ_TIMEOUT_MS = 6000;
 
 class BleService {
   private bleManager: BleManager;
@@ -309,10 +338,20 @@ class BleService {
 
   /**
    * Connect to a BLE device and discover its services/characteristics.
+   *
+   * @param deviceId - Device to connect to.
+   * @param timeoutMs - How long to let the request hang, or undefined to wait
+   *   as long as the platform will, which on iOS is forever.
    */
-  connectDevice = async (deviceId: string): Promise<Device> => {
+  connectDevice = async (
+    deviceId: string,
+    timeoutMs?: number,
+  ): Promise<Device> => {
     try {
-      const device = await this.bleManager.connectToDevice(deviceId);
+      const device = await this.bleManager.connectToDevice(
+        deviceId,
+        timeoutMs === undefined ? undefined : { timeout: timeoutMs },
+      );
       const updatedDevice = await device.requestMTU(this.CHUNK_SIZE);
 
       this.negotiatedMTU = updatedDevice.mtu ?? 23;
@@ -420,6 +459,10 @@ class BleService {
    *
    */
   listenForDisconnection = (deviceId: string, onDisconnected: () => void) => {
+    // Reconnecting installs a fresh listener, so drop the previous one or a
+    // later disconnect fires the handler once per connection ever made.
+    this.stopDisconnectListener();
+
     this.disconnectSubscription = this.bleManager.onDeviceDisconnected(
       deviceId,
       (_error, _device) => {
@@ -734,7 +777,13 @@ class BleService {
       const timer = setTimeout(() => {
         this.fotaResolver = null;
         this.fotaRejecter = null;
-        reject(new Error(`FOTA timeout after ${timeoutMs}ms`));
+        if (__DEV__) console.log('[FOTA]', `No answer within ${timeoutMs}ms`);
+        reject(
+          new FirmwareUpdateError(
+            'The board stopped answering while the firmware was being sent. ' +
+              'Keep it close to the phone and try again.',
+          ),
+        );
       }, timeoutMs);
 
       this.fotaResolver = (data: any) => {
@@ -956,7 +1005,16 @@ class BleService {
       );
 
       if (response?.rc !== undefined && response.rc !== 0) {
-        throw new Error(`Upload error at offset ${offset}: rc=${response.rc}`);
+        if (__DEV__) {
+          console.log(
+            '[FOTA]',
+            `Upload refused at ${offset}, rc=${response.rc}`,
+          );
+        }
+        throw new FirmwareUpdateError(
+          'The board stopped accepting the firmware partway through. Try ' +
+            'sending it again.',
+        );
       }
 
       // Device echoes next expected offset in response.off
@@ -1037,21 +1095,489 @@ class BleService {
     }
   }
 
-  /* ──FOTA MTU FLOW ──
+  /**
+   * Locate the signed image inside whatever the user picked.
    *
+   * @param filePath - A `.bin`, or a `.zip` holding exactly one.
+   * @returns The image to send, and the directory a zip was expanded into,
+   *   which is empty for a `.bin` and is the caller's to delete.
+   * @throws If a zip carries no `.bin`.
    */
+  private extractFirmwareBinary = async (
+    filePath: string,
+  ): Promise<{ binaryPath: string; unzipPath: string }> => {
+    if (!filePath.endsWith('.zip')) {
+      return { binaryPath: filePath, unzipPath: '' };
+    }
 
+    const unzipPath = `${RNFS.TemporaryDirectoryPath}/firmware_${Date.now()}/`;
+    if (await RNFS.exists(unzipPath)) {
+      await RNFS.unlink(unzipPath);
+    }
+    await RNFS.mkdir(unzipPath);
+    await unzip(filePath, unzipPath);
+
+    const rootFiles = await RNFS.readDir(unzipPath);
+    const files =
+      rootFiles.length === 1 && rootFiles[0].isDirectory()
+        ? await RNFS.readDir(rootFiles[0].path)
+        : rootFiles;
+
+    const binFile = files.find(f => f.name.endsWith('.bin'));
+    if (!binFile) {
+      throw new FirmwareUpdateError(
+        'This ZIP does not contain a firmware image.',
+      );
+    }
+
+    return { binaryPath: binFile.path, unzipPath };
+  };
+
+  /**
+   * Read the MCUboot header out of an image already on disk.
+   *
+   * @param binaryPath - Signed image, extracted from whatever carried it.
+   * @returns The image's version and signing key fingerprint.
+   * @throws If the file is not AkidaTag firmware.
+   */
+  private readImageHeader = async (binaryPath: string): Promise<McubootImage> =>
+    parseMcubootImage(
+      Buffer.from(await RNFS.readFile(binaryPath, 'base64'), 'base64'),
+    );
+
+  /**
+   * Read the header of the firmware the user picked, without touching a board.
+   *
+   * @param filePath - A `.bin`, or a `.zip` holding exactly one.
+   * @returns The image's version and signing key fingerprint.
+   * @throws If the file is not AkidaTag firmware.
+   */
+  readFirmwareImage = async (filePath: string): Promise<McubootImage> => {
+    const { binaryPath, unzipPath } = await this.extractFirmwareBinary(
+      filePath,
+    );
+
+    try {
+      return await this.readImageHeader(binaryPath);
+    } finally {
+      this.safeDelete(unzipPath);
+    }
+  };
+
+  /**
+   * Push an image into the board's spare slot and mark it for installation.
+   *
+   * @param deviceId - Board to write to, connected.
+   * @param binaryPath - Signed image to send.
+   * @param onProgress - Called with the percentage uploaded so far.
+   * @param log - Sink for the protocol trace.
+   * @returns The hash the board reports for the image it stored, which is how
+   *   the same image is recognised again after the reboot.
+   * @throws If the board rejects a chunk, stores nothing, or refuses to mark
+   *   the image for installation.
+   */
+  private uploadAndConfirm = async (
+    deviceId: string,
+    binaryPath: string,
+    onProgress: ((percent: number) => void) | undefined,
+    log: (msg: string) => void,
+  ): Promise<string> => {
+    await this.requestFotaMtu(deviceId);
+    const sub = this.subscribeToFotaNotifications(deviceId);
+
+    try {
+      // Matches nRF Connect: let the subscription settle before the first write.
+      await new Promise(r => setTimeout(r, 500));
+
+      const params = await this.querySmpParams(deviceId);
+      log(`buf_size=${params.bufSize} buf_count=${params.bufCount}`);
+      log(`Bootloader: ${await this.queryBootloaderInfo(deviceId)}`);
+      log(`Boot mode: ${await this.queryBootMode(deviceId)}`);
+      log(`Images: ${JSON.stringify(await this.sendImageList(deviceId))}`);
+
+      await this.sendFirmwareFile(deviceId, binaryPath, onProgress);
+      log('Upload complete');
+
+      const updatedList = await this.sendImageList(deviceId);
+      const staged = updatedList?.images?.find((img: any) => img.slot === 1);
+      if (!staged?.hash) {
+        throw new FirmwareUpdateError(
+          'The board did not store the firmware that was sent.',
+        );
+      }
+
+      const confirmed = await this.confirmFirmware(
+        deviceId,
+        Buffer.from(staged.hash).toString('base64'),
+      );
+      if (confirmed?.rc) {
+        if (__DEV__) {
+          console.log('[FOTA]', `Confirm refused, rc=${confirmed.rc}`);
+        }
+        throw new FirmwareUpdateError(
+          'The board would not install the firmware it stored. Try sending ' +
+            'it again.',
+        );
+      }
+      log('Image confirmed');
+
+      return Buffer.from(staged.hash).toString('hex');
+    } finally {
+      this.removeSubscription(sub);
+    }
+  };
+
+  /**
+   * Collect the ids of every AkidaTag board advertising right now.
+   *
+   * @param timeoutMs - How long to keep scanning before answering.
+   */
+  private scanForAkidaTagIds = (timeoutMs: number): Promise<string[]> =>
+    new Promise(resolve => {
+      const ids: string[] = [];
+      const stopScan = this.scanDevices(
+        device => {
+          if (!ids.includes(device.id)) {
+            ids.push(device.id);
+          }
+        },
+        null,
+        timeoutMs,
+      );
+
+      setTimeout(() => {
+        stopScan();
+        resolve(ids);
+      }, timeoutMs);
+    });
+
+  /**
+   * Ask a connected board for its permanent hardware serial.
+   *
+   * @param deviceId - Board to ask, connected.
+   * @param timeoutMs - How long to wait for the device-info burst.
+   * @returns The serial in lowercase hex, or null if the burst never lands.
+   */
+  private readDeviceSerial = (
+    deviceId: string,
+    timeoutMs: number,
+  ): Promise<string | null> =>
+    new Promise(resolve => {
+      let subscription: Subscription | null = null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let settled = false;
+
+      const finish = (serial: string | null) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        if (subscription) {
+          this.removeSubscription(subscription);
+        }
+        resolve(serial);
+      };
+
+      timer = setTimeout(() => finish(null), timeoutMs);
+
+      this.subscribeToNotifications(deviceId, data => {
+        if (data.type === 'DEVICE_INFO' && data.data.serial) {
+          finish(String(data.data.serial).trim().toLowerCase());
+        }
+      })
+        .then(sub => {
+          subscription = sub;
+          return this.sendCommand(deviceId, BleCommand.DEVICE_INFO);
+        })
+        .catch(() => finish(null));
+    });
+
+  /**
+   * Connect to a candidate board and check it is the one that was updated.
+   *
+   * Every AkidaTag advertises the same chip id, so the serial from the
+   * device-info burst is the only thing that tells two boards apart.
+   *
+   * @param deviceId - Candidate to try.
+   * @param expectedSerial - Serial the board reported before the update.
+   * @param connectTimeoutMs - How long to let the connect request hang before
+   *   giving up on this candidate.
+   * @returns `same` with the connection left open, `no-serial` after
+   *   disconnecting a board that answered but never said which board it is,
+   *   and `not-it` for everything else, which is a board that named itself as
+   *   a different one and a candidate that could not be connected to alike.
+   *   Only `no-serial` says anything about the board being looked for: a board
+   *   that gave a different serial is simply some other AkidaTag in the room.
+   */
+  private isSameBoard = async (
+    deviceId: string,
+    expectedSerial: string,
+    connectTimeoutMs: number,
+  ): Promise<'same' | 'no-serial' | 'not-it'> => {
+    try {
+      await this.connectDevice(deviceId, connectTimeoutMs);
+    } catch {
+      // The MTU request and service discovery both run on a link that is
+      // already up, and both reject on a board still settling after a reboot,
+      // so a failure here can leave one open.
+      try {
+        await this.bleManager.cancelDeviceConnection(deviceId);
+      } catch {}
+      return 'not-it';
+    }
+
+    const serial = await this.readDeviceSerial(
+      deviceId,
+      SERIAL_READ_TIMEOUT_MS,
+    );
+    if (serial === expectedSerial) {
+      return 'same';
+    }
+
+    try {
+      await this.bleManager.cancelDeviceConnection(deviceId);
+    } catch {}
+    return serial === null ? 'no-serial' : 'not-it';
+  };
+
+  /**
+   * Get back to the board that was just updated, once it has restarted.
+   *
+   * Its Bluetooth address can change across a reboot, so the previous id is
+   * only tried first and a scan finds the board again when that fails.
+   *
+   * @param previousDeviceId - Id the board had before it restarted.
+   * @param expectedSerial - Serial the board reported before the update.
+   * @param log - Sink for the protocol trace.
+   * @returns The id to talk to, or null with whether a board answered and
+   *   would not say which board it is, which is what separates the board
+   *   never coming back from it coming back nameless. Meeting some other
+   *   AkidaTag counts as neither.
+   */
+  private reconnectToBoard = async (
+    previousDeviceId: string,
+    expectedSerial: string,
+    log: (msg: string) => void,
+  ): Promise<{ deviceId: string | null; foundBoardWithoutSerial: boolean }> => {
+    const deadline = Date.now() + REBOOT_RECONNECT_TIMEOUT_MS;
+    let triedPreviousId = false;
+    let foundBoardWithoutSerial = false;
+
+    while (Date.now() < deadline) {
+      const candidates = triedPreviousId
+        ? await this.scanForAkidaTagIds(REBOOT_SCAN_WINDOW_MS)
+        : [previousDeviceId];
+      triedPreviousId = true;
+
+      for (const candidate of candidates) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          break;
+        }
+
+        const attemptTimeoutMs = Math.min(
+          REBOOT_CONNECT_TIMEOUT_MS,
+          remainingMs,
+        );
+        const verdict = await this.isSameBoard(
+          candidate,
+          expectedSerial,
+          attemptTimeoutMs,
+        );
+        if (verdict === 'same') {
+          log(`Reconnected to ${candidate}`);
+          return { deviceId: candidate, foundBoardWithoutSerial: false };
+        }
+        foundBoardWithoutSerial =
+          foundBoardWithoutSerial || verdict === 'no-serial';
+      }
+    }
+
+    log('Board did not come back within the reconnect timeout');
+    return { deviceId: null, foundBoardWithoutSerial };
+  };
+
+  /**
+   * Ask a rebooted board which images it holds.
+   *
+   * @param deviceId - Board to ask, connected.
+   * @returns The running image's version and hash, and every slot's hash with
+   *   the pending flag off its trailer, or null if the board would not answer.
+   *   The hashes are the board's own, so they compare directly with the one it
+   *   reported for the staged image before the reboot.
+   */
+  private readImages = async (
+    deviceId: string,
+  ): Promise<{
+    version: string | null;
+    hash: string;
+    slots: { hash: string; pending: boolean }[];
+  } | null> => {
+    this.pendingFotaResponse = null;
+    this.fotaResolver = null;
+    this.fotaRejecter = null;
+
+    await this.requestFotaMtu(deviceId);
+    const sub = this.subscribeToFotaNotifications(deviceId);
+
+    try {
+      await new Promise(r => setTimeout(r, 500));
+      await this.querySmpParams(deviceId);
+
+      const images: any[] = (await this.sendImageList(deviceId))?.images ?? [];
+      const active =
+        images.find(img => img.active) ?? images.find(img => img.slot === 0);
+
+      if (!active?.hash) {
+        return null;
+      }
+
+      return {
+        version: typeof active.version === 'string' ? active.version : null,
+        hash: Buffer.from(active.hash).toString('hex'),
+        slots: images
+          .filter(img => img.hash)
+          .map(img => ({
+            hash: Buffer.from(img.hash).toString('hex'),
+            pending: img.pending === true,
+          })),
+      };
+    } catch {
+      return null;
+    } finally {
+      this.removeSubscription(sub);
+    }
+  };
+
+  /**
+   * Decide whether an update took, by asking the board what it is running.
+   *
+   * @param previousDeviceId - Id the board had before it restarted.
+   * @param expectedSerial - Serial the board reported before the update, or
+   *   null if it never reported one.
+   * @param stagedHash - Hash the board reported for the image it stored.
+   * @param sentVersion - Version of the image that was sent.
+   * @param log - Sink for the protocol trace.
+   * @returns Installed when the board came back running the staged image,
+   *   rejected when it booted back onto its previous one, not-restarted when
+   *   it never rebooted at all, and unconfirmed when it could not be reached,
+   *   could not be recognised, would not answer, or cannot be told apart from
+   *   any other AkidaTag in range, alongside the id the board answered on. A
+   *   board that did come back is left connected, since the app has just
+   *   proved it is the same one.
+   */
+  private verifyFirmwareInstalled = async (
+    previousDeviceId: string,
+    expectedSerial: string | null,
+    stagedHash: string,
+    sentVersion: string,
+    log: (msg: string) => void,
+  ): Promise<{
+    outcome: FirmwareUpdateOutcome;
+    reconnectedDeviceId: string | null;
+  }> => {
+    if (!expectedSerial) {
+      log('Board reported no serial, so it cannot be recognised after reboot');
+      return {
+        outcome: { status: 'unconfirmed', reason: 'unidentifiable' },
+        reconnectedDeviceId: null,
+      };
+    }
+
+    const { deviceId, foundBoardWithoutSerial } = await this.reconnectToBoard(
+      previousDeviceId,
+      expectedSerial,
+      log,
+    );
+    if (!deviceId) {
+      return {
+        outcome: {
+          status: 'unconfirmed',
+          reason: foundBoardWithoutSerial ? 'unrecognised' : 'unreachable',
+        },
+        reconnectedDeviceId: null,
+      };
+    }
+
+    const images = await this.readImages(deviceId);
+    if (!images) {
+      log('Board would not report its running image');
+      return {
+        outcome: { status: 'unconfirmed', reason: 'unanswered' },
+        reconnectedDeviceId: deviceId,
+      };
+    }
+
+    if (images.hash === stagedHash) {
+      log('Board is running the firmware that was sent');
+      return {
+        outcome: { status: 'installed', version: sentVersion },
+        reconnectedDeviceId: deviceId,
+      };
+    }
+
+    // An image the board has not booted to yet still has the trailer that
+    // marks it pending; refusing one scrambles that trailer. The image being
+    // there proves nothing either way, since a refused one can stay put.
+    const staged = images.slots.find(slot => slot.hash === stagedHash);
+    if (staged?.pending) {
+      log('Board never restarted, and still holds the firmware that was sent');
+      return {
+        outcome: { status: 'not-restarted', runningVersion: images.version },
+        reconnectedDeviceId: deviceId,
+      };
+    }
+
+    log('Board came back on its previous firmware');
+    return {
+      outcome: { status: 'rejected', runningVersion: images.version },
+      reconnectedDeviceId: deviceId,
+    };
+  };
+
+  /**
+   * Send firmware to a board, restart it, and report what the board actually
+   * did with it.
+   *
+   * The transfer succeeding proves nothing: an image signed with a key the
+   * board does not trust is refused by the bootloader on the next boot, with
+   * no error on any channel the phone can see. So the board is asked, once it
+   * is back up, which firmware it is running.
+   *
+   * @param deviceId - Board to update, connected.
+   * @param filePath - A `.bin`, or a `.zip` holding exactly one.
+   * @param options - `expectedSerial` is the board's permanent serial, used to
+   *   recognise it again after the reboot; without it the outcome is
+   *   unconfirmed, because no other identifier survives the reboot.
+   * @returns Whether the firmware installed, was refused, or could not be
+   *   checked. The board never says why it refused an image.
+   * @throws If another update is already running, or the transfer itself
+   *   fails. Only a `FirmwareUpdateError` carries a message written here;
+   *   anything else is whatever the Bluetooth stack raised, and the offsets
+   *   and result codes behind either go to the development log.
+   */
   async performFota(
     deviceId: string,
     filePath: string,
-    onProgress?: (percent: number) => void,
-    onLog?: (msg: string) => void,
-  ): Promise<void> {
+    options: {
+      expectedSerial?: string | null;
+      onProgress?: (percent: number) => void;
+      onPhase?: (phase: FirmwareUpdatePhase) => void;
+    } = {},
+  ): Promise<FirmwareUpdateOutcome> {
     if (this.otaInProgress) {
-      throw new Error(
-        `Cannot start firmware update — ${this.otaInProgress} update in progress`,
+      if (__DEV__) {
+        console.log('[FOTA]', `Busy with a ${this.otaInProgress} update`);
+      }
+      throw new FirmwareUpdateError(
+        'Your AkidaTag is busy with another update. Wait for that one to ' +
+          'finish and try again.',
       );
     }
+
     this.otaInProgress = 'firmware';
     this.fotaSeq = 0;
     this.smpBuffer = null;
@@ -1062,110 +1588,66 @@ class BleService {
 
     const log = (msg: string) => {
       if (__DEV__) console.log('[FOTA]', msg);
-      onLog?.(msg);
     };
 
     this.cleanupMonitors();
-
     BleConnectionHelper.setFotaRunning(true);
 
-    // 1️⃣ Request high MTU FIRST
-    await this.requestFotaMtu(deviceId);
-
-    // 2️⃣ Then subscribe to notifications
-    const sub = this.subscribeToFotaNotifications(deviceId);
-
-    // Wait for subscription to stabilise (matches nRF Connect wait(300))
-    await new Promise(r => setTimeout(r, 500));
-
-    let finalPath = '';
     let unzipPath = '';
+
     try {
-      // 2. SMP params — v0 handshake, MUST be before anything else
-      log('Querying SMP params...');
-      const params = await this.querySmpParams(deviceId);
-      log(`buf_size=${params.bufSize} buf_count=${params.bufCount}`);
+      const extracted = await this.extractFirmwareBinary(filePath);
+      unzipPath = extracted.unzipPath;
 
-      // 3. Bootloader info
-      log('Querying bootloader...');
-      const bootloader = await this.queryBootloaderInfo(deviceId);
-      log(`Bootloader: ${bootloader}`);
+      const image = await this.readImageHeader(extracted.binaryPath);
+      log(`Sending firmware ${image.version}`);
 
-      // 4. Boot mode
-      log('Querying boot mode...');
-      const mode = await this.queryBootMode(deviceId);
-      log(`Boot mode: ${mode}`);
+      const stagedHash = await this.uploadAndConfirm(
+        deviceId,
+        extracted.binaryPath,
+        options.onProgress,
+        log,
+      );
 
-      // 5. List images
-      log('Listing images...');
-      const imageList = await this.sendImageList(deviceId);
-      log(`Images: ${JSON.stringify(imageList)}`);
-
-      // 6. Upload firmware
-      log('Uploading firmware...');
-
-      finalPath = filePath;
-
-      if (filePath.endsWith('.zip')) {
-        unzipPath = `${RNFS.TemporaryDirectoryPath}/firmware_${Date.now()}/`;
-        // Remove old unzip folder if exists
-        if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
-
-        // Ensure folder exists
-        await RNFS.mkdir(unzipPath);
-        await unzip(filePath, unzipPath);
-        const rootFiles = await RNFS.readDir(unzipPath);
-
-        let files = rootFiles;
-
-        if (rootFiles.length === 1 && rootFiles[0].isDirectory()) {
-          files = await RNFS.readDir(rootFiles[0].path);
-        }
-        if (__DEV__) console.log('files-models', files);
-        const binFile = files.find(f => f.name.endsWith('.bin'));
-        if (!binFile) {
-          throw new Error('Invalid ZIP:.bin missing');
-        }
-        finalPath = binFile.path;
-      }
-      await this.sendFirmwareFile(deviceId, finalPath, onProgress);
-      log('Upload complete');
-
-      // 7. Get updated image list for slot 1 hash
-      log('Getting updated image list...');
-      const updatedList = await this.sendImageList(deviceId);
-      const slot1 = updatedList?.images?.find((img: any) => img.slot === 1);
-      if (!slot1?.hash) throw new Error('Slot 1 not found after upload');
-
-      const hashBase64 = Buffer.from(slot1.hash).toString('base64');
-      log(`Confirming hash: ${hashBase64}`);
-
-      // 8. Confirm
-      await this.confirmFirmware(deviceId, hashBase64);
-      log('Image confirmed');
-
-      // 9. Reset
-      log('Resetting device...');
-
+      options.onPhase?.('restarting');
       BleConnectionHelper.setExpectedReboot(true);
       await this.resetDevice(deviceId);
       log('Reset command sent');
 
-      this.removeSubscription(sub);
-
       try {
         await this.bleManager.cancelDeviceConnection(deviceId);
       } catch {}
+      await new Promise(r => setTimeout(r, REBOOT_SETTLE_MS));
 
-      // allow device reboot
-      await new Promise(r => setTimeout(r, 2000));
+      options.onPhase?.('checking');
+      const verified = await this.verifyFirmwareInstalled(
+        deviceId,
+        options.expectedSerial ?? null,
+        stagedHash,
+        image.version,
+        log,
+      );
 
-      log('FOTA SUCCESS ✅');
+      // Published once the update is over rather than from inside the
+      // reconnect loop: the screens react to this, and a board that changed
+      // address mid-verification would restart the app's device session on
+      // top of the SMP exchange still running here.
+      if (verified.reconnectedDeviceId) {
+        BleConnectionHelper.updateConnectedDeviceId(
+          verified.reconnectedDeviceId,
+        );
+      }
 
-      return;
-    } catch (error: any) {
-      if (__DEV__) console.error('[FOTA ERROR]', error);
-      return;
+      return verified.outcome;
+    } catch (error) {
+      // The transfer tore the board's monitors down, and only the endings that
+      // reconnect put them back. A transfer that threw with the board still
+      // there has to go through the same publish, or the app holds on to a
+      // connection it can no longer hear anything over.
+      if (await this.isDeviceConnected(deviceId)) {
+        BleConnectionHelper.updateConnectedDeviceId(deviceId);
+      }
+      throw error;
     } finally {
       this.otaInProgress = null;
       this.fotaResolver = null;
@@ -1175,8 +1657,6 @@ class BleService {
       this.fotaSeq = 0;
       this.pendingFotaResponse = null;
       BleConnectionHelper.setFotaRunning(false);
-      //remove the file once update is done
-      this.safeDelete(finalPath);
       this.safeDelete(unzipPath);
     }
   }

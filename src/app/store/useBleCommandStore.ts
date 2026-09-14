@@ -102,7 +102,7 @@ interface BleCommandState {
   deployAckResolver: DeployAckResolver | null;
 
   // 🔹 Session lifecycle
-  startDeviceSession: (device: any) => Promise<void>;
+  startDeviceSession: (device: BLEDevice) => Promise<void>;
   endDeviceSession: () => void;
 
   // 🔹 Internal

@@ -1,22 +1,19 @@
-import { pick } from '@react-native-documents/picker';
 import { Cpu, Folder, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  Alert,
   Dimensions,
-  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Button, Portal, Modal, Text } from 'react-native-paper';
-import bleService from '../../services/ble/bleManager';
-import { FirmwareBuild } from '../../types/FirmwareBuild';
-import { useBleStore } from '../../app/store/useBleStore';
+import { Button, Modal, Portal, Text } from 'react-native-paper';
+import { useFirmwareUpdate } from '../../app/hooks/useFirmwareUpdate';
 import { useFirmwareStore } from '../../app/store/useFirmwareStore';
 import { Colors } from '../../app/theme/theme';
-import RNFS from 'react-native-fs';
+import FirmwareUpdateStatus, {
+  SigningKeyWarningCard,
+} from './FirmwareUpdateStatus';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,14 +26,16 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
   visible,
   onClose,
 }) => {
-  const [isInstalling, setIsInstalling] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const { connectedDevice } = useBleStore();
-  const [selectedFile, setSelectedFile] = useState<{
-    name: string;
-    size: number;
-    uri: string;
-  } | null>(null);
+  const {
+    selected,
+    stage,
+    keyWarning,
+    isBusy,
+    canInstall,
+    browseForFirmware,
+    startUpdate,
+    dismissOutcome,
+  } = useFirmwareUpdate();
 
   const { installedBuild, setInstalledBuild } = useFirmwareStore();
 
@@ -44,133 +43,13 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
   const [showUninstallProgress, setShowUninstallProgress] = useState(false);
   const [uninstallProgress, setUninstallProgress] = useState(0);
 
-  const runFirmwareUpdate = async (
-    deviceId: string,
-    filePath: string,
-    build: FirmwareBuild,
-  ) => {
-    try {
-      const connected = await bleService.isDeviceConnected(deviceId);
-      if (!connected) {
-        Alert.alert('Device disconnected');
-        return;
-      }
-
-      setIsInstalling(true);
-      setProgress(0);
-
-      const exists = await RNFS.exists(filePath);
-      if (!exists) {
-        Alert.alert('Firmware file not found');
-        return;
-      }
-
-      await bleService.performFota(
-        deviceId,
-        filePath,
-        percent => setProgress(percent),
-        msg => console.log('[FOTA]', msg),
-      );
-
-      Alert.alert('Success', 'Firmware updated successfully');
-
-      setInstalledBuild(build);
-
-      setSelectedFile(null);
-    } catch (error: any) {
-      if (__DEV__) console.error('[FOTA ERROR]', error);
-      Alert.alert(
-        'Firmware Update Failed',
-        error?.message ?? 'The firmware update did not complete.',
-      );
-    } finally {
-      setIsInstalling(false);
-      setProgress(0);
-    }
-  };
-
-  const browseLocalFirmware = async () => {
-    setSelectedFile(null);
-
-    try {
-      const results = await pick({
-        allowMultiSelection: false,
-        type: Platform.select({
-          ios: ['public.data'],
-          android: ['*/*'],
-        }),
-        copyTo: 'cachesDirectory',
-      });
-
-      const result = results[0];
-      const fileName = result.name ?? 'firmware.bin';
-
-      if (
-        !fileName.toLowerCase().endsWith('.bin') &&
-        !fileName.toLowerCase().endsWith('.zip')
-      ) {
-        Alert.alert(
-          'Invalid File',
-          'Please select a .bin or .zip firmware file',
-        );
-        return;
-      }
-
-      const sourceUri = (result as any).fileCopyUri ?? result.uri;
-      if (!sourceUri) {
-        Alert.alert('Invalid file path');
-        return;
-      }
-
-      const cleanUri = sourceUri.replace('file://', '');
-      const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
-
-      if (await RNFS.exists(localPath)) await RNFS.unlink(localPath);
-      await RNFS.copyFile(cleanUri, localPath);
-
-      const stat = await RNFS.stat(localPath);
-
-      setSelectedFile({
-        name: fileName,
-        size: stat.size,
-        uri: localPath,
-      });
-    } catch (err: any) {
-      if (__DEV__) console.log('File picker error:', err?.message);
-      if (err?.message !== 'User cancelled the picker') {
-        Alert.alert('File selection failed');
-      }
-    }
-  };
-
-  const localBuild: FirmwareBuild | null = selectedFile
-    ? {
-        title: selectedFile.name,
-        description: 'Local firmware selected from device',
-        version: 'Local',
-        size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
-        useCases: ['Local Firmware'],
-      }
-    : null;
-
-  const startLocalUpdate = async () => {
-    if (!selectedFile || !localBuild || !connectedDevice?.id) {
-      Alert.alert(
-        'Installation Failed',
-        'No Device Connected or firmware selected',
-      );
-      return;
-    }
-    await runFirmwareUpdate(connectedDevice.id, selectedFile.uri, localBuild);
-  };
-
   return (
     <Portal>
       <Modal
         visible={visible}
         onDismiss={onClose}
         contentContainerStyle={styles.modalContainer}
-        dismissable={!isInstalling}
+        dismissable={!isBusy}
       >
         {/* Backdrop */}
         <View style={styles.backdrop} />
@@ -190,11 +69,11 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             <TouchableOpacity
               onPress={onClose}
               style={styles.closeBtn}
-              disabled={isInstalling}
+              disabled={isBusy}
             >
               <X
                 size={18}
-                color={isInstalling ? Colors.text.disabled : Colors.black}
+                color={isBusy ? Colors.text.disabled : Colors.black}
               />
             </TouchableOpacity>
           </View>
@@ -234,12 +113,19 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
               )}
             </View>
 
+            <FirmwareUpdateStatus
+              stage={stage}
+              sentVersion={selected?.version ?? null}
+              onDone={dismissOutcome}
+            />
+
             {/* ACTION BUTTON */}
             <View style={styles.actionArea}>
               <Button
                 mode="contained"
                 icon={({ size, color }) => <Folder size={size} color={color} />}
-                onPress={browseLocalFirmware}
+                onPress={browseForFirmware}
+                disabled={isBusy}
                 style={styles.actionBtn}
               >
                 Browse Local Firmware
@@ -247,37 +133,36 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             </View>
 
             {/* LOCAL BUILD CARD */}
-            {localBuild && (
+            {selected && (
               <View style={styles.card}>
-                <Text style={styles.buildTitle}>{localBuild.title}</Text>
-                <Text style={styles.subText}>{localBuild.description}</Text>
+                <Text style={styles.buildTitle}>{selected.name}</Text>
+                <Text style={styles.subText}>
+                  Local firmware selected from device
+                </Text>
 
                 <View style={{ flexDirection: 'row', gap: 16 }}>
-                  <Text style={styles.meta}>Version: {localBuild.version}</Text>
-                  <Text style={styles.meta}>Size: {localBuild.size}</Text>
+                  <Text style={styles.meta}>Version: {selected.version}</Text>
+                  <Text style={styles.meta}>
+                    Size: {(selected.sizeBytes / 1024).toFixed(2)} KB
+                  </Text>
                 </View>
 
-                {isInstalling && (
-                  <>
-                    <View style={styles.progressBar}>
-                      <View
-                        style={[styles.progressFill, { width: `${progress}%` }]}
-                      />
-                    </View>
-                    <Text style={styles.progressText}>
-                      Installing... {progress.toFixed(2)}%
-                    </Text>
-                  </>
+                {keyWarning ? (
+                  <SigningKeyWarningCard
+                    fileName={selected.name}
+                    onSendAnyway={startUpdate}
+                    disabled={!canInstall}
+                  />
+                ) : (
+                  <Button
+                    mode="contained"
+                    style={styles.installBtn}
+                    disabled={!canInstall}
+                    onPress={startUpdate}
+                  >
+                    {isBusy ? 'Installing...' : 'Install This Build'}
+                  </Button>
                 )}
-
-                <Button
-                  mode="contained"
-                  style={styles.installBtn}
-                  disabled={isInstalling}
-                  onPress={startLocalUpdate}
-                >
-                  {isInstalling ? 'Installing...' : 'Install This Build'}
-                </Button>
               </View>
             )}
           </ScrollView>
