@@ -576,13 +576,36 @@ describe('performFota against a simulated board', () => {
   }, 60000);
 
   it('throws when the board will not mark the image it stored for install', async () => {
+    // The board answers the confirm with an MCUmgr result code, which means
+    // nothing to whoever is holding it, so the number stays in the log and
+    // the message that comes out says what to do instead.
     mockBoard.reset(true);
     mockBoard.refusesToConfirm = true;
 
-    await expect(runUpdate()).rejects.toThrow(
-      'The board would not install the firmware, error 3.',
+    const failure: Error = await runUpdate().catch((error: Error) => error);
+
+    expect(failure.message).toBe(
+      'The board would not install the firmware it stored. Try sending it ' +
+        'again.',
     );
     expect(mockBoard.uploadedBytes).toBe(mockFirmwareFile.length);
     expect(mockBoard.resetCount).toBe(0);
+  }, 60000);
+
+  it('does not put its own busy message in front of whoever started it', async () => {
+    // A model deploy holds the same lock, so this is reachable without a
+    // second tap on Install, and the internal phrasing names a state the
+    // person holding the board has no word for.
+    mockBoard.reset(true);
+    const inFlight = runUpdate();
+
+    const failure: Error = await runUpdate().catch((error: Error) => error);
+
+    expect(failure.message).toBe(
+      'Your AkidaTag is busy with another update. Wait for that one to ' +
+        'finish and try again.',
+    );
+
+    await inFlight;
   }, 60000);
 });

@@ -51,6 +51,31 @@ const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
 };
 
 /**
+ * Say what to do about an update that could not be confirmed.
+ *
+ * Three of the four reasons end with the board given up, so it has to be
+ * picked again before anything can be read off it. `unanswered` ends still
+ * holding it, and the disconnect that takes is a step the instruction has to
+ * name rather than skip past.
+ *
+ * @param reason - Where the confirmation stopped.
+ * @returns The sentence telling the user where to look next.
+ */
+const whereToLookNext = (reason: UnconfirmedReason): string => {
+  if (reason === 'unanswered') {
+    return (
+      'The app is still connected to the board. Disconnect from it and pick ' +
+      'it again in the device list to see the firmware version it is running.'
+    );
+  }
+
+  return (
+    'Select your AkidaTag in the device list to see the firmware version it ' +
+    'is running now.'
+  );
+};
+
+/**
  * Put into words what the board did with the firmware, saying only what the
  * app can prove.
  *
@@ -119,7 +144,7 @@ export const describeUpdateEnding = (
   return {
     title: 'Could not confirm the update',
     message:
-      `${describeMissedConfirmation(ending.reason)}\n\nSelect your AkidaTag ` +
-      'in the device list to see the firmware version it is running now.',
+      `${describeMissedConfirmation(ending.reason)}\n\n` +
+      whereToLookNext(ending.reason),
   };
 };

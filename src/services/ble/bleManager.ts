@@ -1211,8 +1211,12 @@ class BleService {
         Buffer.from(staged.hash).toString('base64'),
       );
       if (confirmed?.rc) {
+        if (__DEV__) {
+          console.log('[FOTA]', `Confirm refused, rc=${confirmed.rc}`);
+        }
         throw new FirmwareUpdateError(
-          `The board would not install the firmware, error ${confirmed.rc}.`,
+          'The board would not install the firmware it stored. Try sending ' +
+            'it again.',
         );
       }
       log('Image confirmed');
@@ -1546,9 +1550,9 @@ class BleService {
    * @returns Whether the firmware installed, was refused, or could not be
    *   checked. The board never says why it refused an image.
    * @throws If another update is already running, or the transfer itself
-   *   fails. A `FirmwareUpdateError` is one this code raised and worded for
-   *   the person holding the board; anything else came out of the Bluetooth
-   *   stack and is not fit to put in front of them.
+   *   fails. Only a `FirmwareUpdateError` carries a message written here;
+   *   anything else is whatever the Bluetooth stack raised, and the offsets
+   *   and result codes behind either go to the development log.
    */
   async performFota(
     deviceId: string,
@@ -1560,8 +1564,12 @@ class BleService {
     } = {},
   ): Promise<FirmwareUpdateOutcome> {
     if (this.otaInProgress) {
+      if (__DEV__) {
+        console.log('[FOTA]', `Busy with a ${this.otaInProgress} update`);
+      }
       throw new FirmwareUpdateError(
-        `Cannot start firmware update: a ${this.otaInProgress} update is already in progress.`,
+        'Your AkidaTag is busy with another update. Wait for that one to ' +
+          'finish and try again.',
       );
     }
 

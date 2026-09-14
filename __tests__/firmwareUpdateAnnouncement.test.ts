@@ -135,6 +135,34 @@ describe('describeUpdateEnding', () => {
     expect(found.message).not.toMatch(/fail/i);
   });
 
+  it('does not send the user to the device list for a board it still holds', () => {
+    // Only the unanswered ending keeps the board: it came back and was
+    // recognised, it just would not say what it is running. Picking it out of
+    // the device list means disconnecting first, which the others do not.
+    const stillHolding = describeUpdateEnding({
+      status: 'unconfirmed',
+      reason: 'unanswered',
+    });
+
+    expect(stillHolding.message).toContain('still connected to the board');
+    expect(stillHolding.message).toContain('Disconnect');
+
+    const givenUp: UnconfirmedReason[] = [
+      'unidentifiable',
+      'unreachable',
+      'unrecognised',
+    ];
+    givenUp.forEach(reason => {
+      const { message } = describeUpdateEnding({
+        status: 'unconfirmed',
+        reason,
+      });
+
+      expect(message).toContain('Select your AkidaTag in the device list');
+      expect(message).not.toContain('Disconnect');
+    });
+  });
+
   it('never claims a restart it did not watch happen', () => {
     // None of these endings involves the app seeing the board come back on a
     // new image, so none of them may say it restarted. Only the unreachable
