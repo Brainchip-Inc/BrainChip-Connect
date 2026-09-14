@@ -3,10 +3,21 @@ import {
   UnconfirmedReason,
 } from '../../types/firmwareUpdate';
 
+/**
+ * Mark shown above an ending, or null when the app cannot tell how it went.
+ *
+ * Only the two endings the board settles get one. An update that was never
+ * confirmed, or whose image is still waiting on a board that did not restart,
+ * has not failed, and marking it failed would state something the app has no
+ * way of knowing.
+ */
+export type UpdateMark = 'success' | 'failure' | null;
+
 /** What the update modal says once the board's answer is in. */
 export interface UpdateAnnouncement {
   title: string;
   message: string;
+  mark: UpdateMark;
 }
 
 /**
@@ -91,7 +102,7 @@ const whereToLookNext = (stillConnected: boolean): string => {
  * @param ending - How the update turned out.
  * @param stillConnected - Whether the app was still holding the board when the
  *   update ended, asked of the radio rather than inferred from the ending.
- * @returns Title and message for the update modal to show.
+ * @returns Title, message and mark for the update modal to show.
  */
 export const describeUpdateEnding = (
   ending: FirmwareUpdateEnding,
@@ -103,6 +114,7 @@ export const describeUpdateEnding = (
       message:
         `Your AkidaTag is now running firmware ${ending.version}. ` +
         'Confirmed with the board after it restarted.',
+      mark: 'success',
     };
   }
 
@@ -116,6 +128,7 @@ export const describeUpdateEnding = (
       message:
         `Your AkidaTag is still running ${running}. It did not accept the ` +
         'firmware you sent and restarted on its previous version.',
+      mark: 'failure',
     };
   }
 
@@ -130,6 +143,7 @@ export const describeUpdateEnding = (
         `The firmware was sent, but the board did not restart, so it is ` +
         `still running ${running}. The firmware you sent is waiting on it ` +
         'and may install the next time the board is powered off and on.',
+      mark: null,
     };
   }
 
@@ -143,6 +157,7 @@ export const describeUpdateEnding = (
       message: ending.detail
         ? `${whatHappened}\n\nDetails: ${ending.detail}`
         : whatHappened,
+      mark: 'failure',
     };
   }
 
@@ -151,5 +166,6 @@ export const describeUpdateEnding = (
     message:
       `${describeMissedConfirmation(ending.reason)}\n\n` +
       whereToLookNext(stillConnected),
+    mark: null,
   };
 };

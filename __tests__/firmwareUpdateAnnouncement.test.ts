@@ -200,6 +200,42 @@ describe('describeUpdateEnding', () => {
     });
   });
 
+  it('marks the two endings the board settles, and only those', () => {
+    // A tick or a cross is as strong a claim as the wording, so the endings
+    // the app could not decide get neither rather than the nearest one.
+    expect(
+      describeUpdateEnding({ status: 'installed', version: '1.2.0' }, false)
+        .mark,
+    ).toBe('success');
+    expect(
+      describeUpdateEnding(
+        { status: 'rejected', runningVersion: '1.1.1' },
+        false,
+      ).mark,
+    ).toBe('failure');
+    expect(describeUpdateEnding({ status: 'failed' }, false).mark).toBe(
+      'failure',
+    );
+
+    const undecided: FirmwareUpdateEnding[] = [
+      { status: 'not-restarted', runningVersion: '1.1.1' },
+      { status: 'unconfirmed', reason: 'unidentifiable' },
+      { status: 'unconfirmed', reason: 'unreachable' },
+      { status: 'unconfirmed', reason: 'unrecognised' },
+      { status: 'unconfirmed', reason: 'unanswered' },
+    ];
+
+    undecided.forEach(ending => {
+      expect(describeUpdateEnding(ending, false).mark).toBeNull();
+    });
+  });
+
+  it('never marks an ending green unless the board confirmed the install', () => {
+    ENDINGS.filter(ending => ending.status !== 'installed').forEach(ending => {
+      expect(describeUpdateEnding(ending, false).mark).not.toBe('success');
+    });
+  });
+
   it('says a success is a success only for a confirmed install', () => {
     const installed = describeUpdateEnding(
       {

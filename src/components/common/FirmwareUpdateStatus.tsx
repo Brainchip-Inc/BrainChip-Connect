@@ -7,6 +7,7 @@ import {
   FirmwareUpdateEnding,
   FirmwareUpdateStage,
 } from '../../types/firmwareUpdate';
+import UpdateOutcomeMark from './UpdateOutcomeMark';
 
 interface FirmwareUpdateStatusProps {
   stage: FirmwareUpdateStage;
@@ -92,10 +93,11 @@ const OutcomeBody = ({
   stillConnected: boolean;
   onDone: () => void;
 }) => {
-  const { title, message } = describeUpdateEnding(ending, stillConnected);
+  const { title, message, mark } = describeUpdateEnding(ending, stillConnected);
 
   return (
     <View>
+      <UpdateOutcomeMark mark={mark} />
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{message}</Text>
       <Button mode="contained" style={styles.action} onPress={onDone}>
