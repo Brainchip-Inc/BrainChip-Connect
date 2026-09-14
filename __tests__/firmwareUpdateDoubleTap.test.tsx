@@ -13,6 +13,7 @@
 
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { FirmwareUpdateError } from '../src/services/firmware/firmwareUpdateError';
 import { FirmwareUpdateOutcome } from '../src/types/firmwareUpdate';
 
 const mockPerformFota = jest.fn();
@@ -93,6 +94,75 @@ const singleUpdateAtATime = () => {
 
   return (outcome: FirmwareUpdateOutcome) => finish(outcome);
 };
+
+/** Render the hook and run one update that fails the given way. */
+const runFailingUpdate = async (failure: Error) => {
+  mockPerformFota.mockRejectedValue(failure);
+
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<Harness />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await api.browseForFirmware();
+  });
+  await ReactTestRenderer.act(async () => {
+    await api.startUpdate();
+  });
+
+  const { stage } = api;
+  await ReactTestRenderer.act(() => {
+    renderer.unmount();
+  });
+
+  return stage;
+};
+
+describe('reporting a failed firmware update', () => {
+  beforeEach(() => {
+    mockPerformFota.mockReset();
+    useBleStore.getState().setConnectedDevice({
+      id: 'AA:BB:CC:DD:EE:FF',
+      name: 'AkidaTag',
+      rssi: null,
+      deviceInfo: null,
+      serviceUUIDs: null,
+    });
+  });
+
+  afterEach(() => {
+    useBleStore.getState().setConnectedDevice(null);
+  });
+
+  it('shows the wording the app wrote for the person holding the board', async () => {
+    const stage = await runFailingUpdate(
+      new FirmwareUpdateError(
+        'The board stopped accepting the firmware partway through.',
+      ),
+    );
+
+    expect(stage).toEqual({
+      kind: 'done',
+      ending: {
+        status: 'failed',
+        detail: 'The board stopped accepting the firmware partway through.',
+      },
+    });
+  });
+
+  it("keeps the Bluetooth stack's own words off the screen", async () => {
+    // Walking out of range mid-upload rejects the characteristic write with
+    // native text naming the MAC address and the GATT operation. It belongs
+    // in a log, not in front of a customer.
+    const stage = await runFailingUpdate(
+      new Error(
+        "GATT exception from MAC address AA:BB:CC:DD:EE:FF, with type BleGattOperation{description='CHARACTERISTIC_WRITE'}",
+      ),
+    );
+
+    expect(stage).toEqual({ kind: 'done', ending: { status: 'failed' } });
+  });
+});
 
 describe('starting a firmware update twice', () => {
   beforeEach(() => {

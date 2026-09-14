@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import bleService from '../../services/ble/bleManager';
+import { FirmwareUpdateError } from '../../services/firmware/firmwareUpdateError';
 import {
   getTrustedKeyHash,
   rememberTrustedKeyHash,
@@ -208,10 +209,12 @@ export const useFirmwareUpdate = () => {
         });
         clearSelection();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (__DEV__) console.log('[FOTA]', error);
       ending = {
         status: 'failed',
-        detail: error?.message ?? 'The firmware update did not complete.',
+        detail:
+          error instanceof FirmwareUpdateError ? error.message : undefined,
       };
     }
 

@@ -27,6 +27,7 @@ const ENDINGS: FirmwareUpdateEnding[] = [
     status: 'failed',
     detail: 'The board stopped accepting the firmware partway through.',
   },
+  { status: 'failed' },
 ];
 
 describe('describeUpdateEnding', () => {
@@ -93,6 +94,17 @@ describe('describeUpdateEnding', () => {
     expect(failed.message).toContain(
       'The board stopped accepting the firmware partway through.',
     );
+  });
+
+  it('offers no details when the app has none of its own to give', () => {
+    // What the Bluetooth stack says about a dropped link is native text with
+    // a MAC address in it, so a failure the app did not word itself arrives
+    // here carrying nothing, and the card must not advertise an empty detail.
+    const { message } = describeUpdateEnding({ status: 'failed' });
+
+    expect(message).toContain('still running its previous firmware');
+    expect(message).not.toContain('Details');
+    expect(message).not.toMatch(/undefined/);
   });
 
   it('does not call a board that never restarted a refusal', () => {

@@ -13,6 +13,8 @@ const TLV_ENTRY_SIZE = 4;
 /** SHA-256 of the public key whose private half signed the image. */
 const TLV_TYPE_KEYHASH = 0x01;
 
+import { FirmwareUpdateError } from './firmwareUpdateError';
+
 const NOT_FIRMWARE = 'This file is not AkidaTag firmware.';
 const TRUNCATED = 'This firmware file is incomplete.';
 
@@ -37,7 +39,7 @@ const readTlvArea = (image: Buffer, start: number): Map<number, Buffer> => {
     start + TLV_INFO_SIZE > image.length ||
     image.readUInt16LE(start) !== TLV_INFO_MAGIC
   ) {
-    throw new Error(TRUNCATED);
+    throw new FirmwareUpdateError(TRUNCATED);
   }
 
   const end = Math.min(start + image.readUInt16LE(start + 2), image.length);
@@ -77,7 +79,7 @@ const readTlvArea = (image: Buffer, start: number): Map<number, Buffer> => {
  */
 export const parseMcubootImage = (image: Buffer): McubootImage => {
   if (image.length < HEADER_SIZE || image.readUInt32LE(0) !== IMAGE_MAGIC) {
-    throw new Error(NOT_FIRMWARE);
+    throw new FirmwareUpdateError(NOT_FIRMWARE);
   }
 
   const headerSize = image.readUInt16LE(8);

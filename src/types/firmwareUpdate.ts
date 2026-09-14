@@ -82,4 +82,4 @@ export type FirmwareUpdateStage =
  */
 export type FirmwareUpdateEnding =
   | FirmwareUpdateOutcome
-  | { status: 'failed'; detail: string };
+  | { status: 'failed'; detail?: string };

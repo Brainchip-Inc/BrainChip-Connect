@@ -27,9 +27,10 @@ interface SigningKeyWarningCardProps {
 /**
  * Describe what the app is doing to the board right now.
  *
- * Restarting and checking are separate steps because the board is unreachable
- * for the first and answering for the second, and only the second can tell the
- * user anything.
+ * The long wait is the last step, not the restart: the board is away for as
+ * long as it takes to install the image, and the app spends that time looking
+ * for it. So that is where the estimate and the warning against cutting the
+ * power belong, since pulling the power there is what does real harm.
  */
 const ProgressBody = ({
   stage,
@@ -59,21 +60,22 @@ const ProgressBody = ({
       <View>
         <Text style={styles.title}>Restarting your AkidaTag…</Text>
         <Text style={styles.body}>
-          The board is installing
-          {sentVersion ? ` firmware ${sentVersion}` : ' the firmware'}. This can
-          take up to two minutes.
+          The firmware is on the board and it has been asked to restart.
         </Text>
-        <Text style={styles.body}>Do not power the board off.</Text>
       </View>
     );
   }
 
   return (
     <View>
-      <Text style={styles.title}>Checking the board…</Text>
+      <Text style={styles.title}>Waiting for your AkidaTag…</Text>
       <Text style={styles.body}>
-        Reconnecting to confirm which firmware your AkidaTag is running.
+        The board installs
+        {sentVersion ? ` firmware ${sentVersion}` : ' the firmware'} while it is
+        away, which can take up to two minutes. The app is looking for it and
+        will say which firmware it came back running.
       </Text>
+      <Text style={styles.body}>Do not power the board off.</Text>
     </View>
   );
 };

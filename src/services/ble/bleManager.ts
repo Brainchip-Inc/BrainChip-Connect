@@ -15,6 +15,7 @@ import { McubootImage, parseMcubootImage } from '../firmware/mcubootImage';
 import { isAkidaTagManufacturerData } from './akidaTagAdvertisement';
 import { BleCommand } from './bleCommands';
 import { parseBinaryFrame, parseBleMessage } from './bleParser';
+import { FirmwareUpdateError } from '../firmware/firmwareUpdateError';
 import { buildCommand } from './buildCommand';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
@@ -778,7 +779,7 @@ class BleService {
         this.fotaRejecter = null;
         if (__DEV__) console.log('[FOTA]', `No answer within ${timeoutMs}ms`);
         reject(
-          new Error(
+          new FirmwareUpdateError(
             'The board stopped answering while the firmware was being sent. ' +
               'Keep it close to the phone and try again.',
           ),
@@ -1010,7 +1011,7 @@ class BleService {
             `Upload refused at ${offset}, rc=${response.rc}`,
           );
         }
-        throw new Error(
+        throw new FirmwareUpdateError(
           'The board stopped accepting the firmware partway through. Try ' +
             'sending it again.',
         );
@@ -1124,7 +1125,9 @@ class BleService {
 
     const binFile = files.find(f => f.name.endsWith('.bin'));
     if (!binFile) {
-      throw new Error('This ZIP does not contain a firmware image.');
+      throw new FirmwareUpdateError(
+        'This ZIP does not contain a firmware image.',
+      );
     }
 
     return { binaryPath: binFile.path, unzipPath };
@@ -1198,7 +1201,9 @@ class BleService {
       const updatedList = await this.sendImageList(deviceId);
       const staged = updatedList?.images?.find((img: any) => img.slot === 1);
       if (!staged?.hash) {
-        throw new Error('The board did not store the firmware that was sent.');
+        throw new FirmwareUpdateError(
+          'The board did not store the firmware that was sent.',
+        );
       }
 
       const confirmed = await this.confirmFirmware(
@@ -1206,7 +1211,7 @@ class BleService {
         Buffer.from(staged.hash).toString('base64'),
       );
       if (confirmed?.rc) {
-        throw new Error(
+        throw new FirmwareUpdateError(
           `The board would not install the firmware, error ${confirmed.rc}.`,
         );
       }
@@ -1541,9 +1546,9 @@ class BleService {
    * @returns Whether the firmware installed, was refused, or could not be
    *   checked. The board never says why it refused an image.
    * @throws If another update is already running, or the transfer itself
-   *   fails. Every message that can come out of here is written to be read by
-   *   the person holding the board; the offsets and result codes behind it go
-   *   to the development log instead.
+   *   fails. A `FirmwareUpdateError` is one this code raised and worded for
+   *   the person holding the board; anything else came out of the Bluetooth
+   *   stack and is not fit to put in front of them.
    */
   async performFota(
     deviceId: string,
@@ -1555,7 +1560,7 @@ class BleService {
     } = {},
   ): Promise<FirmwareUpdateOutcome> {
     if (this.otaInProgress) {
-      throw new Error(
+      throw new FirmwareUpdateError(
         `Cannot start firmware update: a ${this.otaInProgress} update is already in progress.`,
       );
     }

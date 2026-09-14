@@ -104,11 +104,15 @@ export const describeUpdateEnding = (
   }
 
   if (ending.status === 'failed') {
+    const whatHappened =
+      'The firmware update did not complete. Your AkidaTag is still ' +
+      'running its previous firmware.';
+
     return {
       title: 'Update failed',
-      message:
-        'The firmware update did not complete. Your AkidaTag is still ' +
-        `running its previous firmware.\n\nDetails: ${ending.detail}`,
+      message: ending.detail
+        ? `${whatHappened}\n\nDetails: ${ending.detail}`
+        : whatHappened,
     };
   }
 
