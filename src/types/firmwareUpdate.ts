@@ -23,10 +23,16 @@ export type FirmwareUpdateOutcome =
  * having reported the serial that tells one AkidaTag from another, so it cannot
  * be recognised after the reboot and is never asked. `unreachable` is the board
  * never coming back within reach, so nothing is known about it past the moment
- * the firmware was sent. `unanswered` is the board coming back and not saying
- * which image it is running.
+ * the firmware was sent. `unrecognised` is a board answering the scan and then
+ * not proving it is the one that was updated, which is not the same as finding
+ * nothing. `unanswered` is the board coming back and not saying which image it
+ * is running.
  */
-export type UnconfirmedReason = 'unidentifiable' | 'unreachable' | 'unanswered';
+export type UnconfirmedReason =
+  | 'unidentifiable'
+  | 'unreachable'
+  | 'unrecognised'
+  | 'unanswered';
 
 /** Step of an update the board owns, which the app can only wait through. */
 export type FirmwareUpdatePhase = 'restarting' | 'checking';

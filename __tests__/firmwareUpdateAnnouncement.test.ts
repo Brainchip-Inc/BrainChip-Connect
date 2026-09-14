@@ -21,6 +21,7 @@ const ENDINGS: FirmwareUpdateEnding[] = [
   { status: 'not-restarted', runningVersion: '1.1.1' },
   { status: 'unconfirmed', reason: 'unidentifiable' },
   { status: 'unconfirmed', reason: 'unreachable' },
+  { status: 'unconfirmed', reason: 'unrecognised' },
   { status: 'unconfirmed', reason: 'unanswered' },
   { status: 'failed', detail: 'Upload error at offset 0' },
 ];
@@ -106,6 +107,17 @@ describe('describeUpdateEnding', () => {
     expect(message).not.toContain('Nothing on the board was changed');
   });
 
+  it('does not say it could not reach a board it did reach', () => {
+    const found = describeUpdateEnding({
+      status: 'unconfirmed',
+      reason: 'unrecognised',
+    });
+
+    expect(found.message).toContain('did find an AkidaTag');
+    expect(found.message).not.toContain('could not reach');
+    expect(found.message).not.toMatch(/fail/i);
+  });
+
   it('never claims a restart it did not watch happen', () => {
     // None of these endings involves the app seeing the board come back on a
     // new image, so none of them may say it restarted. Only the unreachable
@@ -113,6 +125,7 @@ describe('describeUpdateEnding', () => {
     const reasons: UnconfirmedReason[] = [
       'unidentifiable',
       'unreachable',
+      'unrecognised',
       'unanswered',
     ];
 

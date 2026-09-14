@@ -1281,17 +1281,21 @@ class BleService {
    * @param expectedSerial - Serial the board reported before the update.
    * @param connectTimeoutMs - How long to let the connect request hang before
    *   giving up on this candidate.
-   * @returns True with the connection left open; false after disconnecting.
+   * @returns `same` with the connection left open, `other` after disconnecting
+   *   a board that would not prove it is the one, and `no-answer` when the
+   *   candidate could not be connected to at all. The middle case is worth
+   *   keeping apart: it is the app having found a board and not been able to
+   *   name it, which is not the same as having found nothing.
    */
   private isSameBoard = async (
     deviceId: string,
     expectedSerial: string,
     connectTimeoutMs: number,
-  ): Promise<boolean> => {
+  ): Promise<'same' | 'other' | 'no-answer'> => {
     try {
       await this.connectDevice(deviceId, connectTimeoutMs);
     } catch {
-      return false;
+      return 'no-answer';
     }
 
     const serial = await this.readDeviceSerial(
@@ -1299,13 +1303,13 @@ class BleService {
       SERIAL_READ_TIMEOUT_MS,
     );
     if (serial === expectedSerial) {
-      return true;
+      return 'same';
     }
 
     try {
       await this.bleManager.cancelDeviceConnection(deviceId);
     } catch {}
-    return false;
+    return 'other';
   };
 
   /**
@@ -1317,15 +1321,18 @@ class BleService {
    * @param previousDeviceId - Id the board had before it restarted.
    * @param expectedSerial - Serial the board reported before the update.
    * @param log - Sink for the protocol trace.
-   * @returns The id to talk to, or null if the board never came back.
+   * @returns The id to talk to, or null with whether any board answered at
+   *   all, which is what separates a board that never came back from one that
+   *   came back and would not say which board it is.
    */
   private reconnectToBoard = async (
     previousDeviceId: string,
     expectedSerial: string,
     log: (msg: string) => void,
-  ): Promise<string | null> => {
+  ): Promise<{ deviceId: string | null; reachedABoard: boolean }> => {
     const deadline = Date.now() + REBOOT_RECONNECT_TIMEOUT_MS;
     let triedPreviousId = false;
+    let reachedABoard = false;
 
     while (Date.now() < deadline) {
       const candidates = triedPreviousId
@@ -1343,17 +1350,21 @@ class BleService {
           REBOOT_CONNECT_TIMEOUT_MS,
           remainingMs,
         );
-        if (
-          await this.isSameBoard(candidate, expectedSerial, attemptTimeoutMs)
-        ) {
+        const verdict = await this.isSameBoard(
+          candidate,
+          expectedSerial,
+          attemptTimeoutMs,
+        );
+        if (verdict === 'same') {
           log(`Reconnected to ${candidate}`);
-          return candidate;
+          return { deviceId: candidate, reachedABoard: true };
         }
+        reachedABoard = reachedABoard || verdict === 'other';
       }
     }
 
     log('Board did not come back within the reconnect timeout');
-    return null;
+    return { deviceId: null, reachedABoard };
   };
 
   /**
@@ -1421,10 +1432,10 @@ class BleService {
    * @returns Installed when the board came back running the staged image,
    *   rejected when it booted back onto its previous one, not-restarted when
    *   it never rebooted at all, and unconfirmed when it could not be reached,
-   *   would not answer, or cannot be told apart from any other AkidaTag in
-   *   range, alongside the id the board answered on. A board that did come
-   *   back is left connected, since the app has just proved it is the same
-   *   one.
+   *   could not be recognised, would not answer, or cannot be told apart from
+   *   any other AkidaTag in range, alongside the id the board answered on. A
+   *   board that did come back is left connected, since the app has just
+   *   proved it is the same one.
    */
   private verifyFirmwareInstalled = async (
     previousDeviceId: string,
@@ -1444,14 +1455,17 @@ class BleService {
       };
     }
 
-    const deviceId = await this.reconnectToBoard(
+    const { deviceId, reachedABoard } = await this.reconnectToBoard(
       previousDeviceId,
       expectedSerial,
       log,
     );
     if (!deviceId) {
       return {
-        outcome: { status: 'unconfirmed', reason: 'unreachable' },
+        outcome: {
+          status: 'unconfirmed',
+          reason: reachedABoard ? 'unrecognised' : 'unreachable',
+        },
         reconnectedDeviceId: null,
       };
     }
@@ -1587,6 +1601,15 @@ class BleService {
       }
 
       return verified.outcome;
+    } catch (error) {
+      // The transfer tore the board's monitors down, and only the endings that
+      // reconnect put them back. A transfer that threw with the board still
+      // there has to go through the same publish, or the app holds on to a
+      // connection it can no longer hear anything over.
+      if (await this.isDeviceConnected(deviceId)) {
+        BleConnectionHelper.updateConnectedDeviceId(deviceId);
+      }
+      throw error;
     } finally {
       this.otaInProgress = null;
       this.fotaResolver = null;

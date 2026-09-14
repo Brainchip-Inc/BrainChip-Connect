@@ -92,6 +92,7 @@ class SimulatedBoard {
   refusesToConfirm = false;
   keepsStagedImageAfterReboot = false;
   ignoresResetCommand = false;
+  reportsSerial = true;
   reportsImagesAfterReboot = true;
 
   staged = false;
@@ -109,6 +110,7 @@ class SimulatedBoard {
     this.refusesToConfirm = false;
     this.keepsStagedImageAfterReboot = false;
     this.ignoresResetCommand = false;
+    this.reportsSerial = true;
     this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
@@ -125,9 +127,17 @@ class SimulatedBoard {
     this.notifyUart = listener;
   }
 
-  /** The five-frame device-info burst, whose last frame is the serial. */
+  /**
+   * The five-frame device-info burst, whose last frame is the serial.
+   *
+   * Firmware that predates the serial frame ends the burst one frame early,
+   * which is what `reportsSerial` models: everything else about the board is
+   * normal, it simply never says which board it is.
+   */
   sendDeviceInfo() {
-    const values = ['AKIDA', 'TYPE', '5.3', '1.2.3', DEVICE_SERIAL];
+    const values = this.reportsSerial
+      ? ['AKIDA', 'TYPE', '5.3', '1.2.3', DEVICE_SERIAL]
+      : ['AKIDA', 'TYPE', '5.3', '1.2.3'];
     values.forEach((value, index) => {
       const frameType = index === 0 ? 1 : index === values.length - 1 ? 3 : 2;
       const payload = `1:${value},\r`;
@@ -338,6 +348,7 @@ jest.mock('react-native-ble-plx', () => {
 (global as unknown as { __DEV__: boolean }).__DEV__ = false;
 
 const BleService = require('../src/services/ble/bleManager').default;
+const { useBleStore } = require('../src/app/store/useBleStore');
 
 /** Run one whole update against the board as currently configured. */
 const runUpdate = () =>
@@ -383,6 +394,63 @@ describe('performFota against a simulated board', () => {
       });
     } finally {
       jest.useRealTimers();
+    }
+  }, 60000);
+
+  it('does not call a board it reached unreachable just because it would not say which board it is', async () => {
+    // Firmware predating the serial frame comes back, advertises, and answers,
+    // so the app has plainly reached it. Announcing that it could not be
+    // reached would be false about the one thing the user can check.
+    mockBoard.reset(true);
+    mockBoard.reportsSerial = false;
+    jest.useFakeTimers();
+
+    try {
+      let settled = false;
+      const update = runUpdate().finally(() => {
+        settled = true;
+      });
+
+      for (let elapsed = 0; elapsed < 400000 && !settled; elapsed += 1000) {
+        await jest.advanceTimersByTimeAsync(1000);
+      }
+
+      expect(settled).toBe(true);
+      await expect(update).resolves.toEqual({
+        status: 'unconfirmed',
+        reason: 'unrecognised',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  }, 60000);
+
+  it('restarts the board session when a transfer fails with the board still there', async () => {
+    // The transfer tears the board's notification monitors down. Every ending
+    // that reconnects puts them back by republishing the board; a failure that
+    // leaves the board connected has to do the same, or the app keeps a
+    // connection it can no longer hear anything over.
+    mockBoard.reset(true);
+    mockBoard.failUploadAtOffset = 0;
+
+    const { setConnectedDevice } = useBleStore.getState();
+    setConnectedDevice({
+      id: DEVICE_ID,
+      name: 'AkidaTag',
+      rssi: null,
+      deviceInfo: null,
+      serviceUUIDs: null,
+    });
+    const before = useBleStore.getState().connectedDevice;
+
+    try {
+      await expect(runUpdate()).rejects.toThrow('Upload error at offset 0');
+
+      const after = useBleStore.getState().connectedDevice;
+      expect(after?.id).toBe(DEVICE_ID);
+      expect(after).not.toBe(before);
+    } finally {
+      setConnectedDevice(null);
     }
   }, 60000);
 

@@ -36,6 +36,14 @@ const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
     );
   }
 
+  if (reason === 'unrecognised') {
+    return (
+      'The firmware was sent, and the app did find an AkidaTag afterwards, ' +
+      'but it would not report the serial number that proves it is the same ' +
+      'board, so there is no telling what your board did with the firmware.'
+    );
+  }
+
   return (
     'The firmware was sent and the app reached your AkidaTag again ' +
     'afterwards, but the board would not say which firmware it is running.'
