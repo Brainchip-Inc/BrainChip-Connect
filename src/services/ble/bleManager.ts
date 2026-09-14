@@ -1098,6 +1098,20 @@ class BleService {
   };
 
   /**
+   * Read the MCUboot header out of an image already on disk.
+   *
+   * @param binaryPath - Signed image, extracted from whatever carried it.
+   * @returns The image's version and signing key fingerprint.
+   * @throws If the file is not AkidaTag firmware.
+   */
+  private readImageHeader = async (
+    binaryPath: string,
+  ): Promise<McubootImage> =>
+    parseMcubootImage(
+      Buffer.from(await RNFS.readFile(binaryPath, 'base64'), 'base64'),
+    );
+
+  /**
    * Read the header of the firmware the user picked, without touching a board.
    *
    * @param filePath - A `.bin`, or a `.zip` holding exactly one.
@@ -1110,9 +1124,7 @@ class BleService {
     );
 
     try {
-      return parseMcubootImage(
-        Buffer.from(await RNFS.readFile(binaryPath, 'base64'), 'base64'),
-      );
+      return await this.readImageHeader(binaryPath);
     } finally {
       this.safeDelete(unzipPath);
     }
@@ -1305,7 +1317,6 @@ class BleService {
       for (const candidate of candidates) {
         if (await this.isSameBoard(candidate, expectedSerial)) {
           log(`Reconnected to ${candidate}`);
-          BleConnectionHelper.updateConnectedDeviceId(candidate);
           return candidate;
         }
       }
@@ -1368,8 +1379,9 @@ class BleService {
    * @returns Installed when the board came back running the staged image,
    *   rejected when it came back running something else, and unconfirmed when
    *   it could not be reached, would not answer, or cannot be told apart from
-   *   any other AkidaTag in range. A board that did come back is left
-   *   connected, since the app has just proved it is the same one.
+   *   any other AkidaTag in range, alongside the id the board answered on. A
+   *   board that did come back is left connected, since the app has just
+   *   proved it is the same one.
    */
   private verifyFirmwareInstalled = async (
     previousDeviceId: string,
@@ -1377,10 +1389,16 @@ class BleService {
     stagedHash: string,
     sentVersion: string,
     log: (msg: string) => void,
-  ): Promise<FirmwareUpdateOutcome> => {
+  ): Promise<{
+    outcome: FirmwareUpdateOutcome;
+    reconnectedDeviceId: string | null;
+  }> => {
     if (!expectedSerial) {
       log('Board reported no serial, so it cannot be recognised after reboot');
-      return { status: 'unconfirmed', reason: 'unidentifiable' };
+      return {
+        outcome: { status: 'unconfirmed', reason: 'unidentifiable' },
+        reconnectedDeviceId: null,
+      };
     }
 
     const deviceId = await this.reconnectToBoard(
@@ -1389,22 +1407,34 @@ class BleService {
       log,
     );
     if (!deviceId) {
-      return { status: 'unconfirmed', reason: 'unreachable' };
+      return {
+        outcome: { status: 'unconfirmed', reason: 'unreachable' },
+        reconnectedDeviceId: null,
+      };
     }
 
     const active = await this.readActiveImage(deviceId);
     if (!active) {
       log('Board would not report its running image');
-      return { status: 'unconfirmed', reason: 'unanswered' };
+      return {
+        outcome: { status: 'unconfirmed', reason: 'unanswered' },
+        reconnectedDeviceId: deviceId,
+      };
     }
 
     if (active.hash === stagedHash) {
       log('Board is running the firmware that was sent');
-      return { status: 'installed', version: sentVersion };
+      return {
+        outcome: { status: 'installed', version: sentVersion },
+        reconnectedDeviceId: deviceId,
+      };
     }
 
     log('Board came back on its previous firmware');
-    return { status: 'rejected', runningVersion: active.version };
+    return {
+      outcome: { status: 'rejected', runningVersion: active.version },
+      reconnectedDeviceId: deviceId,
+    };
   };
 
   /**
@@ -1457,7 +1487,6 @@ class BleService {
 
     this.cleanupMonitors();
     BleConnectionHelper.setFotaRunning(true);
-    options.onPhase?.('sending');
 
     let unzipPath = '';
 
@@ -1465,12 +1494,7 @@ class BleService {
       const extracted = await this.extractFirmwareBinary(filePath);
       unzipPath = extracted.unzipPath;
 
-      const image = parseMcubootImage(
-        Buffer.from(
-          await RNFS.readFile(extracted.binaryPath, 'base64'),
-          'base64',
-        ),
-      );
+      const image = await this.readImageHeader(extracted.binaryPath);
       log(`Sending firmware ${image.version}`);
 
       const stagedHash = await this.uploadAndConfirm(
@@ -1491,13 +1515,25 @@ class BleService {
       await new Promise(r => setTimeout(r, REBOOT_SETTLE_MS));
 
       options.onPhase?.('checking');
-      return await this.verifyFirmwareInstalled(
+      const verified = await this.verifyFirmwareInstalled(
         deviceId,
         options.expectedSerial ?? null,
         stagedHash,
         image.version,
         log,
       );
+
+      // Published once the update is over rather than from inside the
+      // reconnect loop: the screens react to this, and a board that changed
+      // address mid-verification would restart the app's device session on
+      // top of the SMP exchange still running here.
+      if (verified.reconnectedDeviceId) {
+        BleConnectionHelper.updateConnectedDeviceId(
+          verified.reconnectedDeviceId,
+        );
+      }
+
+      return verified.outcome;
     } finally {
       this.otaInProgress = null;
       this.fotaResolver = null;

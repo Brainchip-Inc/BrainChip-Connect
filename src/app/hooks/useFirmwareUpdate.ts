@@ -10,7 +10,6 @@ import {
 } from '../../services/firmware/trustedKeyStorage';
 import {
   FirmwareUpdateEnding,
-  FirmwareUpdateOutcome,
   FirmwareUpdateStage,
   SelectedFirmware,
   SigningKeyWarning,
@@ -23,16 +22,22 @@ import BleConnectionHelper from '../utils/BleConnectionHelper';
 const BUSY_STAGES = ['sending', 'restarting', 'checking'];
 
 /**
- * Decide whether an ending leaves the app holding the board.
+ * Put the app's connection state back in step with the radio.
  *
- * The update reconnects to the board and keeps it, so the only outcomes that
- * end without one are those where it never got back to it.
- *
- * @param outcome - What the update turned out to be.
- * @returns True when there is no board left to talk to.
+ * An update ends holding the board it reconnected to, or holding nothing at
+ * all, and which of the two it is cannot be read off the ending: a board that
+ * drops mid-upload and one that refuses the image both end in a failure. So
+ * the radio is asked, and the board is given up only when it really is gone.
+ * Nothing else will correct it, because the disconnect that happens during an
+ * update is deliberately swallowed while one is running.
  */
-const isBoardLost = (outcome: FirmwareUpdateOutcome): boolean =>
-  outcome.status === 'unconfirmed' && outcome.reason !== 'unanswered';
+const forgetBoardUnlessStillConnected = async () => {
+  const boardId = useBleStore.getState().connectedDevice?.id;
+
+  if (!boardId || !(await bleService.isDeviceConnected(boardId))) {
+    BleConnectionHelper.markConnectionClosed();
+  }
+};
 
 /**
  * Copy a picked file into the app's cache under its own name.
@@ -181,9 +186,6 @@ export const useFirmwareUpdate = () => {
         },
       });
 
-      if (isBoardLost(outcome)) {
-        BleConnectionHelper.markConnectionClosed();
-      }
       ending = outcome;
 
       if (outcome.status === 'installed') {
@@ -206,6 +208,7 @@ export const useFirmwareUpdate = () => {
       };
     }
 
+    await forgetBoardUnlessStillConnected();
     setStage({ kind: 'idle' });
 
     const { title, message } = describeUpdateEnding(ending);

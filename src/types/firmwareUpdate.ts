@@ -28,8 +28,8 @@ export type UnconfirmedReason =
   | 'unreachable'
   | 'unanswered';
 
-/** Stage of an update in flight, for the screen to describe to the user. */
-export type FirmwareUpdatePhase = 'sending' | 'restarting' | 'checking';
+/** Step of an update the board owns, which the app can only wait through. */
+export type FirmwareUpdatePhase = 'restarting' | 'checking';
 
 /** Firmware the user picked, with what its header says about it. */
 export interface SelectedFirmware {
