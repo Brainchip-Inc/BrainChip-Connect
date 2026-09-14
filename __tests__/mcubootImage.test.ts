@@ -88,6 +88,32 @@ describe('parseMcubootImage', () => {
     });
   });
 
+  it('reads the fingerprint as hex where subarray returns a plain view', () => {
+    // On Hermes, subarray hands back a Uint8Array rather than a Buffer, and
+    // its toString ignores the encoding: the fingerprint came out as a list
+    // of decimal bytes and never matched the key recorded for a board, so
+    // every file looked wrongly signed.
+    const image = buildImage();
+    const hermesLike = new Proxy(image, {
+      get: (target, property) => {
+        if (property === 'subarray') {
+          return (start: number, end: number) =>
+            new Uint8Array(
+              target.buffer,
+              target.byteOffset + start,
+              end - start,
+            );
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+
+    expect(parseMcubootImage(hermesLike).keyHash).toBe(
+      KEY_HASH.toString('hex'),
+    );
+  });
+
   it('finds the trailer past a protected TLV area', () => {
     expect(parseMcubootImage(buildImage({ protectedTlvs: true }))).toEqual({
       version: '1.2.3',

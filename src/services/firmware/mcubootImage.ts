@@ -55,7 +55,10 @@ const readTlvArea = (image: Buffer, start: number): Map<number, Buffer> => {
       break;
     }
     if (!values.has(type)) {
-      values.set(type, image.subarray(valueStart, valueEnd));
+      // Copied rather than kept as a view: Hermes hands back a plain
+      // Uint8Array from subarray, whose toString ignores the encoding and
+      // renders a fingerprint as a list of decimal bytes.
+      values.set(type, Buffer.from(image.subarray(valueStart, valueEnd)));
     }
     offset = valueEnd;
   }
