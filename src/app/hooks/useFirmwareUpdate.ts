@@ -1,5 +1,5 @@
 import { pick } from '@react-native-documents/picker';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import bleService from '../../services/ble/bleManager';
@@ -76,6 +76,7 @@ export const useFirmwareUpdate = () => {
   const [selected, setSelected] = useState<SelectedFirmware | null>(null);
   const [keyWarning, setKeyWarning] = useState<SigningKeyWarning | null>(null);
   const [stage, setStage] = useState<FirmwareUpdateStage>({ kind: 'idle' });
+  const updateInFlight = useRef(false);
 
   const clearSelection = useCallback(() => {
     setSelected(null);
@@ -148,8 +149,18 @@ export const useFirmwareUpdate = () => {
   }, [clearSelection, deviceSerial]);
 
   const startUpdate = useCallback(async () => {
+    // Taken before the first await, because the stage that disables Install
+    // is not set until after one and a second tap in that window would reach
+    // performFota, be turned away for an update already running, and report
+    // that as a failure of the update that is running perfectly well.
+    if (updateInFlight.current) {
+      return;
+    }
+    updateInFlight.current = true;
+
     const deviceId = useBleStore.getState().connectedDevice?.id;
     if (!selected || !deviceId) {
+      updateInFlight.current = false;
       Alert.alert(
         'Installation Failed',
         'No device connected or firmware selected',
@@ -158,6 +169,7 @@ export const useFirmwareUpdate = () => {
     }
 
     if (!(await bleService.isDeviceConnected(deviceId))) {
+      updateInFlight.current = false;
       Alert.alert('Device disconnected');
       return;
     }
@@ -204,6 +216,7 @@ export const useFirmwareUpdate = () => {
     }
 
     await forgetBoardUnlessStillConnected();
+    updateInFlight.current = false;
     setStage({ kind: 'done', ending });
   }, [clearSelection, deviceSerial, selected]);
 

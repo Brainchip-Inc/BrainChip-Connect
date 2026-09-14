@@ -21,6 +21,7 @@ interface SigningKeyWarningCardProps {
   warning: SigningKeyWarning;
   fileName: string;
   onSendAnyway: () => void;
+  disabled: boolean;
 }
 
 /**
@@ -114,6 +115,7 @@ export const SigningKeyWarningCard = ({
   warning,
   fileName,
   onSendAnyway,
+  disabled,
 }: SigningKeyWarningCardProps) => (
   <View style={[styles.outcome, { borderColor: Colors.warning }]}>
     <Text style={styles.title}>This file may not install</Text>
@@ -126,7 +128,12 @@ export const SigningKeyWarningCard = ({
       If your board still only trusts that key it will refuse this file and keep
       running its current firmware.
     </Text>
-    <Button mode="outlined" style={styles.action} onPress={onSendAnyway}>
+    <Button
+      mode="outlined"
+      style={styles.action}
+      disabled={disabled}
+      onPress={onSendAnyway}
+    >
       Send it anyway
     </Button>
   </View>

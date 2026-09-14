@@ -480,7 +480,9 @@ describe('performFota against a simulated board', () => {
     const before = useBleStore.getState().connectedDevice;
 
     try {
-      await expect(runUpdate()).rejects.toThrow('Upload error at offset 0');
+      await expect(runUpdate()).rejects.toThrow(
+        'The board stopped accepting the firmware partway through',
+      );
 
       const after = useBleStore.getState().connectedDevice;
       expect(after?.id).toBe(DEVICE_ID);
@@ -567,7 +569,9 @@ describe('performFota against a simulated board', () => {
     mockBoard.reset(true);
     mockBoard.failUploadAtOffset = 0;
 
-    await expect(runUpdate()).rejects.toThrow('Upload error at offset 0');
+    await expect(runUpdate()).rejects.toThrow(
+      'The board stopped accepting the firmware partway through',
+    );
     expect(mockBoard.resetCount).toBe(0);
   }, 60000);
 

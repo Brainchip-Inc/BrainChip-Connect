@@ -776,7 +776,13 @@ class BleService {
       const timer = setTimeout(() => {
         this.fotaResolver = null;
         this.fotaRejecter = null;
-        reject(new Error(`FOTA timeout after ${timeoutMs}ms`));
+        if (__DEV__) console.log('[FOTA]', `No answer within ${timeoutMs}ms`);
+        reject(
+          new Error(
+            'The board stopped answering while the firmware was being sent. ' +
+              'Keep it close to the phone and try again.',
+          ),
+        );
       }, timeoutMs);
 
       this.fotaResolver = (data: any) => {
@@ -998,7 +1004,16 @@ class BleService {
       );
 
       if (response?.rc !== undefined && response.rc !== 0) {
-        throw new Error(`Upload error at offset ${offset}: rc=${response.rc}`);
+        if (__DEV__) {
+          console.log(
+            '[FOTA]',
+            `Upload refused at ${offset}, rc=${response.rc}`,
+          );
+        }
+        throw new Error(
+          'The board stopped accepting the firmware partway through. Try ' +
+            'sending it again.',
+        );
       }
 
       // Device echoes next expected offset in response.off
@@ -1526,7 +1541,9 @@ class BleService {
    * @returns Whether the firmware installed, was refused, or could not be
    *   checked. The board never says why it refused an image.
    * @throws If another update is already running, or the transfer itself
-   *   fails. Those messages are written to be shown to the user.
+   *   fails. Every message that can come out of here is written to be read by
+   *   the person holding the board; the offsets and result codes behind it go
+   *   to the development log instead.
    */
   async performFota(
     deviceId: string,

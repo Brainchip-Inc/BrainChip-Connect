@@ -165,6 +165,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
                   warning={keyWarning}
                   fileName={selected.name}
                   onSendAnyway={startUpdate}
+                  disabled={!canInstall}
                 />
               ) : (
                 <Button

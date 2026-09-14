@@ -23,7 +23,10 @@ const ENDINGS: FirmwareUpdateEnding[] = [
   { status: 'unconfirmed', reason: 'unreachable' },
   { status: 'unconfirmed', reason: 'unrecognised' },
   { status: 'unconfirmed', reason: 'unanswered' },
-  { status: 'failed', detail: 'Upload error at offset 0' },
+  {
+    status: 'failed',
+    detail: 'The board stopped accepting the firmware partway through.',
+  },
 ];
 
 describe('describeUpdateEnding', () => {
@@ -82,12 +85,14 @@ describe('describeUpdateEnding', () => {
     // where the bootloader itself threw the image away.
     const failed = describeUpdateEnding({
       status: 'failed',
-      detail: 'Upload error at offset 50000',
+      detail: 'The board stopped accepting the firmware partway through.',
     });
 
     expect(failed.message).toContain('still running its previous firmware');
     expect(failed.message).not.toMatch(/nothing on (it|the board)/);
-    expect(failed.message).toContain('Upload error at offset 50000');
+    expect(failed.message).toContain(
+      'The board stopped accepting the firmware partway through.',
+    );
   });
 
   it('does not call a board that never restarted a refusal', () => {
