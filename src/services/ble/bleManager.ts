@@ -1320,6 +1320,12 @@ class BleService {
     try {
       await this.connectDevice(deviceId, connectTimeoutMs);
     } catch {
+      // The MTU request and service discovery both run on a link that is
+      // already up, and both reject on a board still settling after a reboot,
+      // so a failure here can leave one open.
+      try {
+        await this.bleManager.cancelDeviceConnection(deviceId);
+      } catch {}
       return 'not-it';
     }
 
@@ -1401,15 +1407,14 @@ class BleService {
    * @returns The running image's version and hash, and every slot's hash with
    *   the pending flag off its trailer, or null if the board would not answer.
    *   The hashes are the board's own, so they compare directly with the one it
-   *   reported for the staged image before the reboot. `pending` is undefined
-   *   for a board that does not report the flag at all.
+   *   reported for the staged image before the reboot.
    */
   private readImages = async (
     deviceId: string,
   ): Promise<{
     version: string | null;
     hash: string;
-    slots: { hash: string; pending: boolean | undefined }[];
+    slots: { hash: string; pending: boolean }[];
   } | null> => {
     this.pendingFotaResponse = null;
     this.fotaResolver = null;
@@ -1437,7 +1442,7 @@ class BleService {
           .filter(img => img.hash)
           .map(img => ({
             hash: Buffer.from(img.hash).toString('hex'),
-            pending: typeof img.pending === 'boolean' ? img.pending : undefined,
+            pending: img.pending === true,
           })),
       };
     } catch {
@@ -1515,10 +1520,10 @@ class BleService {
     }
 
     // An image the board has not booted to yet still has the trailer that
-    // marks it pending; refusing one scrambles that trailer. Presence alone is
-    // no proof either way, so it only stands in where the flag is not reported.
+    // marks it pending; refusing one scrambles that trailer. The image being
+    // there proves nothing either way, since a refused one can stay put.
     const staged = images.slots.find(slot => slot.hash === stagedHash);
-    if (staged && staged.pending !== false) {
+    if (staged?.pending) {
       log('Board never restarted, and still holds the firmware that was sent');
       return {
         outcome: { status: 'not-restarted', runningVersion: images.version },

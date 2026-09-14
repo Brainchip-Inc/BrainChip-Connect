@@ -141,10 +141,13 @@ export const useFirmwareUpdate = () => {
       if (image.keyHash && boardKeyHash && image.keyHash !== boardKeyHash) {
         setKeyWarning({ fileKeyHash: image.keyHash, boardKeyHash });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (__DEV__) console.log('[FOTA]', error);
       Alert.alert(
         'Invalid File',
-        error?.message ?? 'This file could not be read as firmware.',
+        error instanceof FirmwareUpdateError
+          ? error.message
+          : 'This file could not be read as firmware.',
       );
     }
   }, [clearSelection, deviceSerial]);
@@ -175,7 +178,6 @@ export const useFirmwareUpdate = () => {
       return;
     }
 
-    setKeyWarning(null);
     setStage({ kind: 'sending', percent: 0 });
 
     let ending: FirmwareUpdateEnding;

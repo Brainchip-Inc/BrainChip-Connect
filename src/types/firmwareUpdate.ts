@@ -8,10 +8,9 @@
  * knowable: it never says why it refused an image. `not-restarted` is the
  * board never having rebooted to look at the image at all, which the staged
  * slot's trailer still marking that image pending is what shows, since the
- * bootloader scrambles that trailer as soon as it has looked; where a board
- * does not report the flag at all, the image still being there stands in. A
- * board that leaves a refused image in place is therefore not mistaken for
- * one that never booted.
+ * bootloader scrambles that trailer as soon as it has looked. A board that
+ * leaves a refused image in place is therefore not mistaken for one that
+ * never booted.
  */
 export type FirmwareUpdateOutcome =
   | { status: 'installed'; version: string }

@@ -95,6 +95,8 @@ class SimulatedBoard {
   ignoresResetCommand = false;
   reportsSerial = true;
   reportsDifferentSerial = false;
+  failsSetupAfterConnecting = false;
+  cancelledConnections: string[] = [];
   reportsImagesAfterReboot = true;
 
   staged = false;
@@ -114,6 +116,8 @@ class SimulatedBoard {
     this.ignoresResetCommand = false;
     this.reportsSerial = true;
     this.reportsDifferentSerial = false;
+    this.failsSetupAfterConnecting = false;
+    this.cancelledConnections = [];
     this.reportsImagesAfterReboot = true;
     this.staged = false;
     this.rebooted = false;
@@ -271,7 +275,14 @@ jest.mock('react-native-ble-plx', () => {
   const device = {
     id: 'AA:BB:CC:DD:EE:FF',
     mtu: 247,
-    requestMTU: jest.fn(async () => ({ mtu: 247 })),
+    // Negotiating the MTU happens on a link that is already up, and rejects
+    // on a board still settling right after a reboot.
+    requestMTU: jest.fn(async () => {
+      if (mockBoard.failsSetupAfterConnecting) {
+        throw new Error('GATT exception 133');
+      }
+      return { mtu: 247 };
+    }),
     discoverAllServicesAndCharacteristics: jest.fn(async () => {}),
   };
 
@@ -317,7 +328,10 @@ jest.mock('react-native-ble-plx', () => {
       ),
       devices: jest.fn(async () => [device]),
       isDeviceConnected: jest.fn(async () => true),
-      cancelDeviceConnection: jest.fn(async () => device),
+      cancelDeviceConnection: jest.fn(async (id: string) => {
+        mockBoard.cancelledConnections.push(id);
+        return device;
+      }),
       onDeviceDisconnected: jest.fn(() => ({ remove: jest.fn() })),
       requestMTUForDevice: jest.fn(async () => device),
       stopDeviceScan: jest.fn(),
@@ -428,6 +442,41 @@ describe('performFota against a simulated board', () => {
         status: 'unconfirmed',
         reason: 'unrecognised',
       });
+    } finally {
+      jest.useRealTimers();
+    }
+  }, 60000);
+
+  it('lets go of a board whose setup fails once the link is already up', async () => {
+    // The connect succeeds and the MTU request does not, so the phone is
+    // holding a link to a board it is about to give up on. Leaving it open
+    // means telling the user it could not be reached while still connected to
+    // it, with nothing left that knows to close it.
+    mockBoard.reset(true);
+    mockBoard.failsSetupAfterConnecting = true;
+    jest.useFakeTimers();
+
+    try {
+      let settled = false;
+      const update = runUpdate().finally(() => {
+        settled = true;
+      });
+
+      for (let elapsed = 0; elapsed < 400000 && !settled; elapsed += 1000) {
+        await jest.advanceTimersByTimeAsync(1000);
+      }
+
+      expect(settled).toBe(true);
+      await expect(update).resolves.toEqual({
+        status: 'unconfirmed',
+        reason: 'unreachable',
+      });
+
+      // One for the deliberate disconnect before the reboot, one for the link
+      // the failed reconnect attempt was left holding.
+      expect(
+        mockBoard.cancelledConnections.filter(id => id === DEVICE_ID),
+      ).toHaveLength(2);
     } finally {
       jest.useRealTimers();
     }
