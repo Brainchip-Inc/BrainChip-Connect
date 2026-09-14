@@ -33,7 +33,7 @@ const ENDINGS: FirmwareUpdateEnding[] = [
 describe('describeUpdateEnding', () => {
   it('gives every ending its own statement', () => {
     const messages = ENDINGS.map(
-      ending => describeUpdateEnding(ending).message,
+      ending => describeUpdateEnding(ending, false).message,
     );
 
     expect(new Set(messages).size).toBe(ENDINGS.length);
@@ -41,17 +41,20 @@ describe('describeUpdateEnding', () => {
 
   it('never names a signing key, which the board never reports', () => {
     ENDINGS.forEach(ending => {
-      const { title, message } = describeUpdateEnding(ending);
+      const { title, message } = describeUpdateEnding(ending, false);
 
       expect(`${title} ${message}`.toLowerCase()).not.toContain('key');
     });
   });
 
   it('reports a refusal as a refusal, naming the firmware still running', () => {
-    const { title, message } = describeUpdateEnding({
-      status: 'rejected',
-      runningVersion: '1.1.1',
-    });
+    const { title, message } = describeUpdateEnding(
+      {
+        status: 'rejected',
+        runningVersion: '1.1.1',
+      },
+      false,
+    );
 
     expect(title).toBe('Update did not install');
     expect(message).toBe(
@@ -64,17 +67,20 @@ describe('describeUpdateEnding', () => {
     // A refused image is written to the spare slot before the board ever
     // looks at it, and on the board this bug was found on it stays there.
     ENDINGS.forEach(ending => {
-      expect(describeUpdateEnding(ending).message).not.toMatch(
+      expect(describeUpdateEnding(ending, false).message).not.toMatch(
         /nothing on (it|the board)/i,
       );
     });
   });
 
   it('does not invent a version the board never reported', () => {
-    const { message } = describeUpdateEnding({
-      status: 'rejected',
-      runningVersion: null,
-    });
+    const { message } = describeUpdateEnding(
+      {
+        status: 'rejected',
+        runningVersion: null,
+      },
+      false,
+    );
 
     expect(message).toContain('still running its previous firmware');
     expect(message).not.toMatch(/null|undefined/);
@@ -84,10 +90,13 @@ describe('describeUpdateEnding', () => {
     // A transfer can fail with half the image already written to the spare
     // slot, so the only ending that can promise an untouched board is the one
     // where the bootloader itself threw the image away.
-    const failed = describeUpdateEnding({
-      status: 'failed',
-      detail: 'The board stopped accepting the firmware partway through.',
-    });
+    const failed = describeUpdateEnding(
+      {
+        status: 'failed',
+        detail: 'The board stopped accepting the firmware partway through.',
+      },
+      false,
+    );
 
     expect(failed.message).toContain('still running its previous firmware');
     expect(failed.message).not.toMatch(/nothing on (it|the board)/);
@@ -100,7 +109,7 @@ describe('describeUpdateEnding', () => {
     // What the Bluetooth stack says about a dropped link is native text with
     // a MAC address in it, so a failure the app did not word itself arrives
     // here carrying nothing, and the card must not advertise an empty detail.
-    const { message } = describeUpdateEnding({ status: 'failed' });
+    const { message } = describeUpdateEnding({ status: 'failed' }, false);
 
     expect(message).toContain('still running its previous firmware');
     expect(message).not.toContain('Details');
@@ -111,10 +120,13 @@ describe('describeUpdateEnding', () => {
     // The image is still on the board and will install on the next power
     // cycle, so the refusal wording would be wrong twice and would leave the
     // user surprised when the firmware turns up anyway.
-    const { title, message } = describeUpdateEnding({
-      status: 'not-restarted',
-      runningVersion: '1.1.1',
-    });
+    const { title, message } = describeUpdateEnding(
+      {
+        status: 'not-restarted',
+        runningVersion: '1.1.1',
+      },
+      false,
+    );
 
     expect(title).not.toContain('did not install');
     expect(message).toContain('did not restart');
@@ -125,41 +137,44 @@ describe('describeUpdateEnding', () => {
   });
 
   it('does not say it could not reach a board it did reach', () => {
-    const found = describeUpdateEnding({
-      status: 'unconfirmed',
-      reason: 'unrecognised',
-    });
+    const found = describeUpdateEnding(
+      {
+        status: 'unconfirmed',
+        reason: 'unrecognised',
+      },
+      false,
+    );
 
     expect(found.message).toContain('did find an AkidaTag');
     expect(found.message).not.toContain('could not reach');
     expect(found.message).not.toMatch(/fail/i);
   });
 
-  it('does not send the user to the device list for a board it still holds', () => {
-    // Only the unanswered ending keeps the board: it came back and was
-    // recognised, it just would not say what it is running. Picking it out of
-    // the device list means disconnecting first, which the others do not.
-    const stillHolding = describeUpdateEnding({
-      status: 'unconfirmed',
-      reason: 'unanswered',
-    });
-
-    expect(stillHolding.message).toContain('still connected to the board');
-    expect(stillHolding.message).toContain('Disconnect');
-
-    const givenUp: UnconfirmedReason[] = [
+  it('tells the user to let go of the board only when there is one to let go of', () => {
+    // Every reason reaches both states: the board can drop the link between
+    // being recognised and being asked, and one that was never rebooted is
+    // still there to be found again. So the instruction turns on what the
+    // radio said, and saying it the other way round would have the app
+    // describe its own connection wrongly.
+    const reasons: UnconfirmedReason[] = [
       'unidentifiable',
       'unreachable',
       'unrecognised',
+      'unanswered',
     ];
-    givenUp.forEach(reason => {
-      const { message } = describeUpdateEnding({
-        status: 'unconfirmed',
-        reason,
-      });
 
-      expect(message).toContain('Select your AkidaTag in the device list');
-      expect(message).not.toContain('Disconnect');
+    reasons.forEach(reason => {
+      const ending = { status: 'unconfirmed', reason } as const;
+
+      const stillHolding = describeUpdateEnding(ending, true);
+      expect(stillHolding.message).toContain('still connected to the board');
+      expect(stillHolding.message).toContain('Disconnect');
+
+      const letGo = describeUpdateEnding(ending, false);
+      expect(letGo.message).toContain(
+        'Select your AkidaTag in the device list',
+      );
+      expect(letGo.message).not.toContain('Disconnect');
     });
   });
 
@@ -175,10 +190,10 @@ describe('describeUpdateEnding', () => {
     ];
 
     reasons.forEach(reason => {
-      const { message } = describeUpdateEnding({
-        status: 'unconfirmed',
-        reason,
-      });
+      const { message } = describeUpdateEnding(
+        { status: 'unconfirmed', reason },
+        false,
+      );
 
       expect(message).toContain('The firmware was sent');
       expect(message).not.toMatch(/restart/i);
@@ -186,16 +201,19 @@ describe('describeUpdateEnding', () => {
   });
 
   it('says a success is a success only for a confirmed install', () => {
-    const installed = describeUpdateEnding({
-      status: 'installed',
-      version: '1.2.0',
-    });
+    const installed = describeUpdateEnding(
+      {
+        status: 'installed',
+        version: '1.2.0',
+      },
+      false,
+    );
 
     expect(installed.title).toBe('Update installed');
     expect(installed.message).toContain('now running firmware 1.2.0');
 
     ENDINGS.filter(ending => ending.status !== 'installed').forEach(ending => {
-      expect(describeUpdateEnding(ending).message).not.toContain(
+      expect(describeUpdateEnding(ending, false).message).not.toContain(
         'now running firmware',
       );
     });

@@ -88,12 +88,14 @@ const ProgressBody = ({
  */
 const OutcomeBody = ({
   ending,
+  stillConnected,
   onDone,
 }: {
   ending: FirmwareUpdateEnding;
+  stillConnected: boolean;
   onDone: () => void;
 }) => {
-  const { title, message } = describeUpdateEnding(ending);
+  const { title, message } = describeUpdateEnding(ending, stillConnected);
 
   return (
     <View>
@@ -168,7 +170,11 @@ const FirmwareUpdateStatus = ({
       >
         <View style={styles.modal}>
           {stage.kind === 'done' ? (
-            <OutcomeBody ending={stage.ending} onDone={onDone} />
+            <OutcomeBody
+              ending={stage.ending}
+              stillConnected={stage.stillConnected}
+              onDone={onDone}
+            />
           ) : (
             <ProgressBody stage={stage} sentVersion={sentVersion} />
           )}

@@ -62,14 +62,16 @@ export interface SigningKeyWarning {
  *
  * `done` is not a fifth step so much as the same modal's last screenful: the
  * update reports each step as it happens and then stays up holding the answer
- * until the user has read it.
+ * until the user has read it. `stillConnected` is what the radio said when the
+ * update ended, which is the only thing that can say whether the board has to
+ * be let go before it can be picked again.
  */
 export type FirmwareUpdateStage =
   | { kind: 'idle' }
   | { kind: 'sending'; percent: number }
   | { kind: 'restarting' }
   | { kind: 'checking' }
-  | { kind: 'done'; ending: FirmwareUpdateEnding };
+  | { kind: 'done'; ending: FirmwareUpdateEnding; stillConnected: boolean };
 
 /**
  * How an update ended, which is every way it can stop.

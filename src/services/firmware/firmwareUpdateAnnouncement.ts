@@ -53,16 +53,18 @@ const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
 /**
  * Say what to do about an update that could not be confirmed.
  *
- * Three of the four reasons end with the board given up, so it has to be
- * picked again before anything can be read off it. `unanswered` ends still
- * holding it, and the disconnect that takes is a step the instruction has to
- * name rather than skip past.
+ * Which board the app is left holding does not follow from why it gave up
+ * looking: every reason can end either way, so this turns on what the radio
+ * said when the update ended rather than on the reason. A board still held has
+ * to be let go before it can be picked again, and that is a step the
+ * instruction has to name rather than skip past.
  *
- * @param reason - Where the confirmation stopped.
+ * @param stillConnected - Whether the app was still holding the board when the
+ *   update ended.
  * @returns The sentence telling the user where to look next.
  */
-const whereToLookNext = (reason: UnconfirmedReason): string => {
-  if (reason === 'unanswered') {
+const whereToLookNext = (stillConnected: boolean): string => {
+  if (stillConnected) {
     return (
       'The app is still connected to the board. Disconnect from it and pick ' +
       'it again in the device list to see the firmware version it is running.'
@@ -87,10 +89,13 @@ const whereToLookNext = (reason: UnconfirmedReason): string => {
  * the user with different things to do.
  *
  * @param ending - How the update turned out.
+ * @param stillConnected - Whether the app was still holding the board when the
+ *   update ended, asked of the radio rather than inferred from the ending.
  * @returns Title and message for the update modal to show.
  */
 export const describeUpdateEnding = (
   ending: FirmwareUpdateEnding,
+  stillConnected: boolean,
 ): UpdateAnnouncement => {
   if (ending.status === 'installed') {
     return {
@@ -145,6 +150,6 @@ export const describeUpdateEnding = (
     title: 'Could not confirm the update',
     message:
       `${describeMissedConfirmation(ending.reason)}\n\n` +
-      whereToLookNext(ending.reason),
+      whereToLookNext(stillConnected),
   };
 };

@@ -23,6 +23,7 @@ const mockPerformFota = jest.fn();
 const mockPick = jest.fn();
 const mockReadFirmwareImage = jest.fn();
 const mockGetTrustedKeyHash = jest.fn();
+const mockIsDeviceConnected = jest.fn();
 
 jest.mock('@react-native-documents/picker', () => ({
   pick: (...args: unknown[]) => mockPick(...args),
@@ -44,7 +45,7 @@ jest.mock('../src/services/firmware/trustedKeyStorage', () => ({
 jest.mock('../src/services/ble/bleManager', () => ({
   __esModule: true,
   default: {
-    isDeviceConnected: jest.fn(async () => true),
+    isDeviceConnected: (...args: unknown[]) => mockIsDeviceConnected(...args),
     readFirmwareImage: (...args: unknown[]) => mockReadFirmwareImage(...args),
     performFota: (...args: unknown[]) => mockPerformFota(...args),
   },
@@ -138,6 +139,7 @@ beforeEach(() => {
   ]);
   mockReadFirmwareImage.mockResolvedValue({ version: '1.2.0', keyHash: null });
   mockGetTrustedKeyHash.mockResolvedValue(null);
+  mockIsDeviceConnected.mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -188,6 +190,7 @@ describe('warning that a file is signed with a key the board does not trust', ()
     expect(api.stage).toEqual({
       kind: 'done',
       ending: { status: 'rejected', runningVersion: '1.1.1' },
+      stillConnected: true,
     });
     expect(api.keyWarning).toEqual({
       fileKeyHash: OTHER_KEY,
@@ -222,6 +225,59 @@ describe('warning that a file is signed with a key the board does not trust', ()
 
     await ReactTestRenderer.act(() => {
       renderer.unmount();
+    });
+  });
+});
+
+describe('recording whether the board survived the update', () => {
+  /** Run one update that ends the given way, with the board there or not. */
+  const endUpdate = async (
+    outcome: FirmwareUpdateOutcome,
+    boardStillThere: boolean,
+  ) => {
+    connectBoard();
+    mockPerformFota.mockResolvedValue(outcome);
+    // Connected when the update starts, and whatever the board did with the
+    // link by the time it ends.
+    mockIsDeviceConnected.mockReset();
+    mockIsDeviceConnected
+      .mockResolvedValueOnce(true)
+      .mockResolvedValue(boardStillThere);
+
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<Harness />);
+    });
+    await ReactTestRenderer.act(async () => {
+      await api.browseForFirmware();
+    });
+    await ReactTestRenderer.act(async () => {
+      await api.startUpdate();
+    });
+
+    const { stage } = api;
+    await ReactTestRenderer.act(() => {
+      renderer.unmount();
+    });
+
+    return stage;
+  };
+
+  it("takes the radio's word for it rather than the ending's", async () => {
+    // The same ending reaches both states: a board can be recognised, then
+    // drop the link before it answers what it is running. What the user is
+    // told to do next hangs on this, so it cannot be guessed from the reason.
+    const ending = { status: 'unconfirmed', reason: 'unanswered' } as const;
+
+    expect(await endUpdate(ending, false)).toEqual({
+      kind: 'done',
+      ending,
+      stillConnected: false,
+    });
+    expect(await endUpdate(ending, true)).toEqual({
+      kind: 'done',
+      ending,
+      stillConnected: true,
     });
   });
 });
@@ -290,6 +346,7 @@ describe('reporting a failed firmware update', () => {
         status: 'failed',
         detail: 'The board stopped accepting the firmware partway through.',
       },
+      stillConnected: true,
     });
   });
 
@@ -303,7 +360,11 @@ describe('reporting a failed firmware update', () => {
       ),
     );
 
-    expect(stage).toEqual({ kind: 'done', ending: { status: 'failed' } });
+    expect(stage).toEqual({
+      kind: 'done',
+      ending: { status: 'failed' },
+      stillConnected: true,
+    });
   });
 });
 
@@ -337,6 +398,7 @@ describe('starting a firmware update twice', () => {
     expect(api.stage).toEqual({
       kind: 'done',
       ending: { status: 'installed', version: '1.2.0' },
+      stillConnected: true,
     });
 
     await ReactTestRenderer.act(() => {

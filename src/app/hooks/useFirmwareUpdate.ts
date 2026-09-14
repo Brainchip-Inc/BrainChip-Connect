@@ -28,13 +28,19 @@ import BleConnectionHelper from '../utils/BleConnectionHelper';
  * the radio is asked, and the board is given up only when it really is gone.
  * Nothing else will correct it, because the disconnect that happens during an
  * update is deliberately swallowed while one is running.
+ *
+ * @returns Whether the board is still there, which is also the only honest
+ *   basis for telling the user what to do with it next.
  */
-const forgetBoardUnlessStillConnected = async () => {
+const forgetBoardUnlessStillConnected = async (): Promise<boolean> => {
   const boardId = useBleStore.getState().connectedDevice?.id;
 
-  if (!boardId || !(await bleService.isDeviceConnected(boardId))) {
-    BleConnectionHelper.markConnectionClosed();
+  if (boardId && (await bleService.isDeviceConnected(boardId))) {
+    return true;
   }
+
+  BleConnectionHelper.markConnectionClosed();
+  return false;
 };
 
 /**
@@ -220,9 +226,9 @@ export const useFirmwareUpdate = () => {
       };
     }
 
-    await forgetBoardUnlessStillConnected();
+    const stillConnected = await forgetBoardUnlessStillConnected();
     updateInFlight.current = false;
-    setStage({ kind: 'done', ending });
+    setStage({ kind: 'done', ending, stillConnected });
   }, [clearSelection, deviceSerial, selected]);
 
   const dismissOutcome = useCallback(() => setStage({ kind: 'idle' }), []);
