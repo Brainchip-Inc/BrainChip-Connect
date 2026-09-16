@@ -61,6 +61,19 @@ type DeployAckResolver = {
   reject: (err: Error) => void;
 };
 
+/**
+ * What the board has been asked to do with an application and has not yet
+ * confirmed. Starting one is a model swap on a board that fits one model, so
+ * this covers the seconds the board spends loading it.
+ */
+export interface AppTransition {
+  appId: string;
+  kind: 'starting' | 'stopping';
+}
+
+/** How long to wait for the board to confirm a start or stop. */
+const DEPLOY_ACK_TIMEOUT_MS = 3000;
+
 // The firmware reports its serial as 16 lowercase hex characters. Anything
 // else on that frame is a firmware the app does not understand, so it is
 // dropped rather than shown.
@@ -100,6 +113,7 @@ interface BleCommandState {
   // Firmware auto-starts at boot, so we initialise true on connect.
   isInferenceRunning: boolean;
   deployAckResolver: DeployAckResolver | null;
+  appTransition: AppTransition | null;
 
   // 🔹 Session lifecycle
   startDeviceSession: (device: BLEDevice) => Promise<void>;
@@ -173,6 +187,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
   isInferenceRunning: false,
   deployAckResolver: null,
+  appTransition: null,
 
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
@@ -213,6 +228,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       kwsConfigAckResolver: null,
       isInferenceRunning: false,
       deployAckResolver: null,
+      appTransition: null,
     });
   },
 
@@ -583,7 +599,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     try {
       const ack = new Promise<void>((resolve, reject) => {
         thisResolver = { kind: 'start', resolve, reject };
-        set({ deployAckResolver: thisResolver });
+        set({
+          deployAckResolver: thisResolver,
+          appTransition: { appId, kind: 'starting' },
+        });
       });
 
       await BleService.sendCommand(
@@ -594,7 +613,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       const timeout = new Promise<void>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('DEPLOYSTART ACK timeout')),
-          3000,
+          DEPLOY_ACK_TIMEOUT_MS,
         );
       });
 
@@ -612,6 +631,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       if (thisResolver && get().deployAckResolver === thisResolver) {
         set({ deployAckResolver: null });
       }
+      set({ appTransition: null });
     }
   },
 
@@ -625,7 +645,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     try {
       const ack = new Promise<void>((resolve, reject) => {
         thisResolver = { kind: 'stop', resolve, reject };
-        set({ deployAckResolver: thisResolver });
+        set({
+          deployAckResolver: thisResolver,
+          appTransition: { appId, kind: 'stopping' },
+        });
       });
 
       await BleService.sendCommand(
@@ -636,7 +659,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       const timeout = new Promise<void>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('DEPLOYSTOP ACK timeout')),
-          3000,
+          DEPLOY_ACK_TIMEOUT_MS,
         );
       });
 
@@ -646,6 +669,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       if (thisResolver && get().deployAckResolver === thisResolver) {
         set({ deployAckResolver: null });
       }
+      set({ appTransition: null });
     }
 
     set({

@@ -26,7 +26,10 @@ import DeviceHeader from '../../../components/custom/DeviceHeader';
 import { AppsList } from '../../../services/ble/bleParser';
 import { BatteryStateStrings } from '../../../types/batteryStateEnum';
 import { RouteName, ROUTES } from '../../../types/routes';
-import { useBleCommandStore } from '../../store/useBleCommandStore';
+import {
+  AppTransition,
+  useBleCommandStore,
+} from '../../store/useBleCommandStore';
 import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
 
@@ -41,6 +44,31 @@ const APP_ICON_MAP: Record<string, typeof Cpu> = {
   anomaly: Activity,
   vision: Eye,
   imu: Activity,
+};
+
+/**
+ * The status badge on an application card.
+ *
+ * A start or stop the board has not yet confirmed is shown as such, because
+ * on a board that fits one model a start is a model swap that takes a couple
+ * of seconds, and a card that says Inactive for all of it reads as ignored.
+ *
+ * @param isActive - Whether the board is running this application.
+ * @param transition - The unconfirmed change to this application, if any.
+ */
+const appBadge = (
+  isActive: boolean,
+  transition: AppTransition['kind'] | null,
+): { text: string; tone: 'active' | 'inactive' | 'changing' } => {
+  if (transition === 'starting') {
+    return { text: '● Starting', tone: 'changing' };
+  }
+  if (transition === 'stopping') {
+    return { text: '● Stopping', tone: 'changing' };
+  }
+  return isActive
+    ? { text: '● Active', tone: 'active' }
+    : { text: '● Inactive', tone: 'inactive' };
 };
 
 const DeviceApplicationsScreen: React.FC = () => {
@@ -58,6 +86,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     confidence,
     requestAppInfo,
     batteryStateLabel,
+    appTransition,
   } = useBleCommandStore();
 
   const { connectedDevice } = useBleStore();
@@ -144,6 +173,7 @@ const DeviceApplicationsScreen: React.FC = () => {
       Alert.alert('Error', 'Device not connected');
       return;
     }
+    if (appTransition) return;
 
     try {
       await deployApp(app.id);
@@ -154,7 +184,7 @@ const DeviceApplicationsScreen: React.FC = () => {
   };
 
   const handleStop = async (app: AppsList) => {
-    if (!deviceId) return;
+    if (!deviceId || appTransition) return;
 
     try {
       await stopApp(app.id);
@@ -181,6 +211,20 @@ const DeviceApplicationsScreen: React.FC = () => {
   const renderAppCard = (app: AppsList) => {
     const isActive = activeApp === app.id;
     const isInfoVisible = infoAppId === app.id;
+    const transition =
+      appTransition?.appId === app.id ? appTransition.kind : null;
+    const badge = appBadge(isActive, transition);
+    const badgeColor = {
+      active: theme.colors.secondary,
+      inactive: theme.colors.error,
+      changing: theme.colors.primary,
+    }[badge.tone];
+    // Only one application runs at a time, so while the board is changing
+    // one, every card waits for its answer.
+    const buttonsBusy = appTransition !== null;
+    const buttonLabelColor = buttonsBusy
+      ? theme.colors.onSurfaceDisabled
+      : theme.colors.surface;
 
     return (
       <View
@@ -204,17 +248,8 @@ const DeviceApplicationsScreen: React.FC = () => {
           <View style={{ flex: 1 }}>
             <View style={styles.titleRow}>
               <Text variant="titleMedium">{app.name}</Text>
-              <Text
-                style={[
-                  styles.activeBadge,
-                  {
-                    color: isActive
-                      ? theme.colors.secondary
-                      : theme.colors.error,
-                  },
-                ]}
-              >
-                {isActive ? '● Active' : '● Inactive'}
+              <Text style={[styles.activeBadge, { color: badgeColor }]}>
+                {badge.text}
               </Text>
             </View>
             <Text
@@ -364,14 +399,11 @@ const DeviceApplicationsScreen: React.FC = () => {
               mode="contained"
               style={{ flex: 1 }}
               onPress={() => handleDeploy(app)}
+              loading={transition === 'starting'}
+              disabled={buttonsBusy}
             >
-              <Text
-                variant="labelSmall"
-                style={{
-                  color: theme.colors.surface,
-                }}
-              >
-                Run Application
+              <Text variant="labelSmall" style={{ color: buttonLabelColor }}>
+                {transition === 'starting' ? 'Starting…' : 'Run Application'}
               </Text>
             </Button>
           ) : (
@@ -380,14 +412,11 @@ const DeviceApplicationsScreen: React.FC = () => {
               buttonColor={theme.colors.error}
               style={{ flex: 1 }}
               onPress={() => handleStop(app)}
+              loading={transition === 'stopping'}
+              disabled={buttonsBusy}
             >
-              <Text
-                variant="labelSmall"
-                style={{
-                  color: theme.colors.surface,
-                }}
-              >
-                Stop Application
+              <Text variant="labelSmall" style={{ color: buttonLabelColor }}>
+                {transition === 'stopping' ? 'Stopping…' : 'Stop Application'}
               </Text>
             </Button>
           )}

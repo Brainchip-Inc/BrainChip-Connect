@@ -181,11 +181,11 @@ const LiveSensorDataScreen = () => {
   const isInferenceRunning = useBleCommandStore(s => s.isInferenceRunning);
   const deployApp = useBleCommandStore(s => s.deployApp);
   const stopApp = useBleCommandStore(s => s.stopApp);
-  const [isTogglingInference, setIsTogglingInference] = useState(false);
+  const appTransition = useBleCommandStore(s => s.appTransition);
+  const isTogglingInference = appTransition !== null;
 
   const handleToggleInference = async () => {
     if (isTogglingInference) return;
-    setIsTogglingInference(true);
     try {
       if (isInferenceRunning) {
         await stopApp(appType);
@@ -197,9 +197,13 @@ const LiveSensorDataScreen = () => {
         isInferenceRunning ? 'Stop Inference Failed' : 'Start Inference Failed',
         err instanceof Error ? err.message : 'Unknown error',
       );
-    } finally {
-      setIsTogglingInference(false);
     }
+  };
+
+  const inferenceButtonLabel = () => {
+    if (appTransition?.kind === 'starting') return 'Starting…';
+    if (appTransition?.kind === 'stopping') return 'Stopping…';
+    return isInferenceRunning ? 'Stop Inference' : 'Start Inference';
   };
 
   useEffect(() => {
@@ -558,7 +562,7 @@ const LiveSensorDataScreen = () => {
             }
             style={{ marginTop: 12 }}
           >
-            {isInferenceRunning ? 'Stop Inference' : 'Start Inference'}
+            {inferenceButtonLabel()}
           </Button>
 
           <Button
