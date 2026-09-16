@@ -11,12 +11,31 @@ import {
   FirmwareUpdateOutcome,
   FirmwareUpdatePhase,
 } from '../../types/firmwareUpdate';
+import { ModelUpdateOutcome } from '../../types/modelUpdate';
 import { McubootImage, parseMcubootImage } from '../firmware/mcubootImage';
 import { isAkidaTagManufacturerData } from './akidaTagAdvertisement';
 import { BleCommand } from './bleCommands';
 import { parseBinaryFrame, parseBleMessage } from './bleParser';
 import { FirmwareUpdateError } from '../firmware/firmwareUpdateError';
 import { buildCommand } from './buildCommand';
+import {
+  BLOCK_STATUS_TIMEOUT_MS,
+  BOARD_WENT_QUIET,
+  DATA_OFFSET_BYTES,
+  INSTALL_STATUS_TIMEOUT_MS,
+  LAST_BLOCK_STATUS_TIMEOUT_MS,
+  ModelUpdateError,
+  START_STATUS_TIMEOUT_MS,
+  TRANSFER_TYPE_DATA,
+  TRANSFER_TYPE_INFO,
+  TransferResult,
+  TransferStatus,
+  buildAbortFrame,
+  buildDataFrame,
+  buildStartFrame,
+  describeTransferFailure,
+  parseTransferStatus,
+} from './modelTransferProtocol';
 
 const DEFAULT_SCAN_TIMEOUT_MS = 15000;
 
@@ -42,6 +61,43 @@ const REBOOT_CONNECT_TIMEOUT_MS = 10000;
 
 /** How long to wait for a board to answer with its hardware serial. */
 const SERIAL_READ_TIMEOUT_MS = 6000;
+
+/**
+ * Grace period between subscribing to the board's transfer status and asking
+ * it to begin. Subscribing returns before the descriptor write it triggers has
+ * reached the board, and the board refuses a transfer it cannot report on.
+ */
+const STATUS_SUBSCRIBE_SETTLE_MS = 200;
+
+/**
+ * A model package read off the phone, in the terms the board is told it in.
+ *
+ * `infoCrc` covers the header the board will assemble from every other field
+ * here as well as `infoBytes`, so the two travel together or neither means
+ * anything; `dataCrc` covers `dataBytes` alone.
+ */
+interface ModelPackage {
+  /** LittleFS path, whose last segment names the model on the board. */
+  fsName: string;
+  infoBytes: Buffer;
+  dataBytes: Buffer;
+  /** Info and data bytes together, which is what the stored header records. */
+  totalLength: number;
+  inputShape: number[];
+  outputShape: number[];
+  flashAddress: number;
+  isEdgeLearned: boolean;
+  /** Neurons per class in the upper 16 bits, class count in the lower 16. */
+  packedClasses: number;
+  /** MFCC normalisation scalar, as the bits of the float. */
+  mfccFsBits: number;
+  silenceClass: number;
+  unknownClass: number;
+  /** 0 for a synchronous model, 1 for an asynchronous one. */
+  inferenceMode: number;
+  infoCrc: number;
+  dataCrc: number;
+}
 
 class BleService {
   private bleManager: BleManager;
@@ -1077,21 +1133,24 @@ class BleService {
     } catch {}
   }
 
-  /* ──FOTA MTU REQUEST ──
+  /**
+   * Ask for the largest ATT MTU the link will carry, before sending a file.
    *
+   * The MTU asked for at connection time does not always take, and a link left
+   * at the 23-byte minimum carries 16 bytes of a transfer per write, which is
+   * fifteen times less than a negotiated one. Both update paths therefore ask
+   * again on their own account rather than trusting what connecting left
+   * behind.
+   *
+   * @param deviceId - Board to renegotiate with.
    */
-
-  private async requestFotaMtu(deviceId: string): Promise<number> {
+  private async requestLargeMtu(deviceId: string): Promise<void> {
     try {
       const device = await this.bleManager.requestMTUForDevice(deviceId, 498);
 
-      const mtu = device.mtu ?? 23;
-
-      this.negotiatedMTU = mtu;
-      return mtu;
+      this.negotiatedMTU = device.mtu ?? 23;
     } catch {
       this.negotiatedMTU = 247; // safe fallback
-      return this.negotiatedMTU;
     }
   }
 
@@ -1182,7 +1241,7 @@ class BleService {
     onProgress: ((percent: number) => void) | undefined,
     log: (msg: string) => void,
   ): Promise<string> => {
-    await this.requestFotaMtu(deviceId);
+    await this.requestLargeMtu(deviceId);
     const sub = this.subscribeToFotaNotifications(deviceId);
 
     try {
@@ -1420,7 +1479,7 @@ class BleService {
     this.fotaResolver = null;
     this.fotaRejecter = null;
 
-    await this.requestFotaMtu(deviceId);
+    await this.requestLargeMtu(deviceId);
     const sub = this.subscribeToFotaNotifications(deviceId);
 
     try {
@@ -1669,13 +1728,11 @@ class BleService {
   private modelServiceUUID = 'f000aa00-0451-4000-b000-000000000000';
 
   // Characteristics
-  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000'; // FILE_TRANSFER_CHAR_UUID  — write data chunks
-  private ackUUID = 'f000aa02-0451-4000-b000-000000000000'; // ACK_CHAR_UUID            — notify
-  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000'; // CTRL_CHAR_UUID           — control
-  private fileSizeUUID = 'f000aa04-0451-4000-b000-000000000000'; // FILE_SIZE_CHAR_UUID       — this file's size (32-bit LE)
+  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000'; // FILE_TRANSFER_CHAR_UUID, offset-prefixed data writes
+  private statusUUID = 'f000aa02-0451-4000-b000-000000000000'; // STATUS_CHAR_UUID, notify, 14 bytes
+  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000'; // CTRL_CHAR_UUID, START and ABORT
   private appUUID = 'f000aa05-0451-4000-b000-000000000000'; // APP_CHAR_UUID             — app index
   private crcUUID = 'f000aa06-0451-4000-b000-000000000000'; // FILE_CRC_CHAR_UUID        — combined/data CRC32 (32-bit LE)
-  private transferTypeUUID = 'f000aa07-0451-4000-b000-000000000000'; // TRANSFER_TYPE_CHAR_UUID   — 0=INFO, 1=DATA
   private modelInputShapeUUID = 'f000aa08-0451-4000-b000-000000000000'; // MODEL_INPUT_SHAPE_CHAR_UUID
   private modelOutputShapeUUID = 'f000aa09-0451-4000-b000-000000000000'; // MODEL_OUTPUT_SHAPE_CHAR_UUID
   private flashAddressUUID = 'f000aa0a-0451-4000-b000-000000000000'; // FLASH_ADDRESS_CHAR_UUID   — target flash address (32-bit LE)
@@ -1693,15 +1750,7 @@ class BleService {
   private edgeCharUUID = 'f000bb10-0111-9000-c000-000000000000';
   private edgeAckUUID = 'f000bb12-0111-9000-c000-000000000000';
 
-  // Transfer type bytes
-  private readonly TRANSFER_TYPE_INFO = 0x00;
-  private readonly TRANSFER_TYPE_DATA = 0x01;
-
   // ACK codes
-  private readonly ACK_FLASH_ERASE_DONE = 0xee;
-  private readonly ACK_FLASH_WRITE_DONE = 0xcc;
-  private readonly ACK_CRC_FAIL = 0xbb;
-  private readonly BUFFER_SIZE = 102236; // 419 * 244 chunks
   private readonly ACK_EDGE_COMMAND = 0xa7;
   private readonly ACK_EDGE_START_COMMAND = 0xa6;
 
@@ -1711,9 +1760,11 @@ class BleService {
   private detectAppIndex = (): number => 0;
 
   // Model OTA Updation
-  private ackResolver: (() => void) | null = null;
+  private modelStatusSubscription: Subscription | null = null;
+  private modelStatusQueue: TransferStatus[] = [];
+  private modelStatusWaiter: ((status: TransferStatus | null) => void) | null =
+    null;
   private cancelModelTransfer = false;
-  private pendingAck: number | null = null;
 
   /**
    * CRC32 over raw file bytes.
@@ -1809,130 +1860,116 @@ class BleService {
     return (crc ^ 0xffffffff) >>> 0;
   };
 
-  private waitForAck = (timeoutMs = 5000): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      // ✅ if ACK already came, consume it instantly
-      if (this.pendingAck !== null) {
-        this.pendingAck = null;
-        resolve();
-        return;
-      }
+  /**
+   * Listen for the board's transfer status notifications.
+   *
+   * The board refuses to begin a transfer it has no way to report on, so this
+   * has to be in place, and settled, before the first START.
+   *
+   * @param deviceId - Board to listen to.
+   */
+  private subscribeToTransferStatus = async (
+    deviceId: string,
+  ): Promise<void> => {
+    this.modelStatusQueue = [];
+    this.modelStatusSubscription =
+      this.bleManager.monitorCharacteristicForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.statusUUID,
+        (error, characteristic) => {
+          if (error || !characteristic?.value) return;
 
-      const timeout = setTimeout(() => {
-        this.ackResolver = null;
-        reject(new Error('ACK timeout'));
-      }, timeoutMs);
+          const status = parseTransferStatus(
+            Buffer.from(characteristic.value, 'base64'),
+          );
+          if (status) this.deliverTransferStatus(status);
+        },
+      );
 
-      this.ackResolver = () => {
-        clearTimeout(timeout);
-        this.ackResolver = null;
-        resolve();
-      };
-    });
-  };
-
-  subscribeToModelAck = (deviceId: string, callback: (ack: number) => void) => {
-    const modelsubscription = this.bleManager.monitorCharacteristicForDevice(
-      deviceId,
-      this.modelServiceUUID,
-      this.ackUUID,
-      (error, characteristic) => {
-        if (error) {
-          const msg = error?.message ?? '';
-          // console.log('[MODEL ACK] monitor error:', msg);
-
-          if (
-            msg.includes('disconnected') ||
-            msg.includes('cancelled') ||
-            msg.includes('Device is not connected')
-          ) {
-            return;
-          }
-
-          return;
-        }
-
-        if (!characteristic?.value) return;
-
-        const ack = Buffer.from(characteristic.value, 'base64')[0];
-
-        // console.log('[ACK]', ack);
-
-        if (ack === this.ACK_FLASH_ERASE_DONE) {
-          // console.log('ACK_FLASH_ERASE_DONE');
-          callback(ack);
-          // Erase done — unblock waitForAck so transfer can proceed
-          if (this.ackResolver) {
-            this.ackResolver?.();
-            this.ackResolver = null;
-          } else {
-            this.pendingAck = ack;
-          }
-        }
-
-        if (ack === this.ACK_FLASH_WRITE_DONE) {
-          // console.log('ACK_FLASH_WRITE_DONE');
-          callback(ack);
-          if (this.ackResolver) {
-            this.ackResolver?.();
-            this.ackResolver = null;
-          } else {
-            this.pendingAck = ack;
-          }
-        }
-
-        if (ack === this.ACK_CRC_FAIL) {
-          // console.log('ACK_CRC_FAIL — peripheral rejected transfer');
-          callback(ack);
-          // Do not resolve — let waitForAck timeout so caller sees the failure
-          this.ackResolver = null;
-        }
-      },
+    await new Promise(resolve =>
+      setTimeout(resolve, STATUS_SUBSCRIBE_SETTLE_MS),
     );
-
-    this.monitorSubscriptions.push(modelsubscription);
-    return modelsubscription;
   };
 
   /**
-   * Full model OTA transfer from a ZIP file.
+   * Hand a status to whoever is waiting for one, or hold it until someone is.
    *
-   *    *
-   *  ZIP must contain:
-   *    info.yaml              — model metadata
-   *    <name>_program_info.bin — info binary
-   *    <name>_program_data.bin — model data binary
+   * A notification can land between a write completing and the transfer
+   * starting to wait for its answer, so an unclaimed status is queued rather
+   * than dropped. The queue is emptied at every START, which is the only point
+   * where a status from before can no longer mean anything.
+   */
+  private deliverTransferStatus = (status: TransferStatus): void => {
+    const waiter = this.modelStatusWaiter;
+
+    if (!waiter) {
+      this.modelStatusQueue.push(status);
+      return;
+    }
+
+    this.modelStatusWaiter = null;
+    waiter(status);
+  };
+
+  /**
+   * Wait for the board's next word on the transfer.
    *
-   *  Transfer sequence:
-   *    1. Write APP index
-   *    ── INFO transfer ──
-   *    2. Set TRANSFER_TYPE = INFO (0x00)
-   *    3. Write fs_name (UTF-8 string) — before the size write, so the firmware
-   *       can build its LittleFS paths when the erase is triggered
-   *    4. Write info file size → wait for ERASE ACK
-   *    5. Write combined CRC32 (124-byte header + info bytes)
-   *    6. Write total length (info + data)
-   *    7. Write input shape (N × uint32 LE)
-   *    8. Write output shape (N × uint32 LE)
-   *    9. Write flash address (uint32 LE)
-   *   10. Write is_edge_learned (uint32 LE)
-   *   11. Write num_edge_classes packed as (neurons<<16 | classes) (uint32 LE)
-   *   12. Write mfcc_fs as IEEE-754 float bits (uint32 LE)
-   *   13. Write silence_class (uint32 LE)
-   *   14. Write unknown_class (uint32 LE)
-   *   15. Write inference_mode, 0=sync / 1=async (uint32 LE)
-   *   16. Stream info chunks → wait for WRITE ACK per BUFFER_SIZE window
-   *    ── DATA transfer ──
-   *   17. Set TRANSFER_TYPE = DATA (0x01)
-   *   18. Write data file size → wait for ERASE ACK
-   *   19. Write data CRC32 (uint32 LE)
-   *   20. Stream data chunks → wait for WRITE ACK per BUFFER_SIZE window
+   * @param timeoutMs - How long the board has to answer.
+   * @returns The status, or null if the board did not answer in time or the
+   *   user stopped the update while the app was waiting.
+   */
+  private awaitTransferStatus = (
+    timeoutMs: number,
+  ): Promise<TransferStatus | null> =>
+    new Promise(resolve => {
+      const queued = this.modelStatusQueue.shift();
+      if (queued) {
+        resolve(queued);
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        this.modelStatusWaiter = null;
+        resolve(null);
+      }, timeoutMs);
+
+      this.modelStatusWaiter = status => {
+        clearTimeout(timer);
+        resolve(status);
+      };
+    });
+
+  /**
+   * Send a model package to the board and report what became of it.
+   *
+   * The ZIP must hold `info.yaml`, `<name>_program_info.bin` and
+   * `<name>_program_data.bin`. A session is the metadata characteristics, then
+   * the info file, then the data file, in that order on one connection: the
+   * data half carries no metadata of its own and inherits the session's.
+   *
+   * The board's last word on the data file being stored is not the update
+   * having worked. Programming the Akida chip and proving the model runs takes
+   * several seconds more, and `onInstalling` is where that begins.
+   *
+   * @param deviceId - Board to send to.
+   * @param zipPath - The model package on this phone.
+   * @param options - Callbacks following the transfer: `onProgress` reports
+   *   0..100 over the data file, `onInstalling` fires once every byte is
+   *   stored and the board starts installing.
+   * @returns Whether the model is running on the board, or is merely stored on
+   *   it.
+   * @throws ModelUpdateError if the package cannot be read, or the board
+   *   refuses the transfer, or it stops answering.
    */
   async sendModelZip(
     deviceId: string,
     zipPath: string,
-    onProgress?: (p: number) => void,
-  ): Promise<void> {
+    options?: {
+      onProgress?: (percent: number) => void;
+      onInstalling?: () => void;
+    },
+  ): Promise<ModelUpdateOutcome> {
     if (this.otaInProgress) {
       throw new Error(
         `Cannot start model update — ${this.otaInProgress} update in progress`,
@@ -1940,245 +1977,435 @@ class BleService {
     }
     this.otaInProgress = 'model';
     this.cancelModelTransfer = false;
-    this.ackResolver = null;
-    this.pendingAck = null;
 
-    let unzipPath = '';
+    const unzipPath = `${RNFS.TemporaryDirectoryPath}/model_${Date.now()}/`;
 
     try {
-      // ── Unzip ──
-      unzipPath = `${RNFS.TemporaryDirectoryPath}/model_${Date.now()}/`;
-      // Remove old unzip folder if exists
-      if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
+      const model = await this.readModelPackage(zipPath, unzipPath);
 
-      // Ensure folder exists
-      await RNFS.mkdir(unzipPath);
+      await this.requestLargeMtu(deviceId);
+      await this.subscribeToTransferStatus(deviceId);
 
-      await unzip(zipPath, unzipPath);
-      const rootFiles = await RNFS.readDir(unzipPath);
-
-      let files = rootFiles;
-
-      if (rootFiles.length === 1 && rootFiles[0].isDirectory()) {
-        files = await RNFS.readDir(rootFiles[0].path);
-      }
-      if (__DEV__) console.log('files-models', files);
-
-      const infoYamlFile = files.find(f => f.name === 'info.yaml');
-      const dataBinFile = files.find(
-        f =>
-          f.name.endsWith('_program_data.bin') || f.name.endsWith('_data.bin'),
-      );
-      const infoBinFile = files.find(
-        f =>
-          f.name.endsWith('_program_info.bin') || f.name.endsWith('_info.bin'),
-      );
-
-      if (!infoYamlFile || !dataBinFile || !infoBinFile) {
-        throw new Error(
-          'Invalid ZIP: info.yaml, _program_info.bin or _program_data.bin missing',
-        );
-      }
-
-      // ── Parse YAML ──
-      const yamlContent = await RNFS.readFile(infoYamlFile.path, 'utf8');
-      const meta: any = yaml.load(yamlContent);
-
-      const inputShape: number[] = meta?.input_shape ?? [];
-      const outputShape: number[] = meta?.output_shape ?? [];
-      const rawAddr = meta?.flash_address ?? '0x1000';
-      const flashAddress: number =
-        typeof rawAddr === 'string' ? parseInt(rawAddr, 16) : Number(rawAddr);
-      const modelName: string = String(meta?.app ?? meta?.model_name ?? '');
-
-      // KWS runtime fields — the firmware refuses to run a KWS model whose
-      // mfcc_fs is missing, so these are always written during INFO.
-      const mfccFsBuf = Buffer.alloc(4);
-      mfccFsBuf.writeFloatLE(Number(meta?.mfcc_fs ?? 0));
-      const mfccFsBits: number = mfccFsBuf.readUInt32LE(0);
-      const silenceClass: number = Number(meta?.silence_class ?? 0);
-      const unknownClass: number = Number(meta?.unknown_class ?? 0);
-      const inferenceMode: number =
-        String(meta?.inference_mode ?? 'sync').toLowerCase() === 'async'
-          ? 1
-          : 0;
-
-      // Edge-learning fields
-      const elMeta = meta?.edge_learning ?? {};
-      const isEdgeLearned: boolean = Boolean(elMeta?.enabled ?? false);
-      const numClasses: number = Number(elMeta?.num_el_classes ?? 0);
-      const neuronsPerClass: number = Number(elMeta?.num_neurons ?? 1);
-
-      // packed num_edge_classes: upper 16 bits = neurons_per_class, lower 16 bits = num_classes
-      // Pack: upper 16 bits = neurons_per_class, lower 16 bits = num_classes
-      const packedClasses: number =
-        ((neuronsPerClass & 0xffff) << 16) | (numClasses & 0xffff);
-
-      // Derive fs_name: /model_meta/<prefix>
-      const prefix = infoBinFile.name
-        .replace('_program_info.bin', '')
-        .replace('_info.bin', '');
-      const fsName = `/model_meta/${prefix}`;
-
-      // ── File sizes & CRCs ──
-      const infoSize = (await RNFS.stat(infoBinFile.path)).size;
-      const dataSize = (await RNFS.stat(dataBinFile.path)).size;
-      const totalLength = infoSize + dataSize;
-
-      const dataCRC = await this.computeDataCRC32(dataBinFile.path);
-
-      const combinedCRC = await this.computeCombinedCRC32(
-        totalLength,
-        inputShape,
-        outputShape,
-        flashAddress,
-        isEdgeLearned,
-        packedClasses,
-        infoBinFile.path,
-        modelName,
-        mfccFsBits,
-        silenceClass,
-        unknownClass,
-        inferenceMode,
-      );
-
-      // ── Detect APP index ──
-      const appIndex = this.detectAppIndex();
-      if (__DEV__) console.log('appindex', appIndex);
-      // =====================================================================
-      // 1. Send APP index
-      // =====================================================================
-      await this.writeU8(deviceId, this.appUUID, appIndex);
-
-      // =====================================================================
-      // ── INFO transfer ──
-      // =====================================================================
-
-      // 2. Set transfer type = INFO
-      await this.writeU8(
-        deviceId,
-        this.transferTypeUUID,
-        this.TRANSFER_TYPE_INFO,
-      );
-
-      // 3. fs_name (UTF-8 string)
-      if (__DEV__)
-        console.log('🚀 ~ BleService ~ sendModelZip ~ fsName:', fsName);
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
-        deviceId,
-        this.modelServiceUUID,
-        this.fsNameUUID,
-        Buffer.from(fsName, 'utf8').toString('base64'),
-      );
-
-      // 4. Send info file size → triggers flash erase on firmware, wait for ERASE ACK
-      await this.writeU32LE(deviceId, this.fileSizeUUID, infoSize);
-
-      await this.waitForAck(10000); // erase can take a moment
-
-      // 5. Combined CRC32 (header fields + info bytes)
-      await this.writeU32LE(deviceId, this.crcUUID, combinedCRC);
-
-      // 6. Total length (info + data)
-      await this.writeU32LE(deviceId, this.totalLengthUUID, totalLength);
-      if (__DEV__) console.log('length', totalLength);
-
-      // 7. Input shape (N × uint32 LE)
-      if (inputShape.length > 0) {
-        const buf = Buffer.alloc(inputShape.length * 4);
-        inputShape.forEach((v, i) => buf.writeUInt32LE(v >>> 0, i * 4));
-        await this.bleManager.writeCharacteristicWithResponseForDevice(
+      try {
+        await this.writeSessionMetadata(deviceId, model);
+        await this.transferModelFile(
           deviceId,
-          this.modelServiceUUID,
-          this.modelInputShapeUUID,
-          buf.toString('base64'),
+          TRANSFER_TYPE_INFO,
+          model.infoBytes,
         );
-      }
-      if (__DEV__) console.log('inputshape', inputShape.length);
 
-      // 8. Output shape (N × uint32 LE)
-      if (outputShape.length > 0) {
-        const buf = Buffer.alloc(outputShape.length * 4);
-        outputShape.forEach((v, i) => buf.writeUInt32LE(v >>> 0, i * 4));
-        await this.bleManager.writeCharacteristicWithResponseForDevice(
+        await this.writeU32LE(deviceId, this.crcUUID, model.dataCrc);
+        await this.transferModelFile(
           deviceId,
-          this.modelServiceUUID,
-          this.modelOutputShapeUUID,
-          buf.toString('base64'),
+          TRANSFER_TYPE_DATA,
+          model.dataBytes,
+          options?.onProgress,
         );
+      } catch (error: unknown) {
+        await this.abandonModelTransfer(deviceId);
+        throw error;
       }
-      if (__DEV__) console.log('outputShape', outputShape.length);
 
-      // 9. Flash address
-      await this.writeU32LE(deviceId, this.flashAddressUUID, flashAddress);
-
-      if (__DEV__) console.log('flashAddress', flashAddress);
-
-      // 10. is_edge_learned (always written — avoids a stale firmware value)
-      await this.writeU32LE(
-        deviceId,
-        this.isEdgeLearnedUUID,
-        isEdgeLearned ? 1 : 0,
-      );
-
-      if (__DEV__) console.log('isEdgeLearned', isEdgeLearned);
-
-      // 11. num_edge_classes packed (always written — firmware reads it even for non-EL)
-      await this.writeU32LE(deviceId, this.numEdgeClassesUUID, packedClasses);
-
-      // 12. mfcc_fs as IEEE-754 float bits
-      await this.writeU32LE(deviceId, this.mfccFsUUID, mfccFsBits);
-
-      // 13. silence_class output index
-      await this.writeU32LE(deviceId, this.silenceClassUUID, silenceClass);
-
-      // 14. unknown_class output index
-      await this.writeU32LE(deviceId, this.unknownClassUUID, unknownClass);
-
-      // 15. inference_mode (0=sync, 1=async)
-      await this.writeU32LE(deviceId, this.inferenceModeUUID, inferenceMode);
-
-      if (__DEV__) console.log('Streaming start');
-
-      // 16. Stream info binary chunks → wait for WRITE ACK
-      await this.sendFileChunksWithAck(deviceId, infoBinFile.path);
-
-      if (__DEV__) console.log('Streaming end');
-
-      this.pendingAck = null;
-      this.ackResolver = null;
-
-      // =====================================================================
-      // ── DATA transfer ──
-      // =====================================================================
-
-      // 17. Set transfer type = DATA
-      await this.writeU8(
-        deviceId,
-        this.transferTypeUUID,
-        this.TRANSFER_TYPE_DATA,
-      );
-
-      // 18. Send data file size → triggers flash erase, wait for ERASE ACK
-      await this.writeU32LE(deviceId, this.fileSizeUUID, dataSize);
-      await this.waitForAck(10000);
-
-      // 19. Data CRC32
-      await this.writeU32LE(deviceId, this.crcUUID, dataCRC);
-
-      // 20. Stream data binary chunks → wait for WRITE ACK, report progress
-      await this.sendFileChunksWithAck(deviceId, dataBinFile.path, onProgress);
-
-      BleConnectionHelper.setExpectedReboot(true);
-    } catch (e) {
-      throw e;
+      options?.onInstalling?.();
+      return await this.awaitModelInstallation();
     } finally {
       this.otaInProgress = null;
-      this.ackResolver = null;
-      this.pendingAck = null;
+      this.modelStatusSubscription?.remove();
+      this.modelStatusSubscription = null;
+      this.modelStatusWaiter = null;
+      this.modelStatusQueue = [];
       this.safeDelete(unzipPath);
     }
   }
+
+  /**
+   * Unpack a model package and read everything the board will be told about it.
+   *
+   * @param zipPath - The package the user picked.
+   * @param unzipPath - Scratch directory to unpack into.
+   * @returns The two binaries and the metadata that describes them.
+   * @throws ModelUpdateError if the package is not a model package.
+   */
+  private readModelPackage = async (
+    zipPath: string,
+    unzipPath: string,
+  ): Promise<ModelPackage> => {
+    if (await RNFS.exists(unzipPath)) await RNFS.unlink(unzipPath);
+    await RNFS.mkdir(unzipPath);
+    await unzip(zipPath, unzipPath);
+
+    const rootFiles = await RNFS.readDir(unzipPath);
+    const files =
+      rootFiles.length === 1 && rootFiles[0].isDirectory()
+        ? await RNFS.readDir(rootFiles[0].path)
+        : rootFiles;
+
+    const infoYamlFile = files.find(f => f.name === 'info.yaml');
+    const dataBinFile = files.find(
+      f => f.name.endsWith('_program_data.bin') || f.name.endsWith('_data.bin'),
+    );
+    const infoBinFile = files.find(
+      f => f.name.endsWith('_program_info.bin') || f.name.endsWith('_info.bin'),
+    );
+
+    if (!infoYamlFile || !dataBinFile || !infoBinFile) {
+      throw new ModelUpdateError(
+        'This package is missing one of the three files a model is made of.',
+        false,
+      );
+    }
+
+    const yamlContent = await RNFS.readFile(infoYamlFile.path, 'utf8');
+    const meta: any = yaml.load(yamlContent);
+
+    const inputShape: number[] = meta?.input_shape ?? [];
+    const outputShape: number[] = meta?.output_shape ?? [];
+    const rawAddr = meta?.flash_address ?? '0x1000';
+    const flashAddress: number =
+      typeof rawAddr === 'string' ? parseInt(rawAddr, 16) : Number(rawAddr);
+    const modelName: string = String(meta?.app ?? meta?.model_name ?? '');
+
+    // The firmware refuses to run a KWS model whose mfcc_fs is missing, so
+    // this is written for every model rather than only for a KWS one.
+    const mfccFsBuf = Buffer.alloc(4);
+    mfccFsBuf.writeFloatLE(Number(meta?.mfcc_fs ?? 0));
+    const mfccFsBits: number = mfccFsBuf.readUInt32LE(0);
+
+    const elMeta = meta?.edge_learning ?? {};
+    const neuronsPerClass: number = Number(elMeta?.num_neurons ?? 1);
+    const numClasses: number = Number(elMeta?.num_el_classes ?? 0);
+
+    const infoBytes = await this.readFileBytes(infoBinFile.path);
+    const dataBytes = await this.readFileBytes(dataBinFile.path);
+    const totalLength = infoBytes.length + dataBytes.length;
+
+    // The firmware takes the model name from the text after the last slash.
+    const fsNamePrefix = infoBinFile.name
+      .replace('_program_info.bin', '')
+      .replace('_info.bin', '');
+
+    const model: ModelPackage = {
+      fsName: `/model_meta/${fsNamePrefix}`,
+      infoBytes,
+      dataBytes,
+      totalLength,
+      inputShape,
+      outputShape,
+      flashAddress,
+      isEdgeLearned: Boolean(elMeta?.enabled ?? false),
+      // Upper 16 bits are the neurons per class, lower 16 the class count.
+      packedClasses: ((neuronsPerClass & 0xffff) << 16) | (numClasses & 0xffff),
+      mfccFsBits,
+      silenceClass: Number(meta?.silence_class ?? 0),
+      unknownClass: Number(meta?.unknown_class ?? 0),
+      inferenceMode:
+        String(meta?.inference_mode ?? 'sync').toLowerCase() === 'async'
+          ? 1
+          : 0,
+      infoCrc: 0,
+      dataCrc: await this.computeDataCRC32(dataBinFile.path),
+    };
+
+    model.infoCrc = await this.computeCombinedCRC32(
+      model.totalLength,
+      model.inputShape,
+      model.outputShape,
+      model.flashAddress,
+      model.isEdgeLearned,
+      model.packedClasses,
+      infoBinFile.path,
+      modelName,
+      model.mfccFsBits,
+      model.silenceClass,
+      model.unknownClass,
+      model.inferenceMode,
+    );
+
+    return model;
+  };
+
+  /**
+   * Describe the model to the board, before asking it to take any of it.
+   *
+   * Every field here is copied into the header the board stores and is covered
+   * by the CRC that goes with it, so a value written after the transfer has
+   * begun would be stored but not accounted for, and the board would reject
+   * the whole thing without saying which field did it.
+   */
+  private writeSessionMetadata = async (
+    deviceId: string,
+    model: ModelPackage,
+  ): Promise<void> => {
+    await this.writeU8(deviceId, this.appUUID, this.detectAppIndex());
+
+    await this.bleManager.writeCharacteristicWithResponseForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      this.fsNameUUID,
+      Buffer.from(model.fsName, 'utf8').toString('base64'),
+    );
+
+    await this.writeU32LE(deviceId, this.totalLengthUUID, model.totalLength);
+    await this.writeShape(deviceId, this.modelInputShapeUUID, model.inputShape);
+    await this.writeShape(
+      deviceId,
+      this.modelOutputShapeUUID,
+      model.outputShape,
+    );
+    await this.writeU32LE(deviceId, this.flashAddressUUID, model.flashAddress);
+    await this.writeU32LE(
+      deviceId,
+      this.isEdgeLearnedUUID,
+      model.isEdgeLearned ? 1 : 0,
+    );
+    await this.writeU32LE(
+      deviceId,
+      this.numEdgeClassesUUID,
+      model.packedClasses,
+    );
+    await this.writeU32LE(deviceId, this.mfccFsUUID, model.mfccFsBits);
+    await this.writeU32LE(deviceId, this.silenceClassUUID, model.silenceClass);
+    await this.writeU32LE(deviceId, this.unknownClassUUID, model.unknownClass);
+    await this.writeU32LE(
+      deviceId,
+      this.inferenceModeUUID,
+      model.inferenceMode,
+    );
+    await this.writeU32LE(deviceId, this.crcUUID, model.infoCrc);
+  };
+  /**
+   * Send one half of a model, INFO or DATA, and see it committed.
+   *
+   * The board takes the file a block at a time and says, after each one, which
+   * byte it expects next. That number is the app's own offset if nothing has
+   * gone astray, so it is checked rather than trusted: it is what turns a
+   * mistake on either side into a clear error instead of a corrupted model.
+   *
+   * @param deviceId - Board to send to.
+   * @param transferType - TRANSFER_TYPE_INFO or TRANSFER_TYPE_DATA.
+   * @param bytes - The whole file for this half.
+   * @param onProgress - Called with 0..100 as the bytes go out.
+   * @throws ModelUpdateError if the board refuses the transfer, stops
+   *   answering, or disagrees about how far the transfer has got.
+   */
+  private transferModelFile = async (
+    deviceId: string,
+    transferType: number,
+    bytes: Buffer,
+    onProgress?: (percent: number) => void,
+  ): Promise<void> => {
+    // From the moment the board is asked to begin the data half it deletes the
+    // record naming the model it had, so any failure past here leaves it with
+    // nothing to run.
+    const boardHasNoModel = transferType === TRANSFER_TYPE_DATA;
+
+    this.modelStatusQueue = [];
+    await this.writeModelControl(
+      deviceId,
+      buildStartFrame(transferType, bytes.length),
+    );
+
+    const armed = await this.awaitTransferStatus(START_STATUS_TIMEOUT_MS);
+    this.throwIfStopped(boardHasNoModel);
+    if (!armed) {
+      throw new ModelUpdateError(BOARD_WENT_QUIET, boardHasNoModel);
+    }
+    if (armed.result !== TransferResult.Ok) {
+      throw new ModelUpdateError(
+        describeTransferFailure(armed.result),
+        boardHasNoModel,
+      );
+    }
+
+    const blockSize = armed.blockSize;
+    if (blockSize <= 0) {
+      throw new ModelUpdateError(
+        'The board asked for the model in blocks of no size at all.',
+        boardHasNoModel,
+      );
+    }
+
+    const payloadLimit = this.negotiatedMTU - 3 - DATA_OFFSET_BYTES;
+    let offset = 0;
+
+    if (__DEV__) {
+      console.log(
+        `[MODEL] ${bytes.length} bytes in blocks of ${blockSize}, ` +
+          `${payloadLimit} per write at MTU ${this.negotiatedMTU}`,
+      );
+    }
+
+    while (offset < bytes.length) {
+      // A write may not cross a block boundary: that is what makes the
+      // position the board reports a number the app already knows.
+      const blockEnd = Math.min(
+        (Math.floor(offset / blockSize) + 1) * blockSize,
+        bytes.length,
+      );
+
+      while (offset < blockEnd) {
+        this.throwIfStopped(boardHasNoModel);
+        const end = Math.min(offset + payloadLimit, blockEnd);
+        await this.writeModelChunk(
+          deviceId,
+          offset,
+          bytes.subarray(offset, end),
+        );
+        offset = end;
+        onProgress?.((offset / bytes.length) * 100);
+      }
+
+      const isLastBlock = offset === bytes.length;
+      const status = await this.awaitTransferStatus(
+        isLastBlock ? LAST_BLOCK_STATUS_TIMEOUT_MS : BLOCK_STATUS_TIMEOUT_MS,
+      );
+
+      this.throwIfStopped(boardHasNoModel);
+      if (!status) {
+        throw new ModelUpdateError(BOARD_WENT_QUIET, boardHasNoModel);
+      }
+      if (
+        status.result !== TransferResult.Ok &&
+        status.result !== TransferResult.Done
+      ) {
+        throw new ModelUpdateError(
+          describeTransferFailure(status.result),
+          boardHasNoModel,
+        );
+      }
+      if (status.position !== offset) {
+        throw new ModelUpdateError(
+          'The app and the board disagree about how much of the model has arrived.',
+          boardHasNoModel,
+        );
+      }
+      if (isLastBlock && status.result !== TransferResult.Done) {
+        throw new ModelUpdateError(
+          'The board took the whole model without ever calling it complete.',
+          boardHasNoModel,
+        );
+      }
+    }
+  };
+
+  /**
+   * Wait for the board to say whether the model it stored actually runs.
+   *
+   * A board that never answers is reported exactly as one that answered that
+   * the model would not start: the transfer itself is finished either way, and
+   * nothing about the silence says the model is running.
+   */
+  private awaitModelInstallation = async (): Promise<ModelUpdateOutcome> => {
+    const status = await this.awaitTransferStatus(INSTALL_STATUS_TIMEOUT_MS);
+    return status?.result === TransferResult.Ready
+      ? 'installed'
+      : 'not-running';
+  };
+
+  /**
+   * Tell the board to drop whatever it was holding, and forget its answer.
+   *
+   * Safe at any point, including when no transfer is in progress, so a failing
+   * transfer can always end this way rather than leaving the board armed.
+   */
+  private abandonModelTransfer = async (deviceId: string): Promise<void> => {
+    try {
+      await this.writeModelControl(deviceId, buildAbortFrame());
+      await this.awaitTransferStatus(START_STATUS_TIMEOUT_MS);
+    } catch {
+      // The link is often already gone by the time a transfer fails, and
+      // nothing is left to clean up on a board that cannot be reached.
+    }
+  };
+
+  /**
+   * End the transfer if the user has stopped it.
+   *
+   * @throws ModelUpdateError naming the stop, so the transfer unwinds and its
+   *   caller can abandon the transfer on the board.
+   */
+  private throwIfStopped = (boardHasNoModel: boolean): void => {
+    if (this.cancelModelTransfer) {
+      throw new ModelUpdateError('The update was stopped.', boardHasNoModel);
+    }
+  };
+
+  /**
+   * Write one piece of the file, prefixed with where in the file it belongs.
+   *
+   * Android writes without a response, which is several times faster and is
+   * safe here precisely because every write carries its offset: one that goes
+   * missing is caught by the next status rather than corrupting flash. iOS
+   * writes with one, because Core Bluetooth drops an unacknowledged write when
+   * its buffer is full and nothing in this library waits for it to drain.
+   */
+  private writeModelChunk = async (
+    deviceId: string,
+    offset: number,
+    payload: Buffer,
+  ): Promise<void> => {
+    const frame = buildDataFrame(offset, payload).toString('base64');
+
+    if (Platform.OS === 'ios') {
+      await this.bleManager.writeCharacteristicWithResponseForDevice(
+        deviceId,
+        this.modelServiceUUID,
+        this.fileTransferUUID,
+        frame,
+      );
+      return;
+    }
+
+    await this.bleManager.writeCharacteristicWithoutResponseForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      this.fileTransferUUID,
+      frame,
+    );
+  };
+
+  /** Write a START or ABORT frame to the board's control characteristic. */
+  private writeModelControl = async (
+    deviceId: string,
+    frame: Buffer,
+  ): Promise<void> => {
+    await this.bleManager.writeCharacteristicWithResponseForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      this.ctrlUUID,
+      frame.toString('base64'),
+    );
+  };
+
+  /** Read a whole file into memory. */
+  private readFileBytes = async (filePath: string): Promise<Buffer> =>
+    Buffer.from(await RNFS.readFile(filePath, 'base64'), 'base64');
+
+  /**
+   * Write a model shape, one 32-bit dimension per element.
+   *
+   * A shape the package did not give is not written at all, leaving the board
+   * to keep whatever the session already set.
+   */
+  private writeShape = async (
+    deviceId: string,
+    charUUID: string,
+    dimensions: number[],
+  ): Promise<void> => {
+    if (dimensions.length === 0) return;
+
+    const packed = Buffer.alloc(dimensions.length * 4);
+    dimensions.forEach((value, index) =>
+      packed.writeUInt32LE(value >>> 0, index * 4),
+    );
+
+    await this.bleManager.writeCharacteristicWithResponseForDevice(
+      deviceId,
+      this.modelServiceUUID,
+      charUUID,
+      packed.toString('base64'),
+    );
+  };
 
   // ── Tiny write helpers (keep call-sites clean) ──
 
@@ -2211,79 +2438,19 @@ class BleService {
   };
 
   /**
-   * Stream file in MTU-sized chunks with ACK windowing.
+   * Stop the model transfer that is running.
    *
-   *    *   - Sends chunks without waiting after each one
-   *   - After every BUFFER_SIZE bytes waits for a WRITE ACK
-   *   - Waits for a final WRITE ACK after the last chunk
-   *   - Returns false (throws here) if ACK_CRC_FAIL is received
+   * The transfer notices at its next chunk, or straight away if it is waiting
+   * on the board, and tells the board to abandon what it has. A stopped
+   * transfer cannot be picked up again: starting over sends every byte.
    */
-  private sendFileChunksWithAck = async (
-    deviceId: string,
-    filePath: string,
-    onProgress?: (p: number) => void,
-  ): Promise<void> => {
-    const base64 = await RNFS.readFile(filePath, 'base64');
-    const buffer = Buffer.from(base64, 'base64');
-    const total = buffer.length;
-
-    let sent = 0;
-    let sinceLastAck = 0;
-
-    while (sent < total) {
-      if (this.cancelModelTransfer) {
-        throw new Error('Transfer cancelled');
-      }
-      const payloadSize = this.negotiatedMTU - 3;
-      const chunk = buffer.slice(sent, sent + payloadSize);
-
-      if (Platform.OS === 'ios') {
-        await this.bleManager.writeCharacteristicWithResponseForDevice(
-          deviceId,
-          this.modelServiceUUID,
-          this.fileTransferUUID,
-          chunk.toString('base64'),
-        );
-      } else {
-        await this.bleManager.writeCharacteristicWithoutResponseForDevice(
-          deviceId,
-          this.modelServiceUUID,
-          this.fileTransferUUID,
-          chunk.toString('base64'),
-        );
-      }
-
-      sent += chunk.length;
-      sinceLastAck += chunk.length;
-
-      onProgress?.((sent / total) * 100);
-
-      // Wait for WRITE ACK every BUFFER_SIZE bytes
-      if (sinceLastAck >= this.BUFFER_SIZE) {
-        await this.waitForAck(10000);
-        sinceLastAck = 0;
-      }
-
-      await new Promise(r => setTimeout(r, 5));
-    }
-
-    // Final ACK for any remaining bytes
-    if (sinceLastAck > 0) {
-      await this.waitForAck(10000);
-    }
-  };
-
   public stopModelTransfer = () => {
     this.cancelModelTransfer = true;
+
+    const waiter = this.modelStatusWaiter;
+    this.modelStatusWaiter = null;
+    waiter?.(null);
   };
-
-  public getAckFlashErase() {
-    return this.ACK_FLASH_ERASE_DONE;
-  }
-
-  public getAckFlashWrite() {
-    return this.ACK_FLASH_WRITE_DONE;
-  }
 
   public getAckEdgeMode() {
     return this.ACK_EDGE_COMMAND;
