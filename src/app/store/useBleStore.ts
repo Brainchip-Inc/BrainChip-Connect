@@ -9,8 +9,16 @@ export interface BLEDevice {
   serviceUUIDs: UUID[] | null;
 }
 
+/**
+ * What the advertisement says about a device before it is connected.
+ *
+ * `aiAccelerator` is the part number the board broadcasts, AKD1500, and it is
+ * not the board: every device the app serves carries that accelerator, so it
+ * says what is inside rather than which board is in the user's hand. The name
+ * of the board comes from `BLEDevice.name`.
+ */
 interface DeviceInfo {
-  deviceType: string;
+  aiAccelerator: string;
   firmwareVersion: string;
   bleVersion: string;
 }
@@ -99,7 +107,7 @@ export const useBleStore = create<BleState>(set => ({
   setTermsAccepted: accepted => set({ termsAccepted: accepted }),
 
   parsedDeviceInfo: {
-    deviceType: 'Unknown',
+    aiAccelerator: 'Unknown',
     firmwareVersion: 'Unknown',
     bleVersion: 'Unknown',
   },

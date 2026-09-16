@@ -1,5 +1,6 @@
 /**
- * Pins that the app calls the connected board by the name that board gave.
+ * Pins that the app calls the connected board by the name that board gave, and
+ * that it does not pass off a part inside the board as the board itself.
  *
  * The app serves more than one board, and every screen used to say "AkidaTag"
  * whatever was in the user's hand, so someone updating a BrainBoard1500 was
@@ -7,15 +8,37 @@
  * bug, which is why these cases drive the same endings through two different
  * boards and insist the wording follows.
  *
+ * The preview screen made the same mistake the other way round: it labelled
+ * the AKD1500 accelerator id "Device Type", and every board carries that part,
+ * so it never said which board was being previewed.
+ *
  * @format
  */
 
+import { Buffer } from 'buffer';
 import React from 'react';
 import { Provider as PaperProvider } from 'react-native-paper';
 import ReactTestRenderer from 'react-test-renderer';
 import FirmwareUpdateStatus from '../src/components/common/FirmwareUpdateStatus';
 import ModelUpdateStatus from '../src/components/common/ModelUpdateStatus';
-import { nameForDevice, UNNAMED_DEVICE } from '../src/app/store/useBleStore';
+import {
+  nameForDevice,
+  UNNAMED_DEVICE,
+  useBleStore,
+} from '../src/app/store/useBleStore';
+
+/** Route params the preview screen is opened with, set per case. */
+let mockPreviewParams: object = {};
+
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ navigate: jest.fn(), goBack: jest.fn() }),
+  useRoute: () => ({ params: mockPreviewParams }),
+}));
+
+// Required rather than imported so the navigation mock above is in place
+// before the screen is loaded.
+const DevicePreviewScreen =
+  require('../src/app/screens/Device/DevicePreviewScreen').default;
 import { describeModelUpdateEnding } from '../src/services/ble/modelUpdateAnnouncement';
 import { describeUpdateEnding } from '../src/services/firmware/firmwareUpdateAnnouncement';
 import {
@@ -245,5 +268,60 @@ describe('the cards an update runs behind', () => {
 
     expect(shown).toContain('Your BrainBoard1500 is still running firmware');
     expect(shown).not.toContain('AkidaTag');
+  });
+});
+
+describe('what the preview screen calls the part inside the board', () => {
+  beforeEach(() => {
+    useBleStore.getState().setParsedDeviceInfo({
+      aiAccelerator: 'Unknown',
+      firmwareVersion: 'Unknown',
+      bleVersion: 'Unknown',
+    });
+  });
+
+  /**
+   * Open the preview screen on one advertisement.
+   *
+   * @param manufacturerData - What the board broadcast, or null for a board
+   *   that gave none.
+   * @returns Everything the screen puts on the page.
+   */
+  const preview = async (manufacturerData: string | null): Promise<string> => {
+    mockPreviewParams = {
+      deviceId: 'AA:BB:CC:DD:EE:01',
+      deviceName: 'BrainBoard1500',
+      rssi: -50,
+      deviceInfo: manufacturerData,
+      serviceUUIDs: null,
+    };
+
+    return renderedText(<DevicePreviewScreen />);
+  };
+
+  it('labels the accelerator id for the part it identifies', async () => {
+    // AKD1500 is the AI accelerator, and both boards carry one, so calling it
+    // the device type claimed it said which board this is. It never did.
+    const shown = await preview(
+      Buffer.from('53100AKD1500', 'latin1').toString('base64'),
+    );
+
+    expect(shown).toContain('AI Accelerator AKD1500');
+    expect(shown).not.toContain('Device Type');
+  });
+
+  it('names the board from the name the board advertised', async () => {
+    const shown = await preview(
+      Buffer.from('53100AKD1500', 'latin1').toString('base64'),
+    );
+
+    expect(shown).toContain('BrainBoard1500');
+  });
+
+  it('says the accelerator is unknown rather than showing a gap', async () => {
+    const shown = await preview(null);
+
+    expect(shown).toContain('AI Accelerator Unknown');
+    expect(shown).not.toMatch(/undefined/);
   });
 });
