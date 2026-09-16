@@ -14,7 +14,7 @@ import {
 } from '../../types/firmwareUpdate';
 import { ModelUpdateOutcome } from '../../types/modelUpdate';
 import { McubootImage, parseMcubootImage } from '../firmware/mcubootImage';
-import { isAkidaTagManufacturerData } from './akidaTagAdvertisement';
+import { advertisesAkidaAccelerator } from './akidaAcceleratorAdvertisement';
 import { BleCommand } from './bleCommands';
 import { parseBinaryFrame, parseBleMessage } from './bleParser';
 import { FirmwareUpdateError } from '../firmware/firmwareUpdateError';
@@ -356,14 +356,15 @@ class BleService {
           return;
         }
 
-        // Only surface AkidaTag boards. A board advertises no service UUID at
-        // all, so it is identified by the chip ID in its manufacturer data;
-        // the name is still required because the list has nothing to show
-        // without one, and it is deliberately not matched on because the DK
-        // advertises a different name from the tag.
+        // Only surface boards built around an Akida accelerator. A board
+        // advertises no service UUID at all, so it is identified by the
+        // accelerator id in its manufacturer data, which every board the app
+        // serves carries and nothing else does; the name is still required
+        // because the list has nothing to show without one, and it is
+        // deliberately not matched on because it differs between boards.
         if (
           !device.name ||
-          !isAkidaTagManufacturerData(device.manufacturerData)
+          !advertisesAkidaAccelerator(device.manufacturerData)
         ) {
           return;
         }
@@ -1288,11 +1289,11 @@ class BleService {
   };
 
   /**
-   * Collect the ids of every AkidaTag board advertising right now.
+   * Collect the ids of every Akida board advertising right now.
    *
    * @param timeoutMs - How long to keep scanning before answering.
    */
-  private scanForAkidaTagIds = (timeoutMs: number): Promise<string[]> =>
+  private scanForAkidaBoardIds = (timeoutMs: number): Promise<string[]> =>
     new Promise(resolve => {
       const ids: string[] = [];
       const stopScan = this.scanDevices(
@@ -1358,7 +1359,7 @@ class BleService {
   /**
    * Connect to a candidate board and check it is the one that was updated.
    *
-   * Every AkidaTag advertises the same chip id, so the serial from the
+   * Every board advertises the same accelerator id, so the serial from the
    * device-info burst is the only thing that tells two boards apart.
    *
    * @param deviceId - Candidate to try.
@@ -1370,7 +1371,7 @@ class BleService {
    *   and `not-it` for everything else, which is a board that named itself as
    *   a different one and a candidate that could not be connected to alike.
    *   Only `no-serial` says anything about the board being looked for: a board
-   *   that gave a different serial is simply some other AkidaTag in the room.
+   *   that gave a different serial is simply some other board in the room.
    */
   private isSameBoard = async (
     deviceId: string,
@@ -1415,7 +1416,7 @@ class BleService {
    * @returns The id to talk to, or null with whether a board answered and
    *   would not say which board it is, which is what separates the board
    *   never coming back from it coming back nameless. Meeting some other
-   *   AkidaTag counts as neither.
+   *   board counts as neither.
    */
   private reconnectToBoard = async (
     previousDeviceId: string,
@@ -1428,7 +1429,7 @@ class BleService {
 
     while (Date.now() < deadline) {
       const candidates = triedPreviousId
-        ? await this.scanForAkidaTagIds(REBOOT_SCAN_WINDOW_MS)
+        ? await this.scanForAkidaBoardIds(REBOOT_SCAN_WINDOW_MS)
         : [previousDeviceId];
       triedPreviousId = true;
 
@@ -1525,7 +1526,7 @@ class BleService {
    *   rejected when it booted back onto its previous one, not-restarted when
    *   it never rebooted at all, and unconfirmed when it could not be reached,
    *   could not be recognised, would not answer, or cannot be told apart from
-   *   any other AkidaTag in range, alongside the id the board answered on. A
+   *   any other board in range, alongside the id the board answered on. A
    *   board that did come back is left connected, since the app has just
    *   proved it is the same one.
    */
