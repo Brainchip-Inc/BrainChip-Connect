@@ -4,10 +4,31 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Add durable project-specific notes here as they are discovered through real work.
 
+## No screen names a board; it names the board that is connected
+
+The app serves more than one board. The AkidaTag and the BrainBoard1500 both
+carry the AKD1500 chip, both pass the discovery filter, and both walk the same
+update screens, so a fixed model name in anything the user reads is wrong for
+whoever is holding the other one. The name comes from the connected device
+record through `nameForDevice` in `src/app/store/useBleStore.ts`, which falls
+back to the plain noun `device` so a sentence still reads when no name has
+arrived. `__tests__/deviceNaming.test.tsx` pins this by driving every update
+ending through two boards.
+
+An update is announced after the board may already be gone, so
+`useFirmwareUpdate` and `useModelUpdate` take the name when the update starts
+and hold it until the user closes the outcome. Reading the store at render
+time instead would name the board `device` in exactly the endings that are
+about a board that vanished.
+
+Comments and identifiers that really are about AkidaTag hardware keep the
+name: the advertisement matcher, the reboot scan, and the model transfer
+protocol notes.
+
 ## One name per thing: BrainChip Connect, AkidaTag, `com.brainchip.connect`
 
-The app is BrainChip Connect, the board is AkidaTag, and its firmware lives in
-`Brainchip-Inc/AkidaTag`. The repo carries no compatibility aliases for the
+BrainChip Connect is the app, `Brainchip-Inc/AkidaTag` is the firmware repo for
+the AkidaTag board. The repo carries no compatibility aliases for the
 earlier "Spark" naming: no re-export of the old module path, and no fallback
 read of the old `@spark_*` acceptance keys, which
 `__tests__/acceptanceStorage.test.ts` pins by asserting that a device carrying
