@@ -1,7 +1,4 @@
-import {
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Accessibility,
   Activity,
@@ -20,7 +17,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Button, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
+import {
+  Button,
+  ProgressBar,
+  Switch,
+  Text,
+  useTheme,
+} from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
 import AppControlsSection from '../../components/custom/AppControlsSection';
@@ -210,16 +213,13 @@ const LiveSensorDataScreen = () => {
   useEffect(() => {
     const sub = BleService.subscribeToEdgeLearningAck(deviceId, ack => {
       if (ack === BleService.getAckEdgeMode()) {
-        Alert.alert(
-          'Completed',
-          'Edge Learning is completed',
-        );
+        Alert.alert('Completed', 'Edge Learning is completed');
       }
       if (ack === BleService.getAckEdgeStartMode()) {
-         Alert.alert(
-            'Ready to Speak',
-            'Edge Learning Mode is active. Please start speaking now.',
-         );
+        Alert.alert(
+          'Ready to Speak',
+          'Edge Learning Mode is active. Please start speaking now.',
+        );
       }
     });
 
@@ -236,7 +236,8 @@ const LiveSensorDataScreen = () => {
 
       Alert.alert('Command Failed', 'Unable to send command to the device.');
     }
-    if(value === 2 || value === 3) Alert.alert('Command Send', 'Command Send successfully');
+    if (value === 2 || value === 3)
+      Alert.alert('Command Send', 'Command Send successfully');
   };
 
   const handleMode = () => {
@@ -261,10 +262,7 @@ const LiveSensorDataScreen = () => {
           {detectedWord && detectedWord !== 'Waiting...' ? (
             <View style={styles.detectionRow}>
               <Text
-                style={[
-                  styles.detectionValue,
-                  { color: theme.colors.primary },
-                ]}
+                style={[styles.detectionValue, { color: theme.colors.primary }]}
               >
                 "{detectedWord}" detected
               </Text>
