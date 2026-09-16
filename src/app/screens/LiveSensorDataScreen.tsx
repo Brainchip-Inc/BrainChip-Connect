@@ -5,6 +5,7 @@ import {
 import {
   Accessibility,
   Activity,
+  AlertTriangle,
   Box,
   ChevronLeft,
   Mic,
@@ -38,6 +39,10 @@ import { useBleCommandStore } from '../store/useBleCommandStore';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 40 - 32; // margins (20*2) + card padding
 const CHART_HEIGHT = 120;
+
+// Fall detection tab: once a "fall" label is reported, keep the alert banner
+// up for this long even.
+const FALL_ALERT_HOLD_MS = 30000;
 
 // ─── Reusable Section Row (same as SettingsScreen's SettingRow) ───────────────
 const SectionHeader = ({
@@ -180,6 +185,40 @@ const LiveSensorDataScreen = () => {
   const stopApp = useBleCommandStore(s => s.stopApp);
   const [isTogglingInference, setIsTogglingInference] = useState(false);
 
+  // Fall detection uses the BLE command store directly.
+  // This gives us the latest detection and confidence immediately,
+  // instead of waiting for the sensor data polling to update once per second.
+  const latestDetection = useBleCommandStore(s => s.latestDetection);
+  const liveDetectionConfidence = useBleCommandStore(s => s.confidence);
+  const receivedAt = useBleCommandStore(s => s.receivedAt);
+
+  // Fall detection state is derived directly from the BLE store instead of
+  // keeping a separate local flag. This prevents stale fall alerts when the
+  // app is stopped or restarted. The store resets receivedAt when detection
+  // stops, so isFallHeld automatically becomes false. This keeps the UI in
+  // sync with the actual detection state in the store.
+  const liveWord = (latestDetection ?? '').toLowerCase().trim();
+  const isFallHeld =
+    liveWord === 'fall' &&
+    receivedAt !== null &&
+    Date.now() - receivedAt.getTime() < FALL_ALERT_HOLD_MS;
+
+  // Re-check the fall alert when its hold time expires.
+  // Without this timer, the UI may continue showing "Fall Detected"
+  // until another state update causes a re-render. This ensures it
+  // automatically changes back to "Detecting…" when the hold time ends.
+  const [, forceFallHoldRecheck] = useState(0);
+  useEffect(() => {
+    if (!receivedAt) return;
+    const msRemaining = receivedAt.getTime() + FALL_ALERT_HOLD_MS - Date.now();
+    if (msRemaining <= 0) {
+      forceFallHoldRecheck(n => n + 1);
+      return;
+    }
+    const timer = setTimeout(() => forceFallHoldRecheck(n => n + 1), msRemaining + 50);
+    return () => clearTimeout(timer);
+  }, [receivedAt]);
+
   const handleToggleInference = async () => {
     if (isTogglingInference) return;
     setIsTogglingInference(true);
@@ -292,7 +331,61 @@ const LiveSensorDataScreen = () => {
       );
     }
 
-    if (appType === 'anomaly' || appType === 'imu') {
+    if (appType === 'imu') {
+      // Fall detection states:
+      // - No fall detected yet -> "Detecting…"
+      // - Fall detected -> show "⚠ Fall Detected" with confidence
+      // - Keep the fall alert visible for FALL_ALERT_HOLD_MS
+      // - A new fall detection updates the confidence and restarts the timer
+      // - When the timer expires, go back to "Detecting…"
+      //
+      // Use isFallHeld as the only source for the fall state.
+      // latestDetection can remain "fall" if no new BLE event is received,
+      // so using it directly could make the alert stay visible forever.
+      // isFallHeld already handles the timeout and is based on the BLE store.
+      const isFallDetected = isFallHeld;
+      const displayedConfidence = liveDetectionConfidence;
+
+      return (
+        <View
+          style={[
+            styles.detectionBlock,
+            {
+              borderColor: isFallDetected
+                ? theme.colors.error
+                : theme.colors.primary,
+              backgroundColor: isFallDetected
+                ? 'rgba(239,68,68,0.08)'
+                : 'rgba(34,197,94,0.05)',
+            },
+          ]}
+        >
+          <View style={styles.detectionRow}>
+            <Text
+              style={[
+                styles.detectionValue,
+                { color: isFallDetected ? theme.colors.error : Colors.success },
+              ]}
+            >
+              {isFallDetected ? '⚠ Fall Detected' : 'Detecting…'}
+            </Text>
+            {isFallDetected && (
+              <Text
+                style={[
+                  styles.detectionPercent,
+                  { color: theme.colors.secondary },
+                ]}
+              >
+                {displayedConfidence ? displayedConfidence.toFixed(1) : '0.0'}%
+                Confidence
+              </Text>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    if (appType === 'anomaly') {
       return (
         <View style={[styles.outputCard, styles.anomalyActive]}>
           <Text style={styles.placeholderCenter}>
@@ -526,6 +619,8 @@ const LiveSensorDataScreen = () => {
           <View style={styles.subtitleRow}>
             {appType === 'keyword' ? (
               <Mic size={22} />
+            ) : appType === 'imu' ? (
+              <AlertTriangle size={22} />
             ) : appType === 'vision' ? (
               <Box size={22} />
             ) : (

@@ -60,7 +60,8 @@ export type ParsedResponse =
       ok: false;
       reason: ConfigSetReason;
     }
-  | { type: 'CONFIG_RESET_ACK' };
+  | { type: 'CONFIG_RESET_ACK' }
+  | { type: 'CALIBRATION_STATUS'; calibrated: boolean };
 
 // Binary mic-stream frame (first byte 0x42 'B', cmd 0x0C CMD_STREAM_WAVE).
 // Envelope mode: 134 bytes, n_samples=64 (32 min/max pairs).
@@ -258,6 +259,12 @@ const buildResponse = (cmd: BleCommand, data: string): ParsedResponse => {
       }
       return { type: 'CONFIG_VALUE', paramId, rawValue: mid ?? '' };
     }
+
+    case BleCommand.CALIBRATE:
+      // Firmware sends the calibration status as 1 (calibrated) or 0 (not calibrated).
+      // This response can come from a calibration request or after Fall Detection
+      // is deployed, so the app always gets the latest calibration state.
+      return { type: 'CALIBRATION_STATUS', calibrated: data.trim() === '1' };
 
     default:
       return {

@@ -1225,7 +1225,22 @@ class BleService {
   // Max dims/name length — must match firmware model_meta_t layout
   private readonly MAX_DIMS = 3;
   private readonly MAX_FS_NAME_LEN = 64;
-  private detectAppIndex = (): number => 0;
+
+  /**
+ * Maps the model filename to the correct firmware app slot.
+ *
+ * KWS models use slot 0, while Fall/IMU models use slot 1.
+ * This ensures the model is sent to the correct slot on the device.
+ */
+  private detectAppIndex = (sourceFileName: string): number => {
+    const filename = sourceFileName.toLowerCase();
+    if (filename.includes('kws')) return 0;
+    if (filename.includes('fall') || filename.includes('imu')) return 1;
+    throw new Error(
+      `Unknown model type in file '${sourceFileName}'. Expected filename to ` +
+        `contain 'kws' or 'fall'/'imu'.`,
+    );
+  };
 
   // Model OTA Updation
   private ackResolver: (() => void) | null = null;
@@ -1560,7 +1575,12 @@ class BleService {
       );
 
       // ── Detect APP index ──
-      const appIndex = this.detectAppIndex();
+      // Prefer the data-bin filename (matches the python tool's
+      // `source_file = filepath or info_path`); fall back to the info-bin
+      // name if that's ever missing.
+      const appIndex = this.detectAppIndex(
+        dataBinFile?.name || infoBinFile?.name || '',
+      );
       if (__DEV__) console.log('appindex', appIndex);
       // =====================================================================
       // 1. Send APP index
