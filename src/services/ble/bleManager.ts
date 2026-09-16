@@ -1728,9 +1728,9 @@ class BleService {
   private modelServiceUUID = 'f000aa00-0451-4000-b000-000000000000';
 
   // Characteristics
-  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000'; // FILE_TRANSFER_CHAR_UUID  — offset-prefixed data writes
-  private statusUUID = 'f000aa02-0451-4000-b000-000000000000'; // STATUS_CHAR_UUID          — notify, 14 bytes
-  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000'; // CTRL_CHAR_UUID           — START and ABORT
+  private fileTransferUUID = 'f000aa01-0451-4000-b000-000000000000'; // FILE_TRANSFER_CHAR_UUID, offset-prefixed data writes
+  private statusUUID = 'f000aa02-0451-4000-b000-000000000000'; // STATUS_CHAR_UUID, notify, 14 bytes
+  private ctrlUUID = 'f000aa03-0451-4000-b000-000000000000'; // CTRL_CHAR_UUID, START and ABORT
   private appUUID = 'f000aa05-0451-4000-b000-000000000000'; // APP_CHAR_UUID             — app index
   private crcUUID = 'f000aa06-0451-4000-b000-000000000000'; // FILE_CRC_CHAR_UUID        — combined/data CRC32 (32-bit LE)
   private modelInputShapeUUID = 'f000aa08-0451-4000-b000-000000000000'; // MODEL_INPUT_SHAPE_CHAR_UUID
@@ -2065,8 +2065,8 @@ class BleService {
       typeof rawAddr === 'string' ? parseInt(rawAddr, 16) : Number(rawAddr);
     const modelName: string = String(meta?.app ?? meta?.model_name ?? '');
 
-    // KWS runtime fields — the firmware refuses to run a KWS model whose
-    // mfcc_fs is missing, so these are always written during INFO.
+    // The firmware refuses to run a KWS model whose mfcc_fs is missing, so
+    // this is written for every model rather than only for a KWS one.
     const mfccFsBuf = Buffer.alloc(4);
     mfccFsBuf.writeFloatLE(Number(meta?.mfcc_fs ?? 0));
     const mfccFsBits: number = mfccFsBuf.readUInt32LE(0);
