@@ -27,6 +27,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
   const {
     selected,
     stage,
+    deviceName: updatedDeviceName,
     isBusy,
     browseForModel,
     startUpdate,
@@ -101,6 +102,7 @@ const AIModelUpdateScreen = ({ navigation }: any) => {
 
           <ModelUpdateStatus
             stage={stage}
+            deviceName={updatedDeviceName}
             onStop={stopUpdate}
             onDone={dismissOutcome}
           />

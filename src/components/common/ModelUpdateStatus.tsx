@@ -9,6 +9,8 @@ import UpdateOutcomeMark from './UpdateOutcomeMark';
 
 interface ModelUpdateStatusProps {
   stage: ModelUpdateStage;
+  /** What the board being updated calls itself. */
+  deviceName: string;
   onStop: () => void;
   onDone: () => void;
 }
@@ -72,10 +74,10 @@ const SendingBody = ({
  * what stops that reading as the update being done: the board still has to
  * program the model into the Akida chip and prove it runs.
  */
-const InstallingBody = () => (
+const InstallingBody = ({ deviceName }: { deviceName: string }) => (
   <View style={styles.centered}>
     <RefreshCw size={36} color={Colors.warning} />
-    <Text style={styles.title}>Installing on your AkidaTag…</Text>
+    <Text style={styles.title}>Installing on your {deviceName}…</Text>
 
     <ProgressBar percent={100} />
     <Text style={styles.percent}>100%</Text>
@@ -96,12 +98,17 @@ const InstallingBody = () => (
 /** Report what the board did with the model, once its answer is in. */
 const OutcomeBody = ({
   ending,
+  deviceName,
   onDone,
 }: {
   ending: ModelUpdateEnding;
+  deviceName: string;
   onDone: () => void;
 }) => {
-  const { title, message, mark } = describeModelUpdateEnding(ending);
+  const { title, message, mark } = describeModelUpdateEnding(
+    ending,
+    deviceName,
+  );
 
   return (
     <View>
@@ -126,6 +133,7 @@ const OutcomeBody = ({
  */
 const ModelUpdateStatus = ({
   stage,
+  deviceName,
   onStop,
   onDone,
 }: ModelUpdateStatusProps) => {
@@ -138,9 +146,15 @@ const ModelUpdateStatus = ({
       {stage.kind === 'sending' && (
         <SendingBody percent={stage.percent} onStop={onStop} />
       )}
-      {stage.kind === 'installing' && <InstallingBody />}
+      {stage.kind === 'installing' && (
+        <InstallingBody deviceName={deviceName} />
+      )}
       {stage.kind === 'done' && (
-        <OutcomeBody ending={stage.ending} onDone={onDone} />
+        <OutcomeBody
+          ending={stage.ending}
+          deviceName={deviceName}
+          onDone={onDone}
+        />
       )}
     </View>
   );

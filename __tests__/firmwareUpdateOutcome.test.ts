@@ -644,17 +644,29 @@ describe('performFota against a simulated board', () => {
   it('does not put its own busy message in front of whoever started it', async () => {
     // A model deploy holds the same lock, so this is reachable without a
     // second tap on Install, and the internal phrasing names a state the
-    // person holding the board has no word for.
+    // person holding the board has no word for. The board it names is the one
+    // being held, since the app serves more than one kind.
     mockBoard.reset(true);
+    const { setConnectedDevice } = useBleStore.getState();
+    setConnectedDevice({
+      id: DEVICE_ID,
+      name: 'BrainBoard1500',
+      rssi: null,
+      deviceInfo: null,
+      serviceUUIDs: null,
+    });
     const inFlight = runUpdate();
 
-    const failure: Error = await runUpdate().catch((error: Error) => error);
+    try {
+      const failure: Error = await runUpdate().catch((error: Error) => error);
 
-    expect(failure.message).toBe(
-      'Your AkidaTag is busy with another update. Wait for that one to ' +
-        'finish and try again.',
-    );
-
-    await inFlight;
+      expect(failure.message).toBe(
+        'Your BrainBoard1500 is busy with another update. Wait for that one ' +
+          'to finish and try again.',
+      );
+    } finally {
+      await inFlight;
+      setConnectedDevice(null);
+    }
   }, 60000);
 });

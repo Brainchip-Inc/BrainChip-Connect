@@ -24,6 +24,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
     selected,
     stage,
     keyWarning,
+    deviceName: updatedDeviceName,
     isBusy,
     canInstall,
     browseForFirmware,
@@ -126,6 +127,7 @@ const FirmwareUpdateScreen = ({ navigation }: any) => {
           <FirmwareUpdateStatus
             stage={stage}
             sentVersion={selected?.version ?? null}
+            deviceName={updatedDeviceName}
             onDone={dismissOutcome}
           />
 

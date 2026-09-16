@@ -5,6 +5,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import { BleManager, Device, State, Subscription } from 'react-native-ble-plx';
 import RNFS from 'react-native-fs';
 import { unzip } from 'react-native-zip-archive';
+import { nameForDevice, useBleStore } from '../../app/store/useBleStore';
 import BleConnectionHelper from '../../app/utils/BleConnectionHelper';
 import { BleData } from '../../types/bleData';
 import {
@@ -1197,7 +1198,7 @@ class BleService {
    *
    * @param binaryPath - Signed image, extracted from whatever carried it.
    * @returns The image's version and signing key fingerprint.
-   * @throws If the file is not AkidaTag firmware.
+   * @throws If the file is not a firmware image the app can send.
    */
   private readImageHeader = async (binaryPath: string): Promise<McubootImage> =>
     parseMcubootImage(
@@ -1209,7 +1210,7 @@ class BleService {
    *
    * @param filePath - A `.bin`, or a `.zip` holding exactly one.
    * @returns The image's version and signing key fingerprint.
-   * @throws If the file is not AkidaTag firmware.
+   * @throws If the file is not a firmware image the app can send.
    */
   readFirmwareImage = async (filePath: string): Promise<McubootImage> => {
     const { binaryPath, unzipPath } = await this.extractFirmwareBinary(
@@ -1631,9 +1632,10 @@ class BleService {
       if (__DEV__) {
         console.log('[FOTA]', `Busy with a ${this.otaInProgress} update`);
       }
+      const boardName = nameForDevice(useBleStore.getState().connectedDevice);
       throw new FirmwareUpdateError(
-        'Your AkidaTag is busy with another update. Wait for that one to ' +
-          'finish and try again.',
+        `Your ${boardName} is busy with another update. Wait for that one ` +
+          'to finish and try again.',
       );
     }
 

@@ -13,6 +13,8 @@ interface FirmwareUpdateStatusProps {
   stage: FirmwareUpdateStage;
   /** Version read out of the selected file, shown while the board installs. */
   sentVersion: string | null;
+  /** What the board being updated calls itself. */
+  deviceName: string;
   onDone: () => void;
 }
 
@@ -33,9 +35,11 @@ interface SigningKeyWarningCardProps {
 const ProgressBody = ({
   stage,
   sentVersion,
+  deviceName,
 }: {
   stage: Exclude<FirmwareUpdateStage, { kind: 'idle' | 'done' }>;
   sentVersion: string | null;
+  deviceName: string;
 }) => {
   if (stage.kind === 'sending') {
     return (
@@ -56,7 +60,7 @@ const ProgressBody = ({
   if (stage.kind === 'restarting') {
     return (
       <View>
-        <Text style={styles.title}>Restarting your AkidaTag…</Text>
+        <Text style={styles.title}>Restarting your {deviceName}…</Text>
         <Text style={styles.body}>
           The firmware is on the board and it has been asked to restart.
         </Text>
@@ -66,7 +70,7 @@ const ProgressBody = ({
 
   return (
     <View>
-      <Text style={styles.title}>Waiting for your AkidaTag…</Text>
+      <Text style={styles.title}>Waiting for your {deviceName}…</Text>
       <Text style={styles.body}>
         The board installs
         {sentVersion ? ` firmware ${sentVersion}` : ' the firmware'} while it is
@@ -87,13 +91,19 @@ const ProgressBody = ({
 const OutcomeBody = ({
   ending,
   stillConnected,
+  deviceName,
   onDone,
 }: {
   ending: FirmwareUpdateEnding;
   stillConnected: boolean;
+  deviceName: string;
   onDone: () => void;
 }) => {
-  const { title, message, mark } = describeUpdateEnding(ending, stillConnected);
+  const { title, message, mark } = describeUpdateEnding(
+    ending,
+    stillConnected,
+    deviceName,
+  );
 
   return (
     <View>
@@ -150,6 +160,7 @@ export const SigningKeyWarningCard = ({
 const FirmwareUpdateStatus = ({
   stage,
   sentVersion,
+  deviceName,
   onDone,
 }: FirmwareUpdateStatusProps) => {
   if (stage.kind === 'idle') {
@@ -168,10 +179,15 @@ const FirmwareUpdateStatus = ({
             <OutcomeBody
               ending={stage.ending}
               stillConnected={stage.stillConnected}
+              deviceName={deviceName}
               onDone={onDone}
             />
           ) : (
-            <ProgressBody stage={stage} sentVersion={sentVersion} />
+            <ProgressBody
+              stage={stage}
+              sentVersion={sentVersion}
+              deviceName={deviceName}
+            />
           )}
         </View>
       </Modal>

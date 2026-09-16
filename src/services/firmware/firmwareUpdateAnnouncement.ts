@@ -29,34 +29,40 @@ export interface UpdateAnnouncement {
  * knows nothing past that point.
  *
  * @param reason - Where the confirmation stopped.
+ * @param deviceName - What the board calls itself.
  * @returns The sentence explaining that ending.
  */
-const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
+const describeMissedConfirmation = (
+  reason: UnconfirmedReason,
+  deviceName: string,
+): string => {
   if (reason === 'unidentifiable') {
     return (
-      'The firmware was sent, but this AkidaTag never reported the serial ' +
-      'number that tells one board from another. The app could not be sure ' +
-      'which board it would be talking to afterwards, so it did not ask.'
+      `The firmware was sent, but this ${deviceName} never reported the ` +
+      'serial number that tells one board from another. The app could not ' +
+      'be sure which board it would be talking to afterwards, so it did ' +
+      'not ask.'
     );
   }
 
   if (reason === 'unreachable') {
     return (
-      'The firmware was sent, but the app could not reach your AkidaTag ' +
+      `The firmware was sent, but the app could not reach your ${deviceName} ` +
       'again afterwards, so there is no telling what the board did with it.'
     );
   }
 
   if (reason === 'unrecognised') {
     return (
-      'The firmware was sent, and the app did find an AkidaTag afterwards, ' +
-      'but it would not report the serial number that proves it is the same ' +
-      'board, so there is no telling what your board did with the firmware.'
+      'The firmware was sent, and the app did find a board afterwards, but ' +
+      'it would not report the serial number that proves it is the same ' +
+      `board, so there is no telling what your ${deviceName} did with the ` +
+      'firmware.'
     );
   }
 
   return (
-    'The firmware was sent and the app reached your AkidaTag again ' +
+    `The firmware was sent and the app reached your ${deviceName} again ` +
     'afterwards, but the board would not say which firmware it is running.'
   );
 };
@@ -72,9 +78,13 @@ const describeMissedConfirmation = (reason: UnconfirmedReason): string => {
  *
  * @param stillConnected - Whether the app was still holding the board when the
  *   update ended.
+ * @param deviceName - What the board calls itself.
  * @returns The sentence telling the user where to look next.
  */
-const whereToLookNext = (stillConnected: boolean): string => {
+const whereToLookNext = (
+  stillConnected: boolean,
+  deviceName: string,
+): string => {
   if (stillConnected) {
     return (
       'The app is still connected to the board. Disconnect from it and pick ' +
@@ -83,8 +93,8 @@ const whereToLookNext = (stillConnected: boolean): string => {
   }
 
   return (
-    'Select your AkidaTag in the device list to see the firmware version it ' +
-    'is running now.'
+    `Select your ${deviceName} in the device list to see the firmware ` +
+    'version it is running now.'
   );
 };
 
@@ -102,17 +112,20 @@ const whereToLookNext = (stillConnected: boolean): string => {
  * @param ending - How the update turned out.
  * @param stillConnected - Whether the app was still holding the board when the
  *   update ended, asked of the radio rather than inferred from the ending.
+ * @param deviceName - What the board calls itself, since the app serves more
+ *   than one kind and the user owns only theirs.
  * @returns Title, message and mark for the update modal to show.
  */
 export const describeUpdateEnding = (
   ending: FirmwareUpdateEnding,
   stillConnected: boolean,
+  deviceName: string,
 ): UpdateAnnouncement => {
   if (ending.status === 'installed') {
     return {
       title: 'Update installed',
       message:
-        `Your AkidaTag is now running firmware ${ending.version}. ` +
+        `Your ${deviceName} is now running firmware ${ending.version}. ` +
         'Confirmed with the board after it restarted.',
       mark: 'success',
     };
@@ -126,8 +139,8 @@ export const describeUpdateEnding = (
     return {
       title: 'Update did not install',
       message:
-        `Your AkidaTag is still running ${running}. It did not accept the ` +
-        'firmware you sent and restarted on its previous version.',
+        `Your ${deviceName} is still running ${running}. It did not accept ` +
+        'the firmware you sent and restarted on its previous version.',
       mark: 'failure',
     };
   }
@@ -138,7 +151,7 @@ export const describeUpdateEnding = (
       : 'the firmware it was running before';
 
     return {
-      title: 'Your AkidaTag did not restart',
+      title: `Your ${deviceName} did not restart`,
       message:
         `The firmware was sent, but the board did not restart, so it is ` +
         `still running ${running}. The firmware you sent is waiting on it ` +
@@ -149,7 +162,7 @@ export const describeUpdateEnding = (
 
   if (ending.status === 'failed') {
     const whatHappened =
-      'The firmware update did not complete. Your AkidaTag is still ' +
+      `The firmware update did not complete. Your ${deviceName} is still ` +
       'running its previous firmware.';
 
     return {
@@ -164,8 +177,8 @@ export const describeUpdateEnding = (
   return {
     title: 'Could not confirm the update',
     message:
-      `${describeMissedConfirmation(ending.reason)}\n\n` +
-      whereToLookNext(stillConnected),
+      `${describeMissedConfirmation(ending.reason, deviceName)}\n\n` +
+      whereToLookNext(stillConnected, deviceName),
     mark: null,
   };
 };

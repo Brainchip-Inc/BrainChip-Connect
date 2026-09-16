@@ -9,7 +9,7 @@ import {
   ModelUpdateStage,
   SelectedModel,
 } from '../../types/modelUpdate';
-import { useBleStore } from '../store/useBleStore';
+import { nameForDevice, useBleStore } from '../store/useBleStore';
 
 /**
  * Copy a picked package into the app's cache under its own name.
@@ -49,6 +49,10 @@ export const useModelUpdate = () => {
 
   const [selected, setSelected] = useState<SelectedModel | null>(null);
   const [stage, setStage] = useState<ModelUpdateStage>({ kind: 'idle' });
+  // Taken when the update starts and kept until the user closes the outcome,
+  // because a board lost partway through is given up before the outcome is
+  // shown, and the board is exactly what that outcome is about.
+  const [updatedBoardName, setUpdatedBoardName] = useState<string | null>(null);
   const updateInFlight = useRef(false);
   const stopRequested = useRef(false);
 
@@ -56,6 +60,7 @@ export const useModelUpdate = () => {
 
   const reset = useCallback(() => {
     setSelected(null);
+    setUpdatedBoardName(null);
     setStage({ kind: 'idle' });
   }, []);
 
@@ -115,6 +120,7 @@ export const useModelUpdate = () => {
       return;
     }
 
+    setUpdatedBoardName(nameForDevice(connectedDevice));
     setStage({ kind: 'sending', percent: 0 });
 
     let ending: ModelUpdateEnding;
@@ -153,18 +159,22 @@ export const useModelUpdate = () => {
 
     updateInFlight.current = false;
     setStage({ kind: 'done', ending });
-  }, [connectedDevice?.id, selected]);
+  }, [connectedDevice, selected]);
 
   const stopUpdate = useCallback(() => {
     stopRequested.current = true;
     bleService.stopModelTransfer();
   }, []);
 
-  const dismissOutcome = useCallback(() => setStage({ kind: 'idle' }), []);
+  const dismissOutcome = useCallback(() => {
+    setUpdatedBoardName(null);
+    setStage({ kind: 'idle' });
+  }, []);
 
   return {
     selected,
     stage,
+    deviceName: updatedBoardName ?? nameForDevice(connectedDevice),
     isBusy: stage.kind === 'sending' || stage.kind === 'installing',
     browseForModel,
     clearSelection,

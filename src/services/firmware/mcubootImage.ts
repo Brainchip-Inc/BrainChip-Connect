@@ -15,7 +15,10 @@ const TLV_TYPE_KEYHASH = 0x01;
 
 import { FirmwareUpdateError } from './firmwareUpdateError';
 
-const NOT_FIRMWARE = 'This file is not AkidaTag firmware.';
+// Named for what the app can do with the file rather than for a board: the
+// parser is handed a file, never a device, and the app serves more than one
+// kind of board.
+const NOT_FIRMWARE = 'This file is not a firmware image the app can send.';
 const TRUNCATED = 'This firmware file is incomplete.';
 
 export interface McubootImage {

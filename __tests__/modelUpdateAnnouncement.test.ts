@@ -14,6 +14,18 @@
 import { describeModelUpdateEnding } from '../src/services/ble/modelUpdateAnnouncement';
 import { ModelUpdateEnding } from '../src/types/modelUpdate';
 
+/** The board these cases are held against, which is not the only one sold. */
+const BOARD = 'BrainBoard1500';
+
+/**
+ * Word an ending for a board with a name, which is every ending a user sees.
+ *
+ * @param ending - How the update turned out.
+ * @returns What the card would show.
+ */
+const announce = (ending: ModelUpdateEnding) =>
+  describeModelUpdateEnding(ending, BOARD);
+
 const ENDINGS: ModelUpdateEnding[] = [
   { status: 'installed' },
   { status: 'not-running' },
@@ -32,26 +44,24 @@ const ENDINGS: ModelUpdateEnding[] = [
 
 describe('describeModelUpdateEnding', () => {
   it('gives every ending its own statement', () => {
-    const messages = ENDINGS.map(
-      ending => describeModelUpdateEnding(ending).message,
-    );
+    const messages = ENDINGS.map(ending => announce(ending).message);
 
     expect(new Set(messages).size).toBe(ENDINGS.length);
   });
 
   it('claims success only for a model the board said it is running', () => {
-    const installed = describeModelUpdateEnding({ status: 'installed' });
+    const installed = announce({ status: 'installed' });
 
     expect(installed.mark).toBe('success');
     expect(installed.message).toContain('running it');
 
     ENDINGS.filter(ending => ending.status !== 'installed').forEach(ending => {
-      expect(describeModelUpdateEnding(ending).mark).not.toBe('success');
+      expect(announce(ending).mark).not.toBe('success');
     });
   });
 
   it('reports a stored model that will not start as neither of the two', () => {
-    const { title, message, mark } = describeModelUpdateEnding({
+    const { title, message, mark } = announce({
       status: 'not-running',
     });
 
@@ -63,12 +73,12 @@ describe('describeModelUpdateEnding', () => {
   });
 
   it('says when the board is left with nothing to run', () => {
-    const stranded = describeModelUpdateEnding({
+    const stranded = announce({
       status: 'failed',
       detail: 'The board could not write the model to its storage.',
       boardHasNoModel: true,
     });
-    const untouched = describeModelUpdateEnding({
+    const untouched = announce({
       status: 'failed',
       detail: 'The board refused this model.',
       boardHasNoModel: false,
@@ -79,7 +89,7 @@ describe('describeModelUpdateEnding', () => {
   });
 
   it('carries the reason the board gave, when it gave one', () => {
-    const { message } = describeModelUpdateEnding({
+    const { message } = announce({
       status: 'failed',
       detail: 'The board could not write the model to its storage.',
       boardHasNoModel: true,
