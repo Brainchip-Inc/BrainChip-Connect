@@ -136,6 +136,44 @@ The authoritative counterpart, read-only from this repo, is
 firmware repo: `adv_manufacturer_data[]` for the advertisement layout and
 `send_device_info_response()` for the frame order.
 
+## The camera preview is drawn from a wire format the Arduino library owns
+
+Human detection preview frames arrive in chunks on the notify characteristic
+the microphone waveform uses, told apart by the command byte. The layout is
+specified under "The camera preview frame" in
+`examples/bb15_nicla_vision_connect/README.md` of the
+`brainboard1500_arduino_library` repository, and `sendPreview` in that
+example's `ble_protocol.cpp` is the sender. The app's half is
+`src/services/ble/cameraPreview.ts` for the chunk layout and reassembly and
+`src/services/image/grayscalePng.ts` for turning a whole image into a PNG data
+URI, because React Native cannot draw raw pixels. `__tests__/cameraPreview.test.ts`
+pins the layout byte by byte and `__tests__/grayscalePng.test.ts` checks the
+PNG against Node's own zlib; a change on either side means updating both
+deliberately.
+
+Two things about the preview are deliberate and look like bugs:
+
+- **Frames are skipped on purpose.** The board sends its newest frame, never
+  queues, and drops chunks in flight rather than stall the detector. An image
+  overtaken before it is whole is discarded, never shown late, and a gap is
+  not an error.
+- **Detections must never wait on the preview.** Results share the
+  characteristic with the chunks, so the chunk handler in `useBleCommandStore`
+  does one small copy per notification and encodes only once per whole image.
+  Anything heavier there shows up as a lagging detection, not as a slow
+  preview.
+
+## Starting an application is a model swap, and the app shows the wait
+
+Only one model fits in the Akida fabric, so Run Application on a
+BrainBoard1500 loads the model into the accelerator before the board
+acknowledges: measured at about 1.8 s for the keyword model and 1.9 s for the
+vision model. `appTransition` in `useBleCommandStore` is the gap between the
+command and that acknowledgement, and it is the only thing the two screens
+show the wait from; nothing is timed on the phone. `DEPLOY_ACK_TIMEOUT_MS`
+there is what the load has to fit inside, so shortening it breaks the
+BrainBoard1500 before it breaks anything else.
+
 ## The app is offline by design
 
 There is no backend. The app was cut over from an internal VPN-only server
