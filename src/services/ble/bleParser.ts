@@ -2,6 +2,12 @@
 
 import { AppType } from '../../app/store/useLiveSensorStore';
 import { BleCommand } from './bleCommands';
+import {
+  BINARY_FRAME_MAGIC,
+  PREVIEW_COMMAND,
+  PreviewChunk,
+  parsePreviewChunk,
+} from './cameraPreview';
 
 export interface DeviceInfo {
   vendor: string;
@@ -52,6 +58,7 @@ export type ParsedResponse =
   | { type: 'APPS'; data: string }
   | { type: 'APPS_INFO'; data: string }
   | { type: 'WAVE'; data: WavePayload }
+  | { type: 'PREVIEW_CHUNK'; data: PreviewChunk }
   | { type: 'CONFIG_VALUE'; paramId: number; rawValue: string }
   | { type: 'CONFIG_SET_ACK'; paramId: number; ok: true }
   | {
@@ -65,12 +72,16 @@ export type ParsedResponse =
 // Binary mic-stream frame (first byte 0x42 'B', cmd 0x0C CMD_STREAM_WAVE).
 // Envelope mode: 134 bytes, n_samples=64 (32 min/max pairs).
 // Fallback mode: 70 bytes,  n_samples=32 (raw int16 samples).
-const WAVE_MAGIC = 0x42;
+// A camera preview chunk shares the magic byte and is told apart by cmd 0x0D.
 const WAVE_CMD = 0x0c;
 
 export const parseBinaryFrame = (buf: Buffer): ParsedResponse | null => {
-  if (buf.length < 6 || buf[0] !== WAVE_MAGIC) return null;
+  if (buf.length < 6 || buf[0] !== BINARY_FRAME_MAGIC) return null;
   const cmd = buf[1];
+  if (cmd === PREVIEW_COMMAND) {
+    const chunk = parsePreviewChunk(buf);
+    return chunk ? { type: 'PREVIEW_CHUNK', data: chunk } : null;
+  }
   if (cmd !== WAVE_CMD) return null;
 
   const seq = buf.readUInt16LE(2);

@@ -7,6 +7,9 @@ import { BLEDevice } from './useBleStore';
 import { useEventsStore } from './useEventStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 import { AppsList, WavePayload } from '../../services/ble/bleParser';
+import { PreviewAssembler } from '../../services/ble/cameraPreview';
+import { grayscalePngDataUri } from '../../services/image/grayscalePng';
+import { CameraPreviewFrame } from '../../types/cameraPreview';
 import { AppType } from './useLiveSensorStore';
 import { BatteryState, getBatteryLabel } from '../../types/batteryStateEnum';
 import {
@@ -74,6 +77,10 @@ export interface AppTransition {
 /** How long to wait for the board to confirm a start or stop. */
 const DEPLOY_ACK_TIMEOUT_MS = 3000;
 
+// Preview chunks are put together here, outside the store's state, because a
+// half-built image is nothing the UI should ever see.
+const previewAssembler = new PreviewAssembler();
+
 // The firmware reports its serial as 16 lowercase hex characters. Anything
 // else on that frame is a firmware the app does not understand, so it is
 // dropped rather than shown.
@@ -114,6 +121,10 @@ interface BleCommandState {
   isInferenceRunning: boolean;
   deployAckResolver: DeployAckResolver | null;
   appTransition: AppTransition | null;
+
+  // The newest whole camera preview frame, or null when none has arrived
+  // since streaming last started.
+  cameraPreview: CameraPreviewFrame | null;
 
   // 🔹 Session lifecycle
   startDeviceSession: (device: BLEDevice) => Promise<void>;
@@ -189,6 +200,8 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
   deployAckResolver: null,
   appTransition: null,
 
+  cameraPreview: null,
+
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
     // Firmware auto-starts the audio pipeline at boot — default to running
@@ -229,7 +242,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       isInferenceRunning: false,
       deployAckResolver: null,
       appTransition: null,
+      cameraPreview: null,
     });
+    previewAssembler.reset();
   },
 
   // ✅ Start subscription once
@@ -342,6 +357,25 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               }
               next.set(incoming, prevKeep);
               set({ micWave: next });
+              break;
+            }
+
+            case 'PREVIEW_CHUNK': {
+              const image = previewAssembler.accept(data.data);
+              if (image) {
+                set({
+                  cameraPreview: {
+                    uri: grayscalePngDataUri(
+                      image.pixels,
+                      image.width,
+                      image.height,
+                    ),
+                    width: image.width,
+                    height: image.height,
+                    sequence: image.sequence,
+                  },
+                });
+              }
               break;
             }
 
@@ -685,14 +719,16 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
+    previewAssembler.reset();
+    set({
+      micWave: new Int16Array(),
+      cameraPreview: null,
+    });
+
     await BleService.sendCommand(
       deviceId,
       `${BleCommand.STREAMSTART}:${appId},1`,
     );
-
-    set({
-      micWave: new Int16Array(),
-    });
   },
 
   // ✅ Stop streaming
@@ -705,8 +741,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       `${BleCommand.STREAMSTOP}:${appId},0`,
     );
 
+    previewAssembler.reset();
     set({
       micWave: new Int16Array(),
+      cameraPreview: null,
     });
   },
   requestDeviceReset: async () => {
