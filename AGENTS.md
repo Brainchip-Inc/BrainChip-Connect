@@ -64,6 +64,20 @@ peripheral that enforces the offset, block-boundary and block-size rules and
 rebuilds `model_meta_t` from the characteristics it actually received. A
 firmware protocol bump means updating all three deliberately.
 
+Two things about this stack bite any code that sends a file over BLE, and both
+cost a working transfer rather than failing loudly:
+
+- **The MTU asked for while connecting does not stick.** A link left at the
+  23-byte minimum still works and is fifteen times slower, which reads as a slow
+  board rather than a bug. Both update paths call `requestLargeMtu` of their own
+  accord immediately before sending; the model transfer logs the MTU it ended up
+  with under `__DEV__`.
+- **A slice of a `Buffer` is not a `Buffer`.** React Native's polyfill returns a
+  bare `Uint8Array` from `subarray`, so `copy`, `readUInt32LE` and the rest are
+  undefined on it, while Node's Buffer in Jest returns a real Buffer and notices
+  nothing. Anything handling chunks takes `Uint8Array` and sticks to methods
+  both have.
+
 The two sides also disagree on where `model_name` comes from: the app packs the
 CRC header's name from `info.yaml`'s `app`, while the firmware derives it from
 the basename of the `fs_name` path, which the app builds from the info-bin

@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, ProgressBar, Text } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 import { Colors } from '../../app/theme/theme';
 import { describeModelUpdateEnding } from '../../services/ble/modelUpdateAnnouncement';
 import { ModelUpdateEnding, ModelUpdateStage } from '../../types/modelUpdate';
@@ -12,6 +12,20 @@ interface ModelUpdateStatusProps {
   onStop: () => void;
   onDone: () => void;
 }
+
+/**
+ * How far the transfer has got, as a bar that is filled in directly.
+ *
+ * It is two plain views rather than an animated progress component because
+ * sending a model keeps the JavaScript thread busy from the moment this card
+ * appears, and a bar that has to measure itself before it can animate never
+ * gets the chance: it stays empty for the whole transfer.
+ */
+const ProgressBar = ({ percent }: { percent: number }) => (
+  <View style={styles.progressTrack}>
+    <View style={[styles.progressFill, { width: `${percent}%` }]} />
+  </View>
+);
 
 /**
  * Show the model going to the board, with the way out of it.
@@ -31,11 +45,7 @@ const SendingBody = ({
     <RefreshCw size={36} color={Colors.warning} />
     <Text style={styles.title}>Sending model…</Text>
 
-    <ProgressBar
-      progress={percent / 100}
-      color={Colors.warning}
-      style={styles.progress}
-    />
+    <ProgressBar percent={percent} />
     <Text style={styles.percent}>{percent.toFixed(0)}%</Text>
 
     <Button
@@ -67,7 +77,7 @@ const InstallingBody = () => (
     <RefreshCw size={36} color={Colors.warning} />
     <Text style={styles.title}>Installing on your AkidaTag…</Text>
 
-    <ProgressBar progress={1} color={Colors.warning} style={styles.progress} />
+    <ProgressBar percent={100} />
     <Text style={styles.percent}>100%</Text>
 
     <Text style={styles.body}>
@@ -165,10 +175,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  progress: {
+  progressTrack: {
     width: '100%',
     height: 6,
+    backgroundColor: Colors.border.light,
     marginVertical: 12,
+  },
+
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.warning,
   },
 
   percent: {

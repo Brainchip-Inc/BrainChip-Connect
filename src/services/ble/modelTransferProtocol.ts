@@ -119,13 +119,17 @@ export const buildAbortFrame = (): Buffer => Buffer.from([CONTROL_ABORT]);
 /**
  * Build one data write: the absolute offset of the payload, then the payload.
  *
+ * The payload is taken as a plain byte array rather than a Buffer because a
+ * slice of one is not always a Buffer: React Native's polyfill returns a bare
+ * Uint8Array from `subarray`, which has none of Buffer's own methods.
+ *
  * @param offset - Where these bytes belong in the file.
  * @param payload - The bytes themselves.
  */
-export const buildDataFrame = (offset: number, payload: Buffer): Buffer => {
+export const buildDataFrame = (offset: number, payload: Uint8Array): Buffer => {
   const frame = Buffer.alloc(DATA_OFFSET_BYTES + payload.length);
   frame.writeUInt32LE(offset >>> 0, 0);
-  payload.copy(frame, DATA_OFFSET_BYTES);
+  frame.set(payload, DATA_OFFSET_BYTES);
   return frame;
 };
 

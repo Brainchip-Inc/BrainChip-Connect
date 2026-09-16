@@ -1133,21 +1133,24 @@ class BleService {
     } catch {}
   }
 
-  /* ──FOTA MTU REQUEST ──
+  /**
+   * Ask for the largest ATT MTU the link will carry, before sending a file.
    *
+   * The MTU asked for at connection time does not always take, and a link left
+   * at the 23-byte minimum carries 16 bytes of a transfer per write, which is
+   * fifteen times less than a negotiated one. Both update paths therefore ask
+   * again on their own account rather than trusting what connecting left
+   * behind.
+   *
+   * @param deviceId - Board to renegotiate with.
    */
-
-  private async requestFotaMtu(deviceId: string): Promise<number> {
+  private async requestLargeMtu(deviceId: string): Promise<void> {
     try {
       const device = await this.bleManager.requestMTUForDevice(deviceId, 498);
 
-      const mtu = device.mtu ?? 23;
-
-      this.negotiatedMTU = mtu;
-      return mtu;
+      this.negotiatedMTU = device.mtu ?? 23;
     } catch {
       this.negotiatedMTU = 247; // safe fallback
-      return this.negotiatedMTU;
     }
   }
 
@@ -1238,7 +1241,7 @@ class BleService {
     onProgress: ((percent: number) => void) | undefined,
     log: (msg: string) => void,
   ): Promise<string> => {
-    await this.requestFotaMtu(deviceId);
+    await this.requestLargeMtu(deviceId);
     const sub = this.subscribeToFotaNotifications(deviceId);
 
     try {
@@ -1476,7 +1479,7 @@ class BleService {
     this.fotaResolver = null;
     this.fotaRejecter = null;
 
-    await this.requestFotaMtu(deviceId);
+    await this.requestLargeMtu(deviceId);
     const sub = this.subscribeToFotaNotifications(deviceId);
 
     try {
@@ -1980,6 +1983,7 @@ class BleService {
     try {
       const model = await this.readModelPackage(zipPath, unzipPath);
 
+      await this.requestLargeMtu(deviceId);
       await this.subscribeToTransferStatus(deviceId);
 
       try {
@@ -2223,6 +2227,13 @@ class BleService {
 
     const payloadLimit = this.negotiatedMTU - 3 - DATA_OFFSET_BYTES;
     let offset = 0;
+
+    if (__DEV__) {
+      console.log(
+        `[MODEL] ${bytes.length} bytes in blocks of ${blockSize}, ` +
+          `${payloadLimit} per write at MTU ${this.negotiatedMTU}`,
+      );
+    }
 
     while (offset < bytes.length) {
       // A write may not cross a block boundary: that is what makes the

@@ -89,6 +89,17 @@ describe('frames the app writes', () => {
     expect(frame.readUInt32LE(0)).toBe(0x0102);
     expect([...frame.subarray(DATA_OFFSET_BYTES)]).toEqual([0xaa, 0xbb]);
   });
+
+  it('takes a payload that is a plain byte array, not only a Buffer', () => {
+    // A slice of a Buffer is a bare Uint8Array under React Native's polyfill,
+    // and that is what every chunk of a real transfer arrives here as. Node's
+    // own Buffer hands back a Buffer, so nothing else in these tests would
+    // notice this frame builder reaching for a method only Buffer has.
+    const frame = buildDataFrame(4096, Uint8Array.from([0x01, 0x02, 0x03]));
+
+    expect(frame.readUInt32LE(0)).toBe(4096);
+    expect([...frame.subarray(DATA_OFFSET_BYTES)]).toEqual([1, 2, 3]);
+  });
 });
 
 describe('describeTransferFailure', () => {

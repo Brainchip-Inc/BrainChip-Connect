@@ -494,6 +494,7 @@ jest.mock('react-native-ble-plx', () => {
     State: { PoweredOn: 'PoweredOn' },
     BleManager: jest.fn().mockImplementation(() => ({
       connectToDevice: jest.fn(async () => device),
+      requestMTUForDevice: jest.fn(async () => ({ mtu: 247 })),
       onDeviceDisconnected: jest.fn(() => ({ remove: jest.fn() })),
       monitorCharacteristicForDevice: jest.fn(
         (
