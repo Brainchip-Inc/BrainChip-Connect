@@ -21,9 +21,10 @@ and hold it until the user closes the outcome. Reading the store at render
 time instead would name the board `device` in exactly the endings that are
 about a board that vanished.
 
-Comments and identifiers that really are about AkidaTag hardware keep the
-name: the advertisement matcher, the reboot scan, and the model transfer
-protocol notes.
+Comments and identifiers keep the AkidaTag name only where they really are
+about that board, such as the model transfer protocol notes and the firmware
+repository they point at. Discovery is not one of those places: see the
+manufacturer-data section below.
 
 ## One name per thing: BrainChip Connect, AkidaTag, `com.brainchip.connect`
 
@@ -106,16 +107,23 @@ filename prefix (`kws_program_info.bin` -> `/model_meta/kws`). Every current
 package agrees on both, but a package whose `app` differs from its info-bin
 prefix fails the INFO CRC with no diagnostic naming the cause.
 
-## An AkidaTag board is recognised by its manufacturer data, never by name or UUID
+## A board is recognised by its manufacturer data, never by name or UUID
 
 The firmware advertises no service UUID at all: the 128-bit value it used to
 put in its scan response was the permanent factory serial, and a value that
 never changes defeats the rotating private address. So the only thing in the
-advertisement that identifies the hardware is the chip ID in the 12 ASCII
-bytes of manufacturer data, which is what `isAkidaTagManufacturerData` in
-`src/services/ble/akidaTagAdvertisement.ts` matches on, pinned by
-`__tests__/akidaTagAdvertisement.test.ts`. Names are cosmetic and differ between
-the tag and the DK, so they must not become a filter.
+advertisement that identifies the hardware is the AKD1500 accelerator id in the
+12 ASCII bytes of manufacturer data, which is what `advertisesAkidaAccelerator`
+in `src/services/ble/akidaAcceleratorAdvertisement.ts` matches on, pinned by
+`__tests__/akidaAcceleratorAdvertisement.test.ts` for the bytes and
+`__tests__/deviceDiscovery.test.ts` for what the scan then offers to the list.
+Names are cosmetic and differ between boards, so they must not become a filter.
+
+AKD1500 is the AI accelerator, not the board. Every board the app serves
+carries one, so nothing about it says which board is being held: it is
+labelled "AI Accelerator" on the preview screen and is called `aiAccelerator`
+in `DeviceInfo`. Anything that reads it as a device type is wrong, and that is
+how the preview screen used to read it.
 
 The serial now arrives instead as the last frame of the `CMD_DEVICE_INFO`
 burst. Two consequences follow for the UI: nothing before connecting can show
