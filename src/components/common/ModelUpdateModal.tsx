@@ -1,32 +1,19 @@
-import { pick } from '@react-native-documents/picker';
+import { Download, Folder, X } from 'lucide-react-native';
+import React, { useEffect } from 'react';
 import {
-  CheckCircle,
-  Download,
-  Folder,
-  RefreshCw,
-  X,
-} from 'lucide-react-native';
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
   Dimensions,
-  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Button, Portal, Modal, ProgressBar, Text } from 'react-native-paper';
-import BleService from '../../services/ble/bleManager';
-import { useBleStore } from '../../app/store/useBleStore';
-import { AIModel } from '../../types/AIModel';
+import { Button, Modal, Portal, Text } from 'react-native-paper';
 import { useBleCommandStore } from '../../app/store/useBleCommandStore';
+import { useModelUpdate } from '../../app/hooks/useModelUpdate';
 import { Colors } from '../../app/theme/theme';
-import RNFS from 'react-native-fs';
+import ModelUpdateStatus from './ModelUpdateStatus';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-type ScreenState = 'list' | 'updating' | 'completed';
 
 interface ModelUpdateModalProps {
   visible: boolean;
@@ -37,122 +24,25 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
   visible,
   onClose,
 }) => {
-  const [screen, setScreen] = useState<ScreenState>('list');
-  const [progress, setProgress] = useState(0);
-
-  const { connectedDevice } = useBleStore();
-  const deviceId = connectedDevice?.id ?? 'Unknown Device';
-  const [localModel, setLocalModel] = useState<AIModel | null>(null);
   const appList = useBleCommandStore(state => state.appsList);
   const reportedVersion = appList[0]?.modelVersion;
   const currentVersion =
     reportedVersion && reportedVersion !== '-' ? reportedVersion : undefined;
 
-  const ackSubRef = useRef<any>(null);
+  const {
+    selected,
+    stage,
+    isBusy,
+    browseForModel,
+    startUpdate,
+    stopUpdate,
+    dismissOutcome,
+    reset,
+  } = useModelUpdate();
 
   useEffect(() => {
-    return () => {
-      ackSubRef.current?.remove();
-    };
-  }, []);
-
-  // Reset state on every open/close transition
-  useEffect(() => {
-    setScreen('list');
-    setProgress(0);
-    setLocalModel(null);
-  }, [visible]);
-
-  const startUpdate = async (model: AIModel) => {
-    if (screen === 'updating') return;
-
-    if (!connectedDevice?.id) {
-      Alert.alert('No device connected');
-      return;
-    }
-
-    setScreen('updating');
-    setProgress(0);
-
-    try {
-      const zipPath = model.localPath;
-
-      ackSubRef.current = BleService.subscribeToModelAck(deviceId, ack => {
-        if (ack === BleService.getAckFlashErase()) {
-          setProgress(10);
-        }
-        if (ack === BleService.getAckFlashWrite()) {
-          setProgress(prev => Math.min(prev + 5, 95));
-        }
-      });
-
-      await new Promise(r => setTimeout(r, 200));
-      await BleService.sendModelZip(deviceId, zipPath, percent => {
-        setProgress(Math.round(percent));
-      });
-
-      setScreen('completed');
-    } catch (error) {
-      Alert.alert('Update Failed', String(error));
-      setScreen('list');
-    } finally {
-      ackSubRef.current?.remove();
-      ackSubRef.current = null;
-    }
-  };
-
-  const stopUpdate = () => {
-    ackSubRef.current?.remove();
-    ackSubRef.current = null;
-    BleService.stopModelTransfer();
-    setProgress(0);
-    setScreen('list');
-  };
-
-  const browseLocalModel = async () => {
-    setScreen('list');
-    try {
-      const results = await pick({
-        allowMultiSelection: false,
-        type: Platform.select({
-          ios: ['public.data'],
-          android: ['*/*'],
-        }),
-        copyTo: 'cachesDirectory',
-      });
-
-      const result = results[0];
-      const sourceUri = (result as any).fileCopyUri ?? result.uri;
-      if (!sourceUri) return;
-
-      const cleanUri = sourceUri.replace('file://', '');
-      const fileName = result.name ?? 'model.zip';
-
-      if (!fileName.toLowerCase().endsWith('.zip')) {
-        Alert.alert('Invalid File', 'Please select a .zip model package');
-        return;
-      }
-
-      const localPath = `${RNFS.CachesDirectoryPath}/${fileName}`;
-      if (await RNFS.exists(localPath)) await RNFS.unlink(localPath);
-      await RNFS.copyFile(cleanUri, localPath);
-      const stat = await RNFS.stat(localPath);
-
-      const model: AIModel = {
-        filename: fileName,
-        size_kb: Math.round(stat.size / 1024),
-        localPath: localPath,
-        description: 'Local model selected from device',
-      };
-
-      setLocalModel(model);
-    } catch (err: any) {
-      if (__DEV__) console.log('File picker error:', err?.message);
-      if (err?.message !== 'User cancelled the picker') {
-        Alert.alert('File selection failed');
-      }
-    }
-  };
+    reset();
+  }, [visible, reset]);
 
   return (
     <Portal>
@@ -160,14 +50,11 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
         visible={visible}
         onDismiss={onClose}
         contentContainerStyle={styles.modalContainer}
-        dismissable={screen !== 'updating'}
+        dismissable={!isBusy}
       >
-        {/* Backdrop */}
         <View style={styles.backdrop} />
 
-        {/* Modal content */}
         <View style={styles.modal}>
-          {/* HEADER */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Download size={18} color={Colors.primary} />
@@ -180,13 +67,11 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
             <TouchableOpacity
               onPress={onClose}
               style={styles.closeBtn}
-              disabled={screen === 'updating'}
+              disabled={isBusy}
             >
               <X
                 size={18}
-                color={
-                  screen === 'updating' ? Colors.text.disabled : Colors.black
-                }
+                color={isBusy ? Colors.text.disabled : Colors.black}
               />
             </TouchableOpacity>
           </View>
@@ -195,7 +80,6 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
             showsVerticalScrollIndicator={true}
             style={styles.scrollContent}
           >
-            {/* CURRENT VERSION */}
             <View style={styles.card}>
               <Text style={styles.label}>Current Version</Text>
               <Text style={styles.version}>
@@ -203,15 +87,14 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
               </Text>
             </View>
 
-            {/* ACTION BUTTON - only in list mode */}
-            {screen === 'list' && (
+            {stage.kind === 'idle' && (
               <View style={styles.actionArea}>
                 <Button
                   mode="contained"
                   icon={({ size, color }) => (
                     <Folder size={size} color={color} />
                   )}
-                  onPress={browseLocalModel}
+                  onPress={browseForModel}
                   style={styles.actionBtn}
                 >
                   Browse Local Model
@@ -219,8 +102,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
               </View>
             )}
 
-            {/* LOCAL MODEL CARD */}
-            {screen === 'list' && localModel && (
+            {stage.kind === 'idle' && selected && (
               <View style={styles.card}>
                 <View style={styles.buildHeaderRow}>
                   <Text style={styles.label}>Available Version</Text>
@@ -229,71 +111,29 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
                   </View>
                 </View>
 
-                <Text style={styles.newVersion}>{localModel.filename}</Text>
-                <Text style={styles.subText}>{localModel.description}</Text>
-                <Text style={styles.label}>Size: {localModel.size_kb} KB</Text>
+                <Text style={styles.newVersion}>{selected.name}</Text>
+                <Text style={styles.subText}>
+                  Local model selected from device
+                </Text>
+                <Text style={styles.label}>
+                  Size: {Math.round(selected.sizeBytes / 1024)} KB
+                </Text>
 
                 <Button
                   mode="contained"
                   style={styles.primaryBtn}
-                  onPress={() => startUpdate(localModel)}
+                  onPress={startUpdate}
                 >
                   Install Model
                 </Button>
               </View>
             )}
 
-            {/* UPDATING SCREEN */}
-            {screen === 'updating' && (
-              <View style={[styles.card, { alignItems: 'center' }]}>
-                <RefreshCw size={36} color={Colors.warning} />
-                <Text style={styles.centerTitle}>Flashing model...</Text>
-
-                <ProgressBar
-                  progress={progress / 100}
-                  color={Colors.warning}
-                  style={styles.progress}
-                />
-
-                <Text style={styles.percent}>{progress.toFixed(0)}%</Text>
-
-                <Button
-                  mode="outlined"
-                  textColor={Colors.error}
-                  style={styles.stopBtn}
-                  onPress={stopUpdate}
-                >
-                  Stop Update
-                </Button>
-
-                <View style={styles.warningBox}>
-                  <Text style={styles.warningText}>
-                    Do not disconnect or power off the device during the update
-                    process.
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* COMPLETED SCREEN */}
-            {screen === 'completed' && (
-              <View style={[styles.card, { alignItems: 'center' }]}>
-                <CheckCircle size={42} color={Colors.success} />
-                <Text style={styles.centerTitle}>Update complete!</Text>
-
-                <Text style={styles.subText}>
-                  Your device has been successfully updated to the new model.
-                </Text>
-
-                <Button
-                  mode="contained"
-                  style={styles.primaryBtn}
-                  onPress={onClose}
-                >
-                  Done
-                </Button>
-              </View>
-            )}
+            <ModelUpdateStatus
+              stage={stage}
+              onStop={stopUpdate}
+              onDone={dismissOutcome}
+            />
           </ScrollView>
         </View>
       </Modal>
@@ -441,44 +281,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.white,
     letterSpacing: 0.5,
-  },
-
-  centerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginVertical: 16,
-  },
-
-  progress: {
-    width: '100%',
-    height: 6,
-    marginVertical: 12,
-  },
-
-  percent: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-
-  stopBtn: {
-    width: '100%',
-    borderColor: Colors.error,
-    borderRadius: 0,
-  },
-
-  warningBox: {
-    marginTop: 20,
-    padding: 12,
-    backgroundColor: '#FFF4E5',
-    borderWidth: 1,
-    borderColor: '#FFD199',
-    width: '100%',
-  },
-
-  warningText: {
-    fontSize: 12,
-    color: '#92400E',
-    textAlign: 'center',
   },
 });

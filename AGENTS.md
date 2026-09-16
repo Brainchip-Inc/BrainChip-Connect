@@ -26,22 +26,43 @@ Two identifiers are duplicated across files that no build step keeps in sync:
   one as a literal; a mismatch there builds fine and fails at launch with no
   view mounted.
 
-## BLE model transfer is pinned to firmware `model_meta_t`
+## BLE model transfer is pinned to a specification the firmware owns
 
-`src/services/ble/bleManager.ts` mirrors a wire protocol owned by the AkidaTag
-firmware repo. When `model_meta_t` gains a field, the app must both extend the
-CRC header in `computeCombinedCRC32` and write the new characteristic during the
-INFO phase; getting only one half right produces either an `INFO CRC FAIL` on
-the board or a model that loads with zeroed metadata.
+The transfer is specified in `docs/ble-model-transfer.md` in the AkidaTag
+firmware repo, and that page is the contract: both sides are built from it, and
+neither may change shape without it. The app's half is
+`src/services/ble/modelTransferProtocol.ts` for the wire format and
+`sendModelZip` in `src/services/ble/bleManager.ts` for the session.
+
+**No block size, buffer size or file size belongs in this repository.** The
+board names the size it takes bytes in, in every status notification, and the
+app paces itself by that. The protocol exists because a 102,236-byte constant
+was mirrored in both repositories where it could silently disagree; writing one
+down again anywhere here reintroduces exactly that.
+
+The board reports twice for a data transfer and the two mean different things.
+`DONE` is the file stored and verified; `READY`, seconds later, is the model
+programmed into the Akida chip and proven to infer. Only `READY` is an update
+that worked, and `ERR_PROGRAM` is a stored model this board will not run, which
+is neither a success nor a failed transfer. `ModelUpdateOutcome` keeps the
+three apart, and `describeModelUpdateEnding` is the only place they are put into
+words.
+
+When `model_meta_t` gains a field, the app must both extend the CRC header in
+`computeCombinedCRC32` and write the new characteristic before `START(INFO)`;
+getting only one half right produces either an `ERR_INTEGRITY` on the board or a
+model that loads with zeroed metadata.
 
 The authoritative counterparts, read-only from this repo, are
 `source/utils/send_model_via_ble.py` (working reference sender) and
 `source/core/interface/ble_services/file_transfer.c` in the AkidaTag firmware
-repo. Two tests pin the app to them, one per half of the contract:
-`__tests__/bleModelInfoCrc.test.ts` fixes the header layout to an exact CRC, and
-`__tests__/bleModelInfoTransfer.test.ts` replays a whole `sendModelZip` against
-a fake peripheral that rebuilds `model_meta_t` from the characteristics it
-actually received. A firmware protocol bump means updating both deliberately.
+repo. Three tests pin the app to them: `__tests__/bleModelInfoCrc.test.ts`
+fixes the header layout to an exact CRC,
+`__tests__/modelTransferProtocol.test.ts` fixes the frame layouts, and
+`__tests__/bleModelTransfer.test.ts` replays whole transfers against a fake
+peripheral that enforces the offset, block-boundary and block-size rules and
+rebuilds `model_meta_t` from the characteristics it actually received. A
+firmware protocol bump means updating all three deliberately.
 
 The two sides also disagree on where `model_name` comes from: the app packs the
 CRC header's name from `info.yaml`'s `app`, while the firmware derives it from
