@@ -30,6 +30,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
     selected,
     stage,
     keyWarning,
+    deviceName,
     isBusy,
     canInstall,
     browseForFirmware,
@@ -116,6 +117,7 @@ const FirmwareUpdateModal: React.FC<FirmwareUpdateModalProps> = ({
             <FirmwareUpdateStatus
               stage={stage}
               sentVersion={selected?.version ?? null}
+              deviceName={deviceName}
               onDone={dismissOutcome}
             />
 

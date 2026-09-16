@@ -309,11 +309,13 @@ describe('turning down a file that cannot be read as firmware', () => {
 
   it('says what is wrong with a file it read and did not like', async () => {
     const [title, body] = await browseAndReadTheDialog(
-      new FirmwareUpdateError('This file is not AkidaTag firmware.'),
+      new FirmwareUpdateError(
+        'This file is not a firmware image the app can send.',
+      ),
     );
 
     expect(title).toBe('Invalid File');
-    expect(body).toBe('This file is not AkidaTag firmware.');
+    expect(body).toBe('This file is not a firmware image the app can send.');
   });
 
   it("keeps the archive library's own words off the dialog", async () => {

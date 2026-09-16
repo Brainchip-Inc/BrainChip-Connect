@@ -13,16 +13,19 @@ import { ModelUpdateEnding } from '../../types/modelUpdate';
  * a transfer that went wrong.
  *
  * @param ending - How the update turned out.
+ * @param deviceName - What the board calls itself, since the app serves more
+ *   than one kind and the user owns only theirs.
  * @returns Title, message and mark for the update modal to show.
  */
 export const describeModelUpdateEnding = (
   ending: ModelUpdateEnding,
+  deviceName: string,
 ): UpdateAnnouncement => {
   if (ending.status === 'failed') {
     const whereItLeftTheBoard = ending.boardHasNoModel
-      ? 'Your AkidaTag has no model to run until one is sent to it in full, ' +
-        'because the model it had was being replaced where it stood.'
-      : 'Your AkidaTag is still running the model it had.';
+      ? `Your ${deviceName} has no model to run until one is sent to it in ` +
+        'full, because the model it had was being replaced where it stood.'
+      : `Your ${deviceName} is still running the model it had.`;
 
     return {
       title: 'Model update failed',
@@ -37,7 +40,7 @@ export const describeModelUpdateEnding = (
     return {
       title: 'Model installed',
       message:
-        'Your AkidaTag has the new model and is running it. The board ' +
+        `Your ${deviceName} has the new model and is running it. The board ` +
         'confirmed it loaded and ran a test inference.',
       mark: 'success',
     };
@@ -46,7 +49,7 @@ export const describeModelUpdateEnding = (
   return {
     title: 'Model delivered, but not running',
     message:
-      'The whole model reached your AkidaTag and the board checked and ' +
+      `The whole model reached your ${deviceName} and the board checked and ` +
       'stored it, but it could not start it. Restarting the board makes it ' +
       'try the same model again. If that does not work, this model is not ' +
       'one this board can run and a different one is the way forward.',

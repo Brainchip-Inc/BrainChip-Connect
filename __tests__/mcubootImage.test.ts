@@ -127,7 +127,7 @@ describe('parseMcubootImage', () => {
 
   it('refuses a file that is not an MCUboot image', () => {
     expect(() => parseMcubootImage(Buffer.alloc(512, 0x00))).toThrow(
-      'This file is not AkidaTag firmware.',
+      'This file is not a firmware image the app can send.',
     );
   });
 

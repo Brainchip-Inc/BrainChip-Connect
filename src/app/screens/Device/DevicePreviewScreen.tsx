@@ -35,9 +35,9 @@ const DevicePreviewScreen: React.FC = () => {
       patch: manufacturerInfo[4],
     };
 
-    const deviceType = manufacturerInfo.slice(5, 12);
+    const aiAccelerator = manufacturerInfo.slice(5, 12);
     const deviceInfoObj = {
-      deviceType: deviceType,
+      aiAccelerator: aiAccelerator,
       firmwareVersion: `${firmwareVersion.major}.${firmwareVersion.minor}.${firmwareVersion.patch}`,
       bleVersion: `BLE ${bleVersion.major}.${bleVersion.minor}`,
     };
@@ -51,8 +51,8 @@ const DevicePreviewScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- parseManufacturerData is re-created every render; the parse only needs to run when deviceInfo changes
   }, [deviceInfo, setParsedDeviceInfo]);
 
-  const { deviceType, firmwareVersion, bleVersion } = parsedDeviceInfo || {
-    deviceType: 'Unknown',
+  const { aiAccelerator, firmwareVersion, bleVersion } = parsedDeviceInfo || {
+    aiAccelerator: 'Unknown',
     firmwareVersion: 'Unknown',
     bleVersion: 'Unknown',
   };
@@ -90,7 +90,10 @@ const DevicePreviewScreen: React.FC = () => {
   // before connecting can fill it. It appears on the device details screen
   // once the device-info burst has arrived over the connection.
   const deviceDetails = [
-    { label: 'Device Type', value: deviceType },
+    // The part number the board broadcasts is the accelerator inside it, which
+    // both boards share, so it is labelled for what it identifies. The board
+    // itself is named by the device name above.
+    { label: 'AI Accelerator', value: aiAccelerator },
     { label: 'Firmware', value: firmwareVersion },
     { label: 'Protocol', value: bleVersion },
     { label: 'MAC Address', value: macAddress },

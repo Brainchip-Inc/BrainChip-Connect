@@ -15,7 +15,7 @@ import {
   SigningKeyWarning,
 } from '../../types/firmwareUpdate';
 import { useBleCommandStore } from '../store/useBleCommandStore';
-import { useBleStore } from '../store/useBleStore';
+import { nameForDevice, useBleStore } from '../store/useBleStore';
 import { useFirmwareStore } from '../store/useFirmwareStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 
@@ -83,6 +83,10 @@ export const useFirmwareUpdate = () => {
   const [selected, setSelected] = useState<SelectedFirmware | null>(null);
   const [keyWarning, setKeyWarning] = useState<SigningKeyWarning | null>(null);
   const [stage, setStage] = useState<FirmwareUpdateStage>({ kind: 'idle' });
+  // Taken when the update starts and kept until the user closes the outcome,
+  // because an update that ends with the board gone gives it up before the
+  // outcome is shown, and the board is exactly what that outcome is about.
+  const [updatedBoardName, setUpdatedBoardName] = useState<string | null>(null);
   const updateInFlight = useRef(false);
 
   const clearSelection = useCallback(() => {
@@ -192,6 +196,7 @@ export const useFirmwareUpdate = () => {
       return;
     }
 
+    setUpdatedBoardName(nameForDevice(useBleStore.getState().connectedDevice));
     setStage({ kind: 'sending', percent: 0 });
 
     let ending: FirmwareUpdateEnding;
@@ -239,7 +244,10 @@ export const useFirmwareUpdate = () => {
     setStage({ kind: 'done', ending, stillConnected });
   }, [clearSelection, deviceSerial, selected]);
 
-  const dismissOutcome = useCallback(() => setStage({ kind: 'idle' }), []);
+  const dismissOutcome = useCallback(() => {
+    setUpdatedBoardName(null);
+    setStage({ kind: 'idle' });
+  }, []);
 
   const isBusy = stage.kind !== 'idle';
 
@@ -247,6 +255,7 @@ export const useFirmwareUpdate = () => {
     selected,
     stage,
     keyWarning,
+    deviceName: updatedBoardName ?? nameForDevice(connectedDevice),
     isBusy,
     canInstall: Boolean(selected) && Boolean(connectedDevice) && !isBusy,
     browseForFirmware,

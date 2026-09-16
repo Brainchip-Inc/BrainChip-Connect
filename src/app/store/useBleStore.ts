@@ -9,10 +9,18 @@ export interface BLEDevice {
   serviceUUIDs: UUID[] | null;
 }
 
+/**
+ * What the advertisement says about a device before it is connected.
+ *
+ * `aiAccelerator` is the part number the board broadcasts, AKD1500, and it is
+ * not the board: every device the app serves carries that accelerator, so it
+ * says what is inside rather than which board is in the user's hand. The name
+ * of the board comes from `BLEDevice.name`.
+ */
 interface DeviceInfo {
-  deviceType: string,
-  firmwareVersion: string,
-  bleVersion: string,
+  aiAccelerator: string;
+  firmwareVersion: string;
+  bleVersion: string;
 }
 
 interface BleState {
@@ -53,8 +61,8 @@ interface BleState {
   setTermsAccepted: (accepted: boolean) => void;
 
   //deviceInfo
-  parsedDeviceInfo : DeviceInfo;
-  setParsedDeviceInfo : (deviceInfo: DeviceInfo) => void;
+  parsedDeviceInfo: DeviceInfo;
+  setParsedDeviceInfo: (deviceInfo: DeviceInfo) => void;
 }
 
 export const useBleStore = create<BleState>(set => ({
@@ -99,9 +107,32 @@ export const useBleStore = create<BleState>(set => ({
   setTermsAccepted: accepted => set({ termsAccepted: accepted }),
 
   parsedDeviceInfo: {
-        deviceType: 'Unknown',
-        firmwareVersion: 'Unknown',
-        bleVersion: 'Unknown',
-      },
-  setParsedDeviceInfo: deviceInfo => set ({ parsedDeviceInfo : deviceInfo })
+    aiAccelerator: 'Unknown',
+    firmwareVersion: 'Unknown',
+    bleVersion: 'Unknown',
+  },
+  setParsedDeviceInfo: deviceInfo => set({ parsedDeviceInfo: deviceInfo }),
 }));
+
+/**
+ * What a sentence calls a device the app has no name for.
+ *
+ * It is a plain noun rather than a placeholder so that the sentences built
+ * around it still read as English: "Your device is still running the model it
+ * had" is true of any board, where an empty gap or a model name the user does
+ * not own is not.
+ */
+export const UNNAMED_DEVICE = 'device';
+
+/**
+ * Name a device the way it names itself over the air.
+ *
+ * The app serves more than one board, so no screen may call the connected one
+ * by a fixed model name: the only name that is right for the board in the
+ * user's hand is the one that board advertises.
+ *
+ * @param device - The device record, or null when the app holds none.
+ * @returns The device's own name, or a plain noun when it has not given one.
+ */
+export const nameForDevice = (device: BLEDevice | null): string =>
+  device?.name?.trim() || UNNAMED_DEVICE;

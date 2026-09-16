@@ -32,6 +32,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
   const {
     selected,
     stage,
+    deviceName,
     isBusy,
     browseForModel,
     startUpdate,
@@ -131,6 +132,7 @@ const ModelUpdateModal: React.FC<ModelUpdateModalProps> = ({
 
             <ModelUpdateStatus
               stage={stage}
+              deviceName={deviceName}
               onStop={stopUpdate}
               onDone={dismissOutcome}
             />
