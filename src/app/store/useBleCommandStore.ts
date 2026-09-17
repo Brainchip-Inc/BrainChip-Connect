@@ -86,6 +86,30 @@ const previewAssembler = new PreviewAssembler();
 // dropped rather than shown.
 const DEVICE_SERIAL_PATTERN = /^[0-9a-f]{16}$/;
 
+/**
+ * Applications whose board reports a reading for every frame it scores, many
+ * times a second, rather than only when something is detected.
+ */
+const REPORTS_EVERY_FRAME = new Set<string>(['vision']);
+
+/**
+ * Say whether a detection report belongs in the event history.
+ *
+ * A keyword board speaks only when it hears a keyword, so every report is an
+ * event. A vision board reports what it sees in every frame, and a reading is
+ * state rather than an event: what is worth recording is the reading
+ * changing, not the board saying the same thing eleven times a second.
+ *
+ * @param appId - The application the report came from.
+ * @param previousLabel - The reading the app held before this report.
+ * @param label - The reading in this report.
+ */
+export const deservesHistoryEntry = (
+  appId: string,
+  previousLabel: string | undefined,
+  label: string,
+): boolean => !REPORTS_EVERY_FRAME.has(appId) || label !== previousLabel;
+
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
 
@@ -289,12 +313,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               break;
             }
 
-            case 'DEPLOYSTART':
+            case 'DEPLOYSTART': {
               const detectionData = String(data.data).split(',');
               const detection = detectionData[0];
               const conf = detectionData[1]
                 ? Number(detectionData[1])
                 : Number((Math.random() * 100).toFixed(2));
+              const appId = get().activeApp ?? 'unknown';
+              const previousDetection = get().latestDetection;
 
               set({
                 latestDetection: detection,
@@ -302,14 +328,17 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 receivedAt: new Date(),
               });
 
-              useEventsStore.getState().addEvent({
-                appId: get().activeApp ?? 'unknown',
-                title: detection,
-                timestamp: Date.now(),
-                confidence: conf,
-                status: conf < 80 ? 'warn' : 'ok',
-              });
+              if (deservesHistoryEntry(appId, previousDetection, detection)) {
+                useEventsStore.getState().addEvent({
+                  appId,
+                  title: detection,
+                  timestamp: Date.now(),
+                  confidence: conf,
+                  status: conf < 80 ? 'warn' : 'ok',
+                });
+              }
               break;
+            }
 
             case 'DEPLOYSTART_ACK': {
               const resolver = get().deployAckResolver;

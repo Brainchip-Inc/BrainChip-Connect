@@ -162,6 +162,13 @@ Two things about the preview are deliberate and look like bugs:
   does one small copy per notification and encodes only once per whole image.
   Anything heavier there shows up as a lagging detection, not as a slow
   preview.
+- **The vision board reports every frame, about eleven times a second, for
+  as long as it runs**, streaming or not. Anything the app does per detection
+  report has to be cheap at that rate: rewriting the event history file per
+  report saturated the JavaScript thread and left the app deaf to touches
+  within a minute. `deservesHistoryEntry` in `useBleCommandStore` records
+  only a change of reading for such a board, and `useEventStore` writes the
+  file at most once a second; `__tests__/detectionFlood.test.ts` pins both.
 
 ## Starting an application is a model swap, and the app shows the wait
 
