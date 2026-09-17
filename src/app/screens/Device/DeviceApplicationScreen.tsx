@@ -2,6 +2,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Activity,
+  AlertTriangle,
   BatteryCharging,
   BatteryMedium,
   BatteryWarning,
@@ -20,6 +21,7 @@ import {
 } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { RootParamList } from '../../../../App';
+import CalibrationModal from '../../../components/common/CalibrationModal';
 import DeviceInfoModal from '../../../components/common/DeviceInfoModal';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../../components/custom/DeviceHeader';
@@ -43,8 +45,12 @@ const APP_ICON_MAP: Record<string, typeof Cpu> = {
   keyword: Mic,
   anomaly: Activity,
   vision: Eye,
-  imu: Activity,
+  imu: AlertTriangle,
 };
+
+// Fall detection tab: once a "fall" label is reported, keep the alert banner
+// up for this long even.
+const FALL_ALERT_HOLD_MS = 30_000;
 
 /**
  * The status badge on an application card.
@@ -84,6 +90,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     stopApp,
     latestDetection,
     confidence,
+    receivedAt,
     requestAppInfo,
     batteryStateLabel,
     appTransition,
@@ -105,6 +112,49 @@ const DeviceApplicationsScreen: React.FC = () => {
 
   const activeApp = useBleCommandStore(state => state.activeApp);
   const appList = useBleCommandStore(state => state.appsList);
+
+  // IMU (Fall Detection) calibration popup.
+  // Show the popup when Fall Detection is active and the firmware
+  // says calibration is required.
+  // The dismissed flag only prevents the popup from reopening after
+  // the user closes it. It is reset when the active app changes, so
+  // the popup can appear again when Fall Detection is started again.
+  const calibrationRequired = useBleCommandStore(
+    state => state.calibrationRequired,
+  );
+  const [calibrationDismissed, setCalibrationDismissed] = useState(false);
+
+  useEffect(() => {
+    setCalibrationDismissed(false);
+  }, [activeApp]);
+
+  const showCalibrationModal =
+    activeApp === 'imu' && calibrationRequired && !calibrationDismissed;
+
+  // Keep the fall detection state based on the BLE store instead of
+  // using a separate local state. This prevents stale fall alerts when
+  // the app is stopped or started again. The store resets receivedAt
+  // when needed, so the fall state stays in sync with the actual BLE data.
+  const liveWord = (latestDetection ?? '').toLowerCase().trim();
+  const isFallHeld =
+    liveWord === 'fall' &&
+    receivedAt !== null &&
+    Date.now() - receivedAt.getTime() < FALL_ALERT_HOLD_MS;
+
+  // Re-check the fall state when the hold time expires.
+  // This makes sure the UI changes back to "Detecting…" even if
+  // there are no new BLE events or other state updates.
+  const [, forceFallHoldRecheck] = useState(0);
+  useEffect(() => {
+    if (!receivedAt) return;
+    const msRemaining = receivedAt.getTime() + FALL_ALERT_HOLD_MS - Date.now();
+    if (msRemaining <= 0) {
+      forceFallHoldRecheck(n => n + 1);
+      return;
+    }
+    const timer = setTimeout(() => forceFallHoldRecheck(n => n + 1), msRemaining + 50);
+    return () => clearTimeout(timer);
+  }, [receivedAt]);
 
   const shouldShowLabel =
     batteryStateLabel &&
@@ -294,7 +344,9 @@ const DeviceApplicationsScreen: React.FC = () => {
                   <Text
                     style={[styles.infoText, { color: theme.colors.onSurface }]}
                   >
-                    <Text style={styles.label}>Keywords:</Text>
+                    <Text style={styles.label}>
+                      {app.id === 'imu' ? 'Classes' : 'Keywords'}:
+                    </Text>
                   </Text>
                 </View>
                 {app.keywords?.length ? (
@@ -338,7 +390,55 @@ const DeviceApplicationsScreen: React.FC = () => {
         </View>
 
         {/* Active Block */}
-        {isActive && (
+        {isActive && app.id === 'imu' && (() => {
+          // Fall detection states:
+          // - No fall detected -> "Detecting…"
+          // - Fall detected -> show "⚠ Fall Detected" with confidence
+          // - Keep the alert visible for FALL_ALERT_HOLD_MS
+          // - A new fall updates the confidence and restarts the timer
+          // - When the timer expires, return to "Detecting…"
+          
+          const isFallDetected = isFallHeld;
+          const displayedConfidence = confidence;
+
+          return (
+            <View
+              style={[
+                styles.activeBlock,
+                {
+                  borderColor: isFallDetected
+                    ? theme.colors.error
+                    : theme.colors.primary,
+                  backgroundColor: isFallDetected
+                    ? 'rgba(239,68,68,0.08)'
+                    : 'rgba(0,97,237,0.05)',
+                },
+              ]}
+            >
+              <View style={styles.activeRow}>
+                <Text
+                  style={[
+                    styles.activeValue,
+                    { color: isFallDetected ? theme.colors.error : Colors.success },
+                  ]}
+                >
+                  {isFallDetected ? '⚠ Fall Detected' : 'Detecting…'}
+                </Text>
+                {isFallDetected && (
+                  <Text
+                    style={[
+                      styles.activePercent,
+                      { color: theme.colors.secondary },
+                    ]}
+                  >
+                    {displayedConfidence ?? 0}% Confidence
+                  </Text>
+                )}
+              </View>
+            </View>
+          );
+        })()}
+        {isActive && app.id !== 'imu' && (
           <View
             style={[
               styles.activeBlock,
@@ -371,7 +471,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                   { color: theme.colors.onSurfaceVariant },
                 ]}
               >
-                No keyword detected
+                No detection yet
               </Text>
             )}
           </View>
@@ -569,7 +669,10 @@ const DeviceApplicationsScreen: React.FC = () => {
         onClose={() => setShowDeviceInfo(false)}
         deviceName={deviceName}
       />
-
+      <CalibrationModal
+        visible={showCalibrationModal}
+        onDismiss={() => setCalibrationDismissed(true)}
+      />
       {/* Bottom Navigation */}
       <BottomNavigationBar
         activeRoute={activeRoute}

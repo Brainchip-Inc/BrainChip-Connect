@@ -64,6 +64,11 @@ type DeployAckResolver = {
   reject: (err: Error) => void;
 };
 
+type CalibrationAckResolver = {
+  resolve: (calibrated: boolean) => void;
+  reject: (err: Error) => void;
+};
+
 /**
  * What the board has been asked to do with an application and has not yet
  * confirmed. Starting one is a model swap on a board that fits one model, so
@@ -178,6 +183,17 @@ interface BleCommandState {
   requestAppInfo: (appId: string) => Promise<void>;
   selectedAppId: string | null;
 
+  // IMU (Fall Detection) calibration state.
+  // calibrationRequired is updated by the firmware and shows whether
+  // the device needs calibration. The other fields track the calibration
+  // process and any error while calibration is running.
+  calibrationRequired: boolean;
+  calibrationInProgress: boolean;
+  calibrationError: string | null;
+  calibrationAckResolver: CalibrationAckResolver | null;
+  requestCalibration: () => Promise<boolean>;
+  setCalibrationError: (error: string) => void;
+
   // 🔹 KWS App Controls
   requestKwsConfig: () => Promise<void>;
   setKwsConfigDraft: (id: KwsParamId, value: number | undefined) => void;
@@ -213,6 +229,11 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
   appsList: [],
   selectedAppId: null,
+
+  calibrationRequired: false,
+  calibrationInProgress: false,
+  calibrationError: null,
+  calibrationAckResolver: null,
 
   kwsConfig: {},
   kwsConfigDraft: {},
@@ -267,6 +288,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       deployAckResolver: null,
       appTransition: null,
       cameraPreview: null,
+      calibrationRequired: false,
+      calibrationInProgress: false,
+      calibrationError: null,
+      calibrationAckResolver: null,
     });
     previewAssembler.reset();
   },
@@ -582,7 +607,28 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               }
 
               break;
-
+            case 'CALIBRATION_STATUS': {
+              // Handle the calibration status received from the firmware.
+              // calibrated:true means calibration is complete.
+              // calibrated:false means the device still needs calibration.
+              // Update the UI state and resolve any active calibration request.
+              const resolver = get().calibrationAckResolver;
+              if (resolver) {
+                resolver.resolve(data.calibrated);
+                if (get().calibrationAckResolver === resolver) {
+                  set({ calibrationAckResolver: null });
+                }
+              }
+              set(state => ({
+                calibrationRequired: !data.calibrated,
+                calibrationInProgress: false,
+                  // Keep the existing error when calibration is still required.
+                calibrationError: data.calibrated
+                  ? null
+                  : state.calibrationError,
+              }));
+              break;
+            }
             default:
               break;
           }
@@ -810,6 +856,52 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       selectedAppId: appId,
     });
   },
+  
+  // Start IMU calibration for Fall Detection.
+  // Send the calibration command to the connected device and wait for
+  // the firmware to return the calibration result. The calibration can
+  // take around 25 seconds, so a longer timeout is used.
+  requestCalibration: async () => {
+    const deviceId = get().connectedDevice?.id;
+    if (!deviceId) return false;
+
+    set({ calibrationInProgress: true, calibrationError: null });
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let thisResolver: CalibrationAckResolver | null = null;
+    try {
+      const ack = new Promise<boolean>((resolve, reject) => {
+        thisResolver = { resolve, reject };
+        set({ calibrationAckResolver: thisResolver });
+      });
+
+      await BleService.sendCommand(deviceId, BleCommand.CALIBRATE);
+
+      const timeout = new Promise<boolean>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Calibration timed out')),
+          35000,
+        );
+      });
+
+      const calibrated = await Promise.race([ack, timeout]);
+      if (!calibrated) {
+        set({ calibrationError: 'Calibration failed. Please try again.' });
+      }
+      return calibrated;
+    } catch (error) {
+      if (__DEV__) console.error('Calibration failed:', error);
+      set({ calibrationError: 'Calibration failed. Please try again.' });
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (thisResolver && get().calibrationAckResolver === thisResolver) {
+        set({ calibrationAckResolver: null });
+      }
+      set({ calibrationInProgress: false });
+    }
+  },
+  setCalibrationError: error => set({ calibrationError: error || null }),
 
   // ── KWS App Controls (CMD_CONFIG / opcode 4) ───────────────────────────────
   requestKwsConfig: async () => {

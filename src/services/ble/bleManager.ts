@@ -98,6 +98,8 @@ interface ModelPackage {
   inferenceMode: number;
   infoCrc: number;
   dataCrc: number;
+  /** Firmware app slot: 0 for KWS, 1 for Fall/IMU. See detectAppIndex. */
+  appIndex: number;
 }
 
 class BleService {
@@ -1760,7 +1762,21 @@ class BleService {
   // Max dims/name length — must match firmware model_meta_t layout
   private readonly MAX_DIMS = 3;
   private readonly MAX_FS_NAME_LEN = 64;
-  private detectAppIndex = (): number => 0;
+  /**
+   * Maps the model filename to the correct firmware app slot.
+   *
+   * KWS models use slot 0, while Fall/IMU models use slot 1.
+   * This ensures the model is sent to the correct slot on the device.
+   */
+  private detectAppIndex = (sourceFileName: string): number => {
+    const filename = sourceFileName.toLowerCase();
+    if (filename.includes('kws')) return 0;
+    if (filename.includes('fall') || filename.includes('imu')) return 1;
+    throw new Error(
+      `Unknown model type in file '${sourceFileName}'. Expected filename to ` +
+        `contain 'kws' or 'fall'/'imu'.`,
+    );
+  };
 
   // Model OTA Updation
   private modelStatusSubscription: Subscription | null = null;
@@ -2107,6 +2123,7 @@ class BleService {
           : 0,
       infoCrc: 0,
       dataCrc: await this.computeDataCRC32(dataBinFile.path),
+      appIndex: this.detectAppIndex(dataBinFile.name || infoBinFile.name || ''),
     };
 
     model.infoCrc = await this.computeCombinedCRC32(
@@ -2139,7 +2156,7 @@ class BleService {
     deviceId: string,
     model: ModelPackage,
   ): Promise<void> => {
-    await this.writeU8(deviceId, this.appUUID, this.detectAppIndex());
+    await this.writeU8(deviceId, this.appUUID, model.appIndex);
 
     await this.bleManager.writeCharacteristicWithResponseForDevice(
       deviceId,
