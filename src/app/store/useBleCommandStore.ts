@@ -7,6 +7,9 @@ import { BLEDevice } from './useBleStore';
 import { useEventsStore } from './useEventStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 import { AppsList, WavePayload } from '../../services/ble/bleParser';
+import { PreviewAssembler } from '../../services/ble/cameraPreview';
+import { grayscalePngDataUri } from '../../services/image/grayscalePng';
+import { CameraPreviewFrame } from '../../types/cameraPreview';
 import { AppType } from './useLiveSensorStore';
 import { BatteryState, getBatteryLabel } from '../../types/batteryStateEnum';
 import {
@@ -61,10 +64,51 @@ type DeployAckResolver = {
   reject: (err: Error) => void;
 };
 
+/**
+ * What the board has been asked to do with an application and has not yet
+ * confirmed. Starting one is a model swap on a board that fits one model, so
+ * this covers the seconds the board spends loading it.
+ */
+export interface AppTransition {
+  appId: string;
+  kind: 'starting' | 'stopping';
+}
+
+/** How long to wait for the board to confirm a start or stop. */
+const DEPLOY_ACK_TIMEOUT_MS = 3000;
+
+// Preview chunks are put together here, outside the store's state, because a
+// half-built image is nothing the UI should ever see.
+const previewAssembler = new PreviewAssembler();
+
 // The firmware reports its serial as 16 lowercase hex characters. Anything
 // else on that frame is a firmware the app does not understand, so it is
 // dropped rather than shown.
 const DEVICE_SERIAL_PATTERN = /^[0-9a-f]{16}$/;
+
+/**
+ * Applications whose board reports a reading for every frame it scores, many
+ * times a second, rather than only when something is detected.
+ */
+const REPORTS_EVERY_FRAME = new Set<string>(['vision']);
+
+/**
+ * Say whether a detection report belongs in the event history.
+ *
+ * A keyword board speaks only when it hears a keyword, so every report is an
+ * event. A vision board reports what it sees in every frame, and a reading is
+ * state rather than an event: what is worth recording is the reading
+ * changing, not the board saying the same thing eleven times a second.
+ *
+ * @param appId - The application the report came from.
+ * @param previousLabel - The reading the app held before this report.
+ * @param label - The reading in this report.
+ */
+export const deservesHistoryEntry = (
+  appId: string,
+  previousLabel: string | undefined,
+  label: string,
+): boolean => !REPORTS_EVERY_FRAME.has(appId) || label !== previousLabel;
 
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
@@ -100,6 +144,11 @@ interface BleCommandState {
   // Firmware auto-starts at boot, so we initialise true on connect.
   isInferenceRunning: boolean;
   deployAckResolver: DeployAckResolver | null;
+  appTransition: AppTransition | null;
+
+  // The newest whole camera preview frame, or null when none has arrived
+  // since streaming last started.
+  cameraPreview: CameraPreviewFrame | null;
 
   // 🔹 Session lifecycle
   startDeviceSession: (device: BLEDevice) => Promise<void>;
@@ -173,6 +222,9 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
 
   isInferenceRunning: false,
   deployAckResolver: null,
+  appTransition: null,
+
+  cameraPreview: null,
 
   // ✅ DEVICE SESSION START
   startDeviceSession: async (device: BLEDevice) => {
@@ -213,7 +265,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       kwsConfigAckResolver: null,
       isInferenceRunning: false,
       deployAckResolver: null,
+      appTransition: null,
+      cameraPreview: null,
     });
+    previewAssembler.reset();
   },
 
   // ✅ Start subscription once
@@ -258,12 +313,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               break;
             }
 
-            case 'DEPLOYSTART':
+            case 'DEPLOYSTART': {
               const detectionData = String(data.data).split(',');
               const detection = detectionData[0];
               const conf = detectionData[1]
                 ? Number(detectionData[1])
                 : Number((Math.random() * 100).toFixed(2));
+              const appId = get().activeApp ?? 'unknown';
+              const previousDetection = get().latestDetection;
 
               set({
                 latestDetection: detection,
@@ -271,14 +328,17 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 receivedAt: new Date(),
               });
 
-              useEventsStore.getState().addEvent({
-                appId: get().activeApp ?? 'unknown',
-                title: detection,
-                timestamp: Date.now(),
-                confidence: conf,
-                status: conf < 80 ? 'warn' : 'ok',
-              });
+              if (deservesHistoryEntry(appId, previousDetection, detection)) {
+                useEventsStore.getState().addEvent({
+                  appId,
+                  title: detection,
+                  timestamp: Date.now(),
+                  confidence: conf,
+                  status: conf < 80 ? 'warn' : 'ok',
+                });
+              }
               break;
+            }
 
             case 'DEPLOYSTART_ACK': {
               const resolver = get().deployAckResolver;
@@ -326,6 +386,25 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
               }
               next.set(incoming, prevKeep);
               set({ micWave: next });
+              break;
+            }
+
+            case 'PREVIEW_CHUNK': {
+              const image = previewAssembler.accept(data.data);
+              if (image) {
+                set({
+                  cameraPreview: {
+                    uri: grayscalePngDataUri(
+                      image.pixels,
+                      image.width,
+                      image.height,
+                    ),
+                    width: image.width,
+                    height: image.height,
+                    sequence: image.sequence,
+                  },
+                });
+              }
               break;
             }
 
@@ -583,7 +662,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     try {
       const ack = new Promise<void>((resolve, reject) => {
         thisResolver = { kind: 'start', resolve, reject };
-        set({ deployAckResolver: thisResolver });
+        set({
+          deployAckResolver: thisResolver,
+          appTransition: { appId, kind: 'starting' },
+        });
       });
 
       await BleService.sendCommand(
@@ -594,7 +676,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       const timeout = new Promise<void>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('DEPLOYSTART ACK timeout')),
-          3000,
+          DEPLOY_ACK_TIMEOUT_MS,
         );
       });
 
@@ -612,6 +694,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       if (thisResolver && get().deployAckResolver === thisResolver) {
         set({ deployAckResolver: null });
       }
+      set({ appTransition: null });
     }
   },
 
@@ -625,7 +708,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     try {
       const ack = new Promise<void>((resolve, reject) => {
         thisResolver = { kind: 'stop', resolve, reject };
-        set({ deployAckResolver: thisResolver });
+        set({
+          deployAckResolver: thisResolver,
+          appTransition: { appId, kind: 'stopping' },
+        });
       });
 
       await BleService.sendCommand(
@@ -636,7 +722,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       const timeout = new Promise<void>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('DEPLOYSTOP ACK timeout')),
-          3000,
+          DEPLOY_ACK_TIMEOUT_MS,
         );
       });
 
@@ -646,6 +732,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       if (thisResolver && get().deployAckResolver === thisResolver) {
         set({ deployAckResolver: null });
       }
+      set({ appTransition: null });
     }
 
     set({
@@ -661,14 +748,16 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     const deviceId = get().connectedDevice?.id;
     if (!deviceId) return;
 
+    previewAssembler.reset();
+    set({
+      micWave: new Int16Array(),
+      cameraPreview: null,
+    });
+
     await BleService.sendCommand(
       deviceId,
       `${BleCommand.STREAMSTART}:${appId},1`,
     );
-
-    set({
-      micWave: new Int16Array(),
-    });
   },
 
   // ✅ Stop streaming
@@ -681,8 +770,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       `${BleCommand.STREAMSTOP}:${appId},0`,
     );
 
+    previewAssembler.reset();
     set({
       micWave: new Int16Array(),
+      cameraPreview: null,
     });
   },
   requestDeviceReset: async () => {

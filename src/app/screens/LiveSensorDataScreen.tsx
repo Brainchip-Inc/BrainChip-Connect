@@ -1,11 +1,9 @@
-import {
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Accessibility,
   Activity,
   Box,
+  Camera,
   ChevronLeft,
   Mic,
   Play,
@@ -20,15 +18,22 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Button, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
+import {
+  Button,
+  ProgressBar,
+  Switch,
+  Text,
+  useTheme,
+} from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
+import CameraPreview from '../../components/common/CameraPreview';
 import AppControlsSection from '../../components/custom/AppControlsSection';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BleService from '../../services/ble/bleManager';
 import { RouteName, ROUTES } from '../../types/routes';
-import { useBleStore } from '../store/useBleStore';
+import { nameForDevice, useBleStore } from '../store/useBleStore';
 import { AppType, useLiveSensorStore } from '../store/useLiveSensorStore';
 import { Colors } from '../theme/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -38,6 +43,29 @@ import { useBleCommandStore } from '../store/useBleCommandStore';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 40 - 32; // margins (20*2) + card padding
 const CHART_HEIGHT = 120;
+
+/** How the two classes the human detection model scores read on screen. */
+const VISION_DETECTION_WORDING: Record<string, string> = {
+  person: 'Person detected',
+  no_person: 'No person detected',
+};
+
+/**
+ * Put a vision detection label into words.
+ *
+ * @param label - The class label the board reported.
+ */
+const describeVisionDetection = (label: string): string =>
+  VISION_DETECTION_WORDING[label] ?? `"${label}" detected`;
+
+/**
+ * Say whether a detection label is a real result rather than the store's
+ * placeholder from before the first one arrived.
+ *
+ * @param label - What the store holds as the latest detection.
+ */
+const isDetectionLabel = (label: string | undefined): label is string =>
+  label !== undefined && !label.startsWith('Waiting');
 
 // ─── Reusable Section Row (same as SettingsScreen's SettingRow) ───────────────
 const SectionHeader = ({
@@ -148,6 +176,7 @@ const LiveSensorDataScreen = () => {
   const { connectedDevice } = useBleStore();
   const deviceName = connectedDevice?.name ?? 'Unknown Device';
   const deviceId = connectedDevice?.id ?? 'Unknown';
+  const boardName = nameForDevice(connectedDevice);
 
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.HOME);
 
@@ -172,17 +201,23 @@ const LiveSensorDataScreen = () => {
   // Read PCM samples directly from the BLE command store so the chart updates
   // at the ~16 fps cadence the firmware sends, instead of the 1 Hz simulator.
   const micWave = useBleCommandStore(s => s.micWave);
+  // Vision results and preview frames come straight from the BLE command store
+  // for the same reason: the board scores many frames a second, and the 1 Hz
+  // simulator tick would show a detection long after the camera moved on.
+  const cameraPreview = useBleCommandStore(s => s.cameraPreview);
+  const latestDetection = useBleCommandStore(s => s.latestDetection);
+  const latestConfidence = useBleCommandStore(s => s.confidence);
   const [edgeLearningMode, setEdgeLearningMode] = useState(false);
 
   const activeApp = useBleCommandStore(state => state.activeApp);
   const isInferenceRunning = useBleCommandStore(s => s.isInferenceRunning);
+  const appTransition = useBleCommandStore(s => s.appTransition);
   const deployApp = useBleCommandStore(s => s.deployApp);
   const stopApp = useBleCommandStore(s => s.stopApp);
-  const [isTogglingInference, setIsTogglingInference] = useState(false);
+  const isTogglingInference = appTransition !== null;
 
   const handleToggleInference = async () => {
     if (isTogglingInference) return;
-    setIsTogglingInference(true);
     try {
       if (isInferenceRunning) {
         await stopApp(appType);
@@ -194,9 +229,13 @@ const LiveSensorDataScreen = () => {
         isInferenceRunning ? 'Stop Inference Failed' : 'Start Inference Failed',
         err instanceof Error ? err.message : 'Unknown error',
       );
-    } finally {
-      setIsTogglingInference(false);
     }
+  };
+
+  const inferenceButtonLabel = () => {
+    if (appTransition?.kind === 'starting') return 'Starting…';
+    if (appTransition?.kind === 'stopping') return 'Stopping…';
+    return isInferenceRunning ? 'Stop Inference' : 'Start Inference';
   };
 
   useEffect(() => {
@@ -210,16 +249,13 @@ const LiveSensorDataScreen = () => {
   useEffect(() => {
     const sub = BleService.subscribeToEdgeLearningAck(deviceId, ack => {
       if (ack === BleService.getAckEdgeMode()) {
-        Alert.alert(
-          'Completed',
-          'Edge Learning is completed',
-        );
+        Alert.alert('Completed', 'Edge Learning is completed');
       }
       if (ack === BleService.getAckEdgeStartMode()) {
-         Alert.alert(
-            'Ready to Speak',
-            'Edge Learning Mode is active. Please start speaking now.',
-         );
+        Alert.alert(
+          'Ready to Speak',
+          'Edge Learning Mode is active. Please start speaking now.',
+        );
       }
     });
 
@@ -236,7 +272,8 @@ const LiveSensorDataScreen = () => {
 
       Alert.alert('Command Failed', 'Unable to send command to the device.');
     }
-    if(value === 2 || value === 3) Alert.alert('Command Send', 'Command Send successfully');
+    if (value === 2 || value === 3)
+      Alert.alert('Command Send', 'Command Send successfully');
   };
 
   const handleMode = () => {
@@ -252,19 +289,14 @@ const LiveSensorDataScreen = () => {
         <View
           style={[
             styles.detectionBlock,
-            {
-              borderColor: theme.colors.primary,
-              backgroundColor: 'rgba(0,97,237,0.05)',
-            },
+            styles.detectionBlockTint,
+            { borderColor: theme.colors.primary },
           ]}
         >
           {detectedWord && detectedWord !== 'Waiting...' ? (
             <View style={styles.detectionRow}>
               <Text
-                style={[
-                  styles.detectionValue,
-                  { color: theme.colors.primary },
-                ]}
+                style={[styles.detectionValue, { color: theme.colors.primary }]}
               >
                 "{detectedWord}" detected
               </Text>
@@ -319,14 +351,39 @@ const LiveSensorDataScreen = () => {
 
     if (appType === 'vision') {
       return (
-        <View style={[styles.outputCard, styles.keywordActive]}>
-          <Text style={styles.placeholderCenter}>
-            Start streaming to see model output
-          </Text>
-          <View style={styles.visionPreview}>
-            <Box size={40} color={Colors.primary} />
-            <Text style={styles.labelMuted}>Live Camera Feed</Text>
-          </View>
+        <View
+          style={[
+            styles.detectionBlock,
+            styles.detectionBlockTint,
+            { borderColor: theme.colors.primary },
+          ]}
+        >
+          {isDetectionLabel(latestDetection) ? (
+            <View style={styles.detectionRow}>
+              <Text
+                style={[styles.detectionValue, { color: theme.colors.primary }]}
+              >
+                {describeVisionDetection(latestDetection)}
+              </Text>
+              <Text
+                style={[
+                  styles.detectionPercent,
+                  { color: theme.colors.secondary },
+                ]}
+              >
+                {(latestConfidence ?? 0).toFixed(1)}% Confidence
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.detectionValue,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              No frame scored yet
+            </Text>
+          )}
         </View>
       );
     }
@@ -407,6 +464,22 @@ const LiveSensorDataScreen = () => {
                 </View>
               ))}
             </View>
+          </View>
+        </>
+      );
+    }
+
+    if (appType === 'vision') {
+      return (
+        <>
+          <SectionHeader icon={<Camera size={20} />} title="Camera" />
+          <View style={styles.chartCard}>
+            <CameraPreview
+              frame={cameraPreview}
+              streaming={isStreaming}
+              deviceName={boardName}
+              maxWidth={CHART_WIDTH}
+            />
           </View>
         </>
       );
@@ -560,7 +633,7 @@ const LiveSensorDataScreen = () => {
             }
             style={{ marginTop: 12 }}
           >
-            {isInferenceRunning ? 'Stop Inference' : 'Start Inference'}
+            {inferenceButtonLabel()}
           </Button>
 
           <Button
@@ -653,6 +726,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
   },
+  detectionBlockTint: {
+    backgroundColor: 'rgba(0,97,237,0.05)',
+  },
   detectionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -721,11 +797,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderRadius: 0,
   },
-  visionPlaceholder: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-
   // ─── Chart card (matches SettingRow card style) ──────────────────────────────
   chartCard: {
     borderWidth: 1,
@@ -790,11 +861,6 @@ const styles = StyleSheet.create({
     padding: 8,
   },
 
-  visionPreview: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
   edgeHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',

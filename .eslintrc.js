@@ -10,9 +10,10 @@ module.exports = {
       },
     },
     {
-      // The BLE layer speaks a byte-level wire protocol, so masking and
-      // shifting is inherent to it rather than a smell.
-      files: ['src/services/ble/**'],
+      // The BLE layer speaks a byte-level wire protocol and the image layer
+      // writes a byte-level file format, so masking and shifting is inherent
+      // to both rather than a smell.
+      files: ['src/services/ble/**', 'src/services/image/**'],
       rules: {
         'no-bitwise': 'off',
       },
