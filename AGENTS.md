@@ -211,6 +211,45 @@ overlay on the main one, declaring
 manifest sets neither, so no `tools:replace`, and therefore no `tools`
 namespace, is required.
 
+## The only truth about permissions is the merged manifest
+
+The app ships exactly three user-facing permissions, `BLUETOOTH_SCAN` with
+`neverForLocation`, `BLUETOOTH_CONNECT` and `POST_NOTIFICATIONS`, on a floor of
+`minSdkVersion 33` (`android/build.gradle`). It asks for no location on either
+platform: from Android 12 a `neverForLocation` scan needs none, and iOS has
+never required one for a Bluetooth central. The flag is declared in the app's
+own manifest rather than inherited from the BLE stack, because the stack reads
+it back out of the installed package at runtime and it decides whether the
+system Location toggle must be on before a scan will run.
+
+What this repository declares is not what ships. Read
+`android/app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml`
+after `./gradlew :app:processReleaseManifest`, and
+`android/app/build/outputs/logs/manifest-merger-release-report.txt` for who
+contributed what. Three traps each cost a permission that looks removed:
+
+- A dependency's permission goes only when it is overridden with
+  `tools:node="remove"`. Deleting the line from this manifest achieves nothing.
+- `<uses-permission-sdk-23>` is a distinct element and needs its own marker.
+  The `rxandroidble` AAR behind `react-native-ble-plx` declares the location
+  pair that way.
+- The merger implies `READ_EXTERNAL_STORAGE` from `react-native-fs`'s
+  `WRITE_EXTERNAL_STORAGE`, and goes on implying it after the write is removed,
+  so both need a marker.
+
+`react-native-ble-plx`'s own module manifest contributes nothing: its Gradle
+build points `manifest.srcFile` at `AndroidManifestNew.xml`, which is empty, so
+every BLE permission arrives from the `rxandroidble` AAR instead.
+
+`POST_NOTIFICATIONS` is declared and requested although nothing can post a
+notification yet: there is no notification library anywhere in the tree, no
+native notification code, and `useNotificationStore` holds placeholder data. It
+is held deliberately for the feature it is meant for, so a reader hunting for
+its caller will not find one. iOS needs no counterpart key, because a local
+notification prompt belongs to the notification framework rather than the
+Info.plist, and `UIBackgroundModes` stays absent until something in `src/`
+genuinely runs while backgrounded.
+
 ## Dependencies are locked, and two pins are load-bearing
 
 `package-lock.json` is committed and npm is the only supported package manager;
