@@ -138,15 +138,12 @@ const GetStartedScreen: React.FC = () => {
                 await getAcceptanceState();
 
               if (privacyAccepted && termsAccepted) {
-                const [permissions, isBluetoothEnabled] = await Promise.all([
-                  BleService.checkAllPermissions(),
-                  BleService.isBluetoothEnabled(),
-                ]);
-                if (
-                  permissions.bluetooth &&
-                  permissions.location &&
-                  isBluetoothEnabled
-                ) {
+                const [bluetoothGranted, isBluetoothEnabled] =
+                  await Promise.all([
+                    BleService.checkBluetoothPermissions(),
+                    BleService.isBluetoothEnabled(),
+                  ]);
+                if (bluetoothGranted && isBluetoothEnabled) {
                   navigation.navigate('DeviceDiscovery');
                 } else {
                   navigation.navigate('Permissions');

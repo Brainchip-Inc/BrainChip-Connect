@@ -175,159 +175,98 @@ class BleService {
   };
 
   /**
-   * Check current permission state without prompting the user.
+   * Check whether the Bluetooth permissions are already granted, without
+   * prompting the user.
+   *
+   * @returns True when the app may scan and connect. Always true on iOS, where
+   *   the permission is granted through the Info.plist usage description.
    */
-  checkAllPermissions = async (): Promise<{
-    bluetooth: boolean;
-    location: boolean;
-    notifications: boolean;
-  }> => {
-    if (Platform.OS === 'android') {
-      try {
-        const androidVersion = Platform.Version;
-
-        const bluetoothGranted =
-          androidVersion >= 31
-            ? (await PermissionsAndroid.check(
-                PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-              )) &&
-              (await PermissionsAndroid.check(
-                PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-              ))
-            : true;
-
-        const locationGranted = await PermissionsAndroid.check(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        );
-
-        const notificationsGranted =
-          androidVersion >= 33
-            ? await PermissionsAndroid.check(
-                PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-              )
-            : true;
-
-        return {
-          bluetooth: bluetoothGranted,
-          location: locationGranted,
-          notifications: notificationsGranted,
-        };
-      } catch {
-        return {
-          bluetooth: false,
-          location: false,
-          notifications: false,
-        };
-      }
+  checkBluetoothPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
     }
 
-    // For iOS, permissions are handled through Info.plist.
-    return {
-      bluetooth: true,
-      location: true,
-      notifications: true,
-    };
+    try {
+      return (
+        (await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        )) &&
+        (await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        ))
+      );
+    } catch {
+      return false;
+    }
   };
 
   /**
-   * Request all required permissions (Bluetooth, Location, Notifications).
+   * Ask the user for the Bluetooth permissions, showing the system dialogs.
+   *
+   * @returns True when both permissions end up granted. Always true on iOS,
+   *   where neither is requested at runtime.
    */
-  requestAllPermissions = async (): Promise<{
-    bluetooth: boolean;
-    location: boolean;
-    notifications: boolean;
-  }> => {
-    if (Platform.OS === 'android') {
-      try {
-        const androidVersion = Platform.Version;
-
-        let bluetoothGranted = false;
-        let locationGranted = false;
-        let notificationsGranted = false;
-
-        // Request Bluetooth permissions (Android 12+ / API 31+)
-        if (androidVersion >= 31) {
-          const bluetoothScanPermission = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-            {
-              title: 'Bluetooth Scan Permission',
-              message:
-                'This app needs permission to scan for Bluetooth devices.',
-              buttonPositive: 'Allow',
-              buttonNegative: 'Deny',
-            },
-          );
-
-          const bluetoothConnectPermission = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-            {
-              title: 'Bluetooth Connect Permission',
-              message:
-                'This app needs permission to connect to Bluetooth devices.',
-              buttonPositive: 'Allow',
-              buttonNegative: 'Deny',
-            },
-          );
-
-          bluetoothGranted =
-            bluetoothScanPermission === PermissionsAndroid.RESULTS.GRANTED &&
-            bluetoothConnectPermission === PermissionsAndroid.RESULTS.GRANTED;
-        } else {
-          bluetoothGranted = true;
-        }
-
-        // Location permission is required for BLE scanning on all Android versions
-        const locationPermission = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission',
-            message:
-              'This app needs location permission to scan for Bluetooth devices.',
-            buttonPositive: 'Allow',
-            buttonNegative: 'Deny',
-          },
-        );
-        locationGranted =
-          locationPermission === PermissionsAndroid.RESULTS.GRANTED;
-
-        // Notification permission (Android 13+ / API 33+)
-        if (androidVersion >= 33) {
-          const notificationPermission = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-            {
-              title: 'Notification Permission',
-              message:
-                'This app needs permission to send you notifications about device status.',
-              buttonPositive: 'Allow',
-              buttonNegative: 'Deny',
-            },
-          );
-          notificationsGranted =
-            notificationPermission === PermissionsAndroid.RESULTS.GRANTED;
-        } else {
-          notificationsGranted = true;
-        }
-
-        return {
-          bluetooth: bluetoothGranted,
-          location: locationGranted,
-          notifications: notificationsGranted,
-        };
-      } catch {
-        return {
-          bluetooth: false,
-          location: false,
-          notifications: false,
-        };
-      }
+  requestBluetoothPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
     }
 
-    // For iOS, permissions are handled through Info.plist
-    return {
-      bluetooth: true,
-      location: true,
-      notifications: true,
-    };
+    try {
+      const scanPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        {
+          title: 'Bluetooth Scan Permission',
+          message: 'This app needs permission to scan for Bluetooth devices.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        },
+      );
+
+      const connectPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        {
+          title: 'Bluetooth Connect Permission',
+          message: 'This app needs permission to connect to Bluetooth devices.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        },
+      );
+
+      return (
+        scanPermission === PermissionsAndroid.RESULTS.GRANTED &&
+        connectPermission === PermissionsAndroid.RESULTS.GRANTED
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * Ask the user to allow notifications, showing the system dialog.
+   *
+   * @returns True when the permission ends up granted. Always true on iOS,
+   *   where it is not requested here.
+   */
+  requestNotificationPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    try {
+      const permission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        {
+          title: 'Notification Permission',
+          message:
+            'This app needs permission to send you notifications about device status.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        },
+      );
+      return permission === PermissionsAndroid.RESULTS.GRANTED;
+    } catch {
+      return false;
+    }
   };
 
   /**

@@ -47,12 +47,10 @@ interface BleState {
   setConnectionState: (state: BleState['connectionState']) => void;
 
   // Permissions
-  permissions: {
-    bluetooth: boolean;
-    location: boolean;
-    notifications: boolean;
-  };
-  setPermissions: (permissions: Partial<BleState['permissions']>) => void;
+  bluetoothPermissionGranted: boolean;
+  setBluetoothPermissionGranted: (granted: boolean) => void;
+  notificationPermissionGranted: boolean;
+  setNotificationPermissionGranted: (granted: boolean) => void;
 
   // User acceptance
   privacyAccepted: boolean;
@@ -90,15 +88,12 @@ export const useBleStore = create<BleState>(set => ({
   setConnectionState: connectionState => set({ connectionState }),
 
   // Permissions
-  permissions: {
-    bluetooth: false,
-    location: false,
-    notifications: false,
-  },
-  setPermissions: permissions =>
-    set(state => ({
-      permissions: { ...state.permissions, ...permissions },
-    })),
+  bluetoothPermissionGranted: false,
+  setBluetoothPermissionGranted: granted =>
+    set({ bluetoothPermissionGranted: granted }),
+  notificationPermissionGranted: false,
+  setNotificationPermissionGranted: granted =>
+    set({ notificationPermissionGranted: granted }),
 
   // User acceptance
   privacyAccepted: false,
