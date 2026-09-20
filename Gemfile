@@ -14,3 +14,7 @@ gem 'bigdecimal'
 gem 'logger'
 gem 'benchmark'
 gem 'mutex_m'
+
+# Release automation: fastlane drives the Android build and the Play upload from
+# fastlane/Fastfile, and takes the iOS lanes when there is an Apple account.
+gem 'fastlane'

@@ -1,0 +1,62 @@
+# Release lanes for BrainChip Connect.
+#
+# Android is the only platform today. The iOS lanes (match, gym, pilot,
+# deliver) go in a `platform :ios` block beside this one when there is an Apple
+# developer account; nothing in here has to move for them.
+#
+# The version, the keystore and the Play key all arrive in the environment, set
+# by .github/workflows/release.yml. docs/releasing.md lists them.
+
+default_platform(:android)
+
+# Read an environment variable that a lane cannot work without, failing with a
+# message that names it rather than with a stack trace from deep in a tool.
+def required_env(name)
+  value = ENV[name].to_s
+  UI.user_error!("#{name} is not set. See docs/releasing.md.") if value.empty?
+  value
+end
+
+platform :android do
+  desc "Build the app bundle and give it to the internal test track, live for named testers"
+  lane :internal do
+    publish_bundle(track: "internal", release_status: "completed")
+  end
+
+  desc "Build the app bundle and put it on the production track as a draft for a human to roll out"
+  lane :production do
+    publish_bundle(track: "production", release_status: "draft")
+  end
+
+  # Both lanes build the same bundle and differ only in where it lands and
+  # whether it goes live, so that part lives here once.
+  #
+  # `release_status` is the difference between uploading and rolling out. The
+  # internal track is a named list of testers, so a build there is completed at
+  # once. Production is left as a draft: the artifact is in place and a person
+  # presses go in the Play Console at the chosen moment, which is also why this
+  # pipeline can never publish to the public by accident.
+  private_lane :publish_bundle do |options|
+    version = required_env("APP_VERSION")
+
+    UI.message("Publishing #{version} to the #{options[:track]} track as #{options[:release_status]}")
+
+    gradle(task: "bundle", build_type: "Release", project_dir: "android")
+
+    upload_to_play_store(
+      track: options[:track],
+      release_status: options[:release_status],
+      version_name: version,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_apk: true,
+      # Store listing text, images and release notes are written and reviewed
+      # in the Play Console, so a release run must not overwrite them with
+      # whatever happens to be in this repository.
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+      timeout: 900
+    )
+  end
+end

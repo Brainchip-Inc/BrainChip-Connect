@@ -19,6 +19,11 @@ The application enables:
 
 The application is designed using a **single shared codebase** to support both platforms.
 
+Android releases are automated: merging a pull request from `main` into `release` builds
+the app bundle, uploads it to Google Play and writes the GitHub release.
+[docs/releasing.md](docs/releasing.md) is the procedure, the branch model and the tracks.
+The iOS lanes are added to `fastlane/Fastfile` once there is an Apple developer account.
+
 ---
 
 ## Repository Structure

@@ -29,8 +29,9 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Gemfile.lock is deliberately absent: it is committed, because the release
+# pipeline has to install the exact fastlane it was tested with.
 TARGETS=(
-  "Gemfile.lock"
   "ios/Podfile.lock"
   "ios/BrainChipConnect.xcworkspace"
 )

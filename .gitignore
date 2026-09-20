@@ -31,7 +31,10 @@ local.properties
 *.iml
 *.hprof
 .cxx/
+# No release signing key is ever committed. debug.keystore is the public one
+# every Android toolchain ships, and is the only exception.
 *.keystore
+*.jks
 !debug.keystore
 .kotlin/
 
@@ -45,14 +48,16 @@ yarn-error.log
 **/fastlane/Preview.html
 **/fastlane/screenshots/
 **/fastlane/test_output/
+fastlane/play-service-account.json
 
 # Bundle artifact
 *.jsbundle
 
 # Ruby / CocoaPods
+# Gemfile.lock is committed on purpose: the release pipeline has to install the
+# exact fastlane it was tested with. See docs/releasing.md.
 **/Pods/
 vendor/bundle/
-Gemfile.lock
 ios/Podfile.lock
 ios/*.xcworkspace/
 
