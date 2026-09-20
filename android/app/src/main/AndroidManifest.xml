@@ -1,15 +1,41 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.BLUETOOTH"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!--
+      The app talks to a board as a Bluetooth Low Energy central. neverForLocation
+      is declared here rather than inherited from the BLE stack because the stack
+      reads the flag back out of the installed package at runtime, and without it
+      a scan additionally demands that the system Location toggle be on.
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Everything below is declared by a dependency and has to be removed rather
+      than simply left out, because a permission leaves the merged manifest only
+      when every contributor is overridden. uses-permission-sdk-23 is a distinct
+      element from uses-permission and needs its own marker. Check the merged
+      manifest, never this file, when changing any of it.
+    -->
+
+    <!-- rxandroidble, via react-native-ble-plx. Nothing in the app reads a
+         location, and from Android 12 a neverForLocation scan needs none. -->
+    <uses-permission-sdk-23 android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission-sdk-23 android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+
+    <!-- rxandroidble again, capped at API 30 and so dead on this floor. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" tools:node="remove" />
+
+    <!-- react-native-fs declares the write; the merger then implies the read
+         from it, and keeps implying it after the write is removed. The app
+         reads and writes internal storage only, so both go. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
 
     <application
       android:name=".MainApplication"
