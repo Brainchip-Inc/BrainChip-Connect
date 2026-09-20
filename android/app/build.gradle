@@ -72,6 +72,29 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/**
+ * The identity of a release comes from the environment, never from this file.
+ * The release workflow derives both values from the root VERSION file with
+ * scripts/release-version.sh, so a build that sets neither is labelled as the
+ * development build it is rather than borrowing a release's number.
+ */
+def releaseVersionName = System.getenv("APP_VERSION_NAME") ?: "0.0.0-dev"
+def releaseVersionCode = (System.getenv("APP_VERSION_CODE") ?: "1") as Integer
+
+/**
+ * The upload keystore and its passwords come from the environment too, so no
+ * secret is ever committed. They are absent on a developer machine, which is
+ * why the release signing config exists only when all three are present; the
+ * task graph check below then refuses to build a release artifact without
+ * them. UPLOAD_KEY_ALIAS defaults to the alias docs/releasing.md tells the
+ * keystore holder to use.
+ */
+def uploadKeystorePath = System.getenv("UPLOAD_KEYSTORE_PATH")
+def uploadKeystorePassword = System.getenv("UPLOAD_KEYSTORE_PASSWORD")
+def uploadKeyPassword = System.getenv("UPLOAD_KEY_PASSWORD")
+def uploadKeyAlias = System.getenv("UPLOAD_KEY_ALIAS") ?: "upload"
+def hasUploadKeystore = uploadKeystorePath && uploadKeystorePassword && uploadKeyPassword
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -82,8 +105,8 @@ android {
         applicationId "com.brainchip.connect"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersionCode
+        versionName releaseVersionName
     }
     signingConfigs {
         debug {
@@ -92,19 +115,48 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasUploadKeystore) {
+            release {
+                storeFile file(uploadKeystorePath)
+                storePassword uploadKeystorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig hasUploadKeystore ? signingConfigs.release : null
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+}
+
+// Stop a release build that has no upload keystore before any of it runs, and
+// name the variables that are missing. Google Play ties an app to the key its
+// first upload was signed with, so a bundle that reached Play signed with the
+// debug key could never be replaced; failing here is the only cheap moment.
+gradle.taskGraph.whenReady { graph ->
+    if (hasUploadKeystore) {
+        return
+    }
+    if (!graph.allTasks.any { it.name ==~ /(assemble|bundle|package)Release/ }) {
+        return
+    }
+
+    def missing = []
+    if (!uploadKeystorePath) { missing << "UPLOAD_KEYSTORE_PATH" }
+    if (!uploadKeystorePassword) { missing << "UPLOAD_KEYSTORE_PASSWORD" }
+    if (!uploadKeyPassword) { missing << "UPLOAD_KEY_PASSWORD" }
+
+    throw new GradleException(
+        "Refusing to build a release artifact: no upload keystore. Missing " +
+        missing.join(", ") + ". See docs/releasing.md."
+    )
 }
 
 dependencies {
