@@ -1,0 +1,11 @@
+# Which app the lanes act on, and what they authenticate with.
+#
+# The Play service account key is written outside the repository by the release
+# workflow, so its path arrives in the environment and no key is ever committed.
+# When there is an Apple developer account, its settings go in a `for_platform
+# :ios` block beside this one; nothing here has to move.
+
+for_platform :android do
+  package_name("com.brainchip.connect")
+  json_key_file(ENV["PLAY_SERVICE_ACCOUNT_JSON_PATH"])
+end
