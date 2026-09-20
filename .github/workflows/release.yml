@@ -1,0 +1,372 @@
+# Builds BrainChip Connect and publishes it, when a pull request is merged into
+# `release`. The version comes from the root VERSION file, the notes from
+# CHANGELOG.md, and the Play track from the label on the pull request.
+#
+# The work is split into three jobs on purpose. `prepare` does every check that
+# can fail in seconds, so a missing secret, a bad version or an absent changelog
+# section costs no build time. `android` builds and publishes, and is the only
+# job that touches a signing key. `publish` tags and writes the GitHub release
+# last, because the tag is the record that the upload happened, and it is the
+# only job that can write to the repository. An `ios` job goes beside `android`
+# when there is an Apple developer account; `prepare` and `publish` already hold
+# everything the two would share.
+#
+# docs/releasing.md is the procedure this file implements.
+
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [release]
+
+permissions:
+  contents: read
+
+# One release at a time, and never cancelled: a run that has already uploaded to
+# Play has consumed that version code for good.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # The alias inside the upload keystore. It is not a secret, so it is a
+  # repository variable, and it defaults to what docs/releasing.md tells the
+  # keystore holder to create.
+  UPLOAD_KEY_ALIAS: ${{ vars.UPLOAD_KEY_ALIAS || 'upload' }}
+
+jobs:
+  prepare:
+    name: Check the release
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+      tag: ${{ steps.version.outputs.tag }}
+      lane: ${{ steps.track.outputs.lane }}
+      track: ${{ steps.track.outputs.track }}
+      prerelease: ${{ steps.track.outputs.prerelease }}
+    steps:
+      - name: Check out the merge commit
+        uses: actions/checkout@v4
+        with:
+          # The exact commit that landed on `release`, so the build, the tag and
+          # the release all describe one tree. fetch-depth 0 brings the tags the
+          # version check below compares against.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Check the merge was not squashed
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          parents=$(git rev-list --parents -n 1 "$MERGE_SHA" | wc -w)
+          if [ "$parents" -lt 3 ]; then
+            echo "::error::This pull request was squashed or rebased into release. A squash invents a commit that main does not have, so the branches diverge permanently and every later release pull request conflicts. Reset release to this merge's first parent and redo the merge with a merge commit. See docs/releasing.md."
+            exit 1
+          fi
+
+      - name: Check every required secret is present
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in PLAY_SERVICE_ACCOUNT_JSON UPLOAD_KEYSTORE_B64 \
+                      UPLOAD_KEYSTORE_PASSWORD UPLOAD_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "::error::Missing repository secret(s): ${missing[*]}. See docs/releasing.md."
+            exit 1
+          fi
+          echo "All four release secrets are set."
+
+      - name: Read the version
+        id: version
+        run: |
+          # pipefail, or a rejected version would leave the outputs empty and
+          # the step green, because the pipeline would report tee's status.
+          set -euo pipefail
+          scripts/release-version.sh | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check the tag does not already exist
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Bump VERSION before merging a release."
+            exit 1
+          fi
+
+      # Play refuses a version code it has already accepted, and this is what
+      # makes offering one twice impossible: the code is a strictly increasing
+      # function of the version, so requiring the version to beat everything
+      # already tagged means no code can ever come round again.
+      - name: Check the version beats every release so far
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          highest=0
+          highest_tag="(none)"
+          while read -r tag; do
+            [ -n "$tag" ] || continue
+            code=$(scripts/release-version.sh "${tag#v}" 2>/dev/null | sed -n 's/^version_code=//p') || continue
+            [ -n "$code" ] || continue
+            if [ "$code" -gt "$highest" ]; then
+              highest=$code
+              highest_tag=$tag
+            fi
+          done < <(git tag --list 'v*')
+
+          echo "Highest released version code so far: $highest from $highest_tag"
+          if [ "$VERSION_CODE" -le "$highest" ]; then
+            echo "::error::Version code $VERSION_CODE does not beat $highest from $highest_tag. Play accepts only a strictly higher version code."
+            exit 1
+          fi
+
+      - name: Check the changelog has a section for this version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release-notes.sh "$VERSION" > /dev/null
+
+      # The track is the one product decision in a release, so it is made by
+      # labelling the pull request rather than buried in this file, and it is
+      # echoed into the job summary where whoever merged can see it.
+      - name: Choose the Play track from the pull request labels
+        id: track
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          wants_release=$(grep -c '"release"' <<<"$LABELS" || true)
+          wants_prerelease=$(grep -c '"pre-release"' <<<"$LABELS" || true)
+
+          if [ "$wants_release" -gt 0 ] && [ "$wants_prerelease" -gt 0 ]; then
+            echo "::error::This pull request carries both the 'release' and the 'pre-release' label. Exactly one of them decides the track."
+            exit 1
+          elif [ "$wants_release" -gt 0 ]; then
+            lane=production
+            track=production
+            prerelease=false
+          elif [ "$wants_prerelease" -gt 0 ]; then
+            lane=internal
+            track=internal
+            prerelease=true
+          else
+            echo "::error::This pull request has neither the 'release' nor the 'pre-release' label, so there is no track to publish to. See docs/releasing.md."
+            exit 1
+          fi
+
+          {
+            echo "lane=$lane"
+            echo "track=$track"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summarise what this run will do
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TRACK: ${{ steps.track.outputs.track }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Release $VERSION"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version name | \`$VERSION_NAME\` |"
+            echo "| Version code | \`$VERSION_CODE\` |"
+            echo "| Tag | \`$TAG\` |"
+            echo "| Play track | \`$TRACK\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  android:
+    name: Build and publish to Play
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Both keys land outside the workspace, so nothing can read them as
+      # project input or carry them out in a build artifact. Each is checked
+      # here rather than left to fail inside Gradle or supply: a secret that was
+      # pasted truncated, or a password that does not open the store, otherwise
+      # surfaces much later as an error that names neither.
+      - name: Unpack and check the signing key and the Play key
+        env:
+          UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/upload.keystore"
+          play_key="$RUNNER_TEMP/play-service-account.json"
+
+          base64 -d <<<"$UPLOAD_KEYSTORE_B64" > "$keystore" || {
+            echo "::error::UPLOAD_KEYSTORE_B64 is not valid base64. Re-create it as docs/releasing.md describes."
+            exit 1
+          }
+          [ -s "$keystore" ] || {
+            echo "::error::UPLOAD_KEYSTORE_B64 decoded to an empty file."
+            exit 1
+          }
+
+          keytool -list -v -keystore "$keystore" -storepass "$UPLOAD_KEYSTORE_PASSWORD" \
+            -alias "$UPLOAD_KEY_ALIAS" > "$RUNNER_TEMP/keystore-entry.txt" || {
+            echo "::error::Could not read alias '$UPLOAD_KEY_ALIAS' out of the upload keystore. Check UPLOAD_KEYSTORE_PASSWORD, and set the UPLOAD_KEY_ALIAS repository variable if the key is under another alias."
+            exit 1
+          }
+          if grep -qi 'Owner:.*Android Debug' "$RUNNER_TEMP/keystore-entry.txt"; then
+            echo "::error::UPLOAD_KEYSTORE_B64 holds the Android debug keystore. Play ties an app to the key of its first upload, so a debug-signed release could never be replaced."
+            exit 1
+          fi
+          echo "Signing with:"
+          grep -E 'Owner:|SHA256:' "$RUNNER_TEMP/keystore-entry.txt"
+
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$play_key"
+          jq -e '.type == "service_account" and has("private_key")' "$play_key" > /dev/null || {
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not a service account key. Paste the whole JSON file Google Cloud gave you."
+            exit 1
+          }
+
+          chmod 600 "$keystore" "$play_key"
+          echo "UPLOAD_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+          echo "PLAY_SERVICE_ACCOUNT_JSON_PATH=$play_key" >> "$GITHUB_ENV"
+
+      - name: Build the app bundle and upload it to Play
+        env:
+          LANE: ${{ needs.prepare.outputs.lane }}
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
+          APP_VERSION_NAME: ${{ needs.prepare.outputs.version_name }}
+          APP_VERSION_CODE: ${{ needs.prepare.outputs.version_code }}
+          UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: bundle exec fastlane android "$LANE"
+
+      - name: Keep the app bundle for the GitHub release
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Shred the keys
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.keystore" "$RUNNER_TEMP/play-service-account.json"
+
+  publish:
+    name: Tag and write the GitHub release
+    needs: [prepare, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Download the app bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: app-bundle
+          path: release-artifacts
+
+      - name: Name the app bundle and record its checksum
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd release-artifacts
+          mv app-release.aab "brainchip-connect-$VERSION.aab"
+          sha256sum ./*.aab > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Write the release notes
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION_CODE: ${{ needs.prepare.outputs.version_code }}
+          TRACK: ${{ needs.prepare.outputs.track }}
+        run: |
+          set -euo pipefail
+          scripts/release-notes.sh "$VERSION" > release-body.md
+          cat >> release-body.md <<EOF
+
+          ## Published
+
+          | | |
+          |---|---|
+          | Play track | \`$TRACK\` |
+          | Version code | \`$VERSION_CODE\` |
+
+          The attached app bundle is the artifact Google Play accepted. Play App
+          Signing re-signs it for distribution, so it is not the binary a device
+          installs.
+          EOF
+
+      - name: Tag the release
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG" "$MERGE_SHA"
+          git push origin "$TAG"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          args=(--title "BrainChip Connect $VERSION" --notes-file release-body.md)
+          if [ "$PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$TAG" "${args[@]}" release-artifacts/*
