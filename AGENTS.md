@@ -246,6 +246,45 @@ Matching an existing control means copying how it expresses weight, not
 just its family name. Bundling the real faces would change the look of
 every screen at once and is its own piece of work.
 
+## Releases go through `release`, and that merge is never squashed
+
+`docs/releasing.md` is the procedure and `.github/workflows/release.yml` is the
+pipeline. Four things about it will not be obvious from reading either:
+
+- **Feature pull requests still squash into `main`. A release pull request,
+  `main` into `release`, must be merged with a real merge commit.** A squash
+  invents a commit `main` does not have, the branches then diverge for good, and
+  every later release pull request conflicts. The pipeline's first step fails
+  the release when the merge commit has one parent, which is the only cheap
+  moment to catch it.
+- **`VERSION` at the root is the only place a version is written.** Nothing in
+  `android/app/build.gradle` carries one: it reads `APP_VERSION_NAME` and
+  `APP_VERSION_CODE` from the environment and falls back to `0.0.0-dev` / `1`,
+  and `scripts/release-version.sh` is what turns `VERSION` into both plus the
+  tag. `package.json`'s `version` is unused and is not kept in step.
+- **The release build type has no debug-key fallback any more.** With no upload
+  keystore in the environment the release signing config does not exist and
+  Gradle refuses `assembleRelease`, `bundleRelease` and `packageRelease`, so
+  `./gradlew build` now fails too. That is deliberate: Play ties an app to the
+  key of its first upload, so a debug-signed bundle it accepted could never be
+  replaced.
+- **`Gemfile.lock` is committed**, unlike in a stock React Native project,
+  because the pipeline has to install the exact fastlane it was tested with.
+  `scripts/clean_generated_files.sh` therefore does not delete it.
+
+The track is chosen by labelling the release pull request. While the app is
+internal-only, every release is labelled `pre-release`, which publishes to the
+Play internal testing track and goes live for the named testers at once; that is
+the designed path for this phase, not a workaround. `release` goes to the
+production track as a draft for a human to roll out, and is for the public
+launch later.
+
+Key handling and the one-time account setup are deliberately not in this
+repository, because it is expected to become public and git history cannot be
+redacted afterwards. They are in `BrainChip-Connect-release-operations.md`, held
+outside version control. Keep it that way: nothing about how keys are created,
+rotated or recovered belongs in a file here.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

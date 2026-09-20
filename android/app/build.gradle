@@ -86,8 +86,7 @@ def releaseVersionCode = (System.getenv("APP_VERSION_CODE") ?: "1") as Integer
  * secret is ever committed. They are absent on a developer machine, which is
  * why the release signing config exists only when all three are present; the
  * task graph check below then refuses to build a release artifact without
- * them. UPLOAD_KEY_ALIAS defaults to the alias docs/releasing.md tells the
- * keystore holder to use.
+ * them. UPLOAD_KEY_ALIAS defaults to `upload`.
  */
 def uploadKeystorePath = System.getenv("UPLOAD_KEYSTORE_PATH")
 def uploadKeystorePassword = System.getenv("UPLOAD_KEYSTORE_PASSWORD")

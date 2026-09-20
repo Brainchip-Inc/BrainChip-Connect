@@ -31,8 +31,7 @@ concurrency:
 
 env:
   # The alias inside the upload keystore. It is not a secret, so it is a
-  # repository variable, and it defaults to what docs/releasing.md tells the
-  # keystore holder to create.
+  # repository variable rather than one, and it defaults to `upload`.
   UPLOAD_KEY_ALIAS: ${{ vars.UPLOAD_KEY_ALIAS || 'upload' }}
 
 jobs:

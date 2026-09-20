@@ -101,6 +101,13 @@ Pull requests squash into `main`. GitHub builds the squash subject from the pull
 title and appends the number, so the title _is_ the commit that lands. The squash body is
 blank unless whoever merges writes one.
 
+**A release pull request, from `main` into `release`, is the one exception: it is merged
+with a real merge commit and must never be squashed.** A squash invents a commit that
+`main` does not have, so the two branches diverge permanently and every later release
+pull request conflicts. Pick _Create a merge commit_ from the merge button's dropdown.
+The release pipeline checks this and fails the release when the merge has a single
+parent. See [docs/releasing.md](docs/releasing.md).
+
 ---
 
 ## Upgrading from the old local hook
