@@ -98,11 +98,6 @@ export const PRIVACY_POLICY: PrivacyPolicyContent = {
             'To discover, connect, and communicate with BrainChip devices',
         },
         {
-          icon: 'geo-alt',
-          title: 'Location',
-          description: 'Required by Android/iOS for Bluetooth scanning',
-        },
-        {
           icon: 'bell',
           title: 'Notifications',
           description: 'To alert you about AI model events and system updates',

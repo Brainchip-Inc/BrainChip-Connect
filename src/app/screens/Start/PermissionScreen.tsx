@@ -9,7 +9,6 @@ import { Text, Button, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckSquare, Square } from 'lucide-react-native';
 import BleIcon from '../../assets/images/00_Permissions/Bluetooth Icon.svg';
-import LocationIcon from '../../assets/images/00_Permissions/Location Icon.svg';
 import NotificationIcon from '../../assets/images/00_Permissions/NotificationsIcon.svg';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -32,13 +31,6 @@ const cardData = [
     required: true,
   },
   {
-    title: 'Location',
-    subtitle:
-      'Needed for Bluetooth Low Energy scanning on Android. Your location is not tracked.',
-    Icon: LocationIcon,
-    required: false,
-  },
-  {
     title: 'Notifications',
     subtitle:
       'Receive alerts about AI model events, firmware updates, and device status changes.',
@@ -58,7 +50,8 @@ const PermissionsScreen: React.FC = () => {
     setPrivacyAccepted,
     termsAccepted,
     setTermsAccepted,
-    setPermissions,
+    setBluetoothPermissionGranted,
+    setNotificationPermissionGranted,
   } = useBleStore();
 
   const [isGranting, setIsGranting] = useState(false);
@@ -127,24 +120,18 @@ const PermissionsScreen: React.FC = () => {
     setIsGranting(true);
 
     try {
-      const permissions = await BleService.requestAllPermissions();
-      setPermissions(permissions);
+      const bluetoothGranted = await BleService.requestBluetoothPermissions();
+      setBluetoothPermissionGranted(bluetoothGranted);
 
-      if (!permissions.bluetooth) {
+      const notificationsGranted =
+        await BleService.requestNotificationPermission();
+      setNotificationPermissionGranted(notificationsGranted);
+
+      if (!bluetoothGranted) {
         setIsGranting(false);
         Alert.alert(
           'Bluetooth Permission Required',
           'Bluetooth permission is required to discover and connect to Edge AI devices. Please grant the permission to continue.',
-          [{ text: 'OK' }],
-        );
-        return;
-      }
-
-      if (!permissions.location) {
-        setIsGranting(false);
-        Alert.alert(
-          'Location Permission Required',
-          'Location permission is required for Bluetooth scanning. Please grant the permission to continue.',
           [{ text: 'OK' }],
         );
         return;
