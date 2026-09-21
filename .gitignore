@@ -135,3 +135,6 @@ docs/local/*
 
 # Local-only helper scripts
 scripts/sync.sh
+
+# Lavish review artifacts, generated locally by lavish-axi and never committed.
+.lavish/
