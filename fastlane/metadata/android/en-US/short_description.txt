@@ -1,0 +1,1 @@
+Run, update and watch edge AI models on your BrainChip board over Bluetooth.
