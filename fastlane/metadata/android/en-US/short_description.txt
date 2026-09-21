@@ -1,1 +1,1 @@
-Set up, update and watch BrainChip edge AI devices. 100% on-device, no cloud.
+A companion phone application for your BrainChip reference platforms.
