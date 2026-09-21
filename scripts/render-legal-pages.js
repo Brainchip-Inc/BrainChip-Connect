@@ -1,5 +1,5 @@
 /**
- * Write the hostable copies of the app's Terms and Privacy Policy.
+ * Write the pages of the published legal site.
  *
  * Google Play needs a privacy policy at a public URL, and that page must not be
  * allowed to drift from the one the app shows. Run `npm run legal:render` after
@@ -13,7 +13,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const ts = require('typescript');
-const { renderLegalPage } = require('./legalPageTemplate');
+const {
+  renderLegalPage,
+  renderLegalIndexPage,
+} = require('./legalPageTemplate');
 
 const PRODUCT_NAME = 'BrainChip Connect';
 const OUTPUT_DIRECTORY = 'docs/legal';
@@ -56,18 +59,37 @@ const loadTypeScriptExport = (modulePath, exportName) => {
 };
 
 /**
- * Render every legal document to its page.
+ * Render every legal document to its page, and the root page that links them.
+ *
+ * The root page comes last, so a caller wanting the first document can take the
+ * head of the list.
  *
  * @returns {Array<{pageName: string, html: string}>} Each page and its markup.
  */
-const renderLegalPages = () =>
-  DOCUMENTS.map(({ modulePath, exportName, pageName }) => ({
+const renderLegalPages = () => {
+  const documents = DOCUMENTS.map(({ modulePath, exportName, pageName }) => ({
     pageName,
-    html: renderLegalPage(
-      loadTypeScriptExport(modulePath, exportName),
+    document: loadTypeScriptExport(modulePath, exportName),
+  }));
+  const indexPage = {
+    pageName: 'index.html',
+    html: renderLegalIndexPage(
+      documents.map(({ pageName, document }) => ({
+        pageName,
+        title: document.title,
+        lastUpdated: document.last_updated,
+      })),
       PRODUCT_NAME,
     ),
-  }));
+  };
+  return [
+    ...documents.map(({ pageName, document }) => ({
+      pageName,
+      html: renderLegalPage(document, PRODUCT_NAME),
+    })),
+    indexPage,
+  ];
+};
 
 /**
  * Write every rendered page into `docs/legal/`, reporting each one written.

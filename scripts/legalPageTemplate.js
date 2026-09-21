@@ -296,4 +296,107 @@ ${document.sections.map(renderSection).join('\n')}
 `;
 };
 
-module.exports = { renderLegalPage };
+// The root page carries no document of its own, so it adds the card and link
+// rules the document pages have no use for.
+const INDEX_STYLES = `
+      .documents {
+        display: grid;
+        gap: 16px;
+      }
+
+      .documents a {
+        display: block;
+        padding: 28px;
+        border: 1px solid var(--edge);
+        border-radius: 12px;
+        background: var(--surface);
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .documents a:hover,
+      .documents a:focus-visible {
+        border-color: var(--brand);
+      }
+
+      .document-title {
+        display: block;
+        font-size: 23px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .document-updated {
+        display: block;
+        margin-top: 6px;
+        color: var(--ink-soft);
+        font-size: 15px;
+      }
+
+      @media (max-width: 540px) {
+        .documents a {
+          padding: 20px;
+        }
+      }`;
+
+/**
+ * Render the link to one published document.
+ *
+ * @param {{pageName: string, title: string, lastUpdated: string}} document
+ *   A document published beside the root page.
+ * @returns {string} Its markup.
+ */
+const renderDocumentLink = document => `        <a href="${escapeHtml(
+  document.pageName,
+)}">
+          <span class="document-title">${escapeHtml(document.title)}</span>
+          <span class="document-updated"
+            >Last updated ${escapeHtml(formatDate(document.lastUpdated))}</span
+          >
+        </a>`;
+
+/**
+ * Render the root page of the published legal site.
+ *
+ * Anyone who trims the policy URL back to the site root lands here, a Play
+ * reviewer included, so the root is a page rather than a 404.
+ *
+ * @param {Array<{pageName: string, title: string, lastUpdated: string}>} documents
+ *   Every document published beside this page.
+ * @param {string} productName - The app the documents belong to.
+ * @returns {string} The whole page, ending in a newline.
+ */
+const renderLegalIndexPage = (documents, productName) => `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Legal | ${escapeHtml(productName)}</title>
+    <meta
+      name="description"
+      content="The published legal documents for ${escapeHtml(productName)}."
+    />
+    <style>
+${STYLES}
+${INDEX_STYLES}
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">${escapeHtml(productName)}</p>
+        <h1>Legal</h1>
+        <p class="updated">
+          The documents below carry the same text as the matching screens inside
+          ${escapeHtml(productName)}.
+        </p>
+      </header>
+      <nav class="documents">
+${documents.map(renderDocumentLink).join('\n')}
+      </nav>
+    </main>
+  </body>
+</html>
+`;
+
+module.exports = { renderLegalPage, renderLegalIndexPage };
