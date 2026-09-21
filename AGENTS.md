@@ -324,6 +324,22 @@ redacted afterwards. They are in `BrainChip-Connect-release-operations.md`, held
 outside version control. Keep it that way: nothing about how keys are created,
 rotated or recovered belongs in a file here.
 
+## The store listing is committed but never uploaded by a build
+
+`docs/store/README.md` is the index of the Play listing pack: the copy and
+images under `fastlane/metadata/android/en-US/`, the Data safety answers, and
+the pre-registration QR code. It is the reviewed text a person transcribes into
+the Console, which is why `fastlane/Fastfile` keeps `skip_upload_metadata`,
+`skip_upload_images`, `skip_upload_screenshots` and `skip_upload_changelogs`.
+Putting the files in supply's standard layout did not wire them to a release,
+and wiring them up would let any branch overwrite the live listing.
+
+`docs/legal/*.html` is the hosted Privacy Policy and Terms, and it is generated
+by `npm run legal:render` from `src/app/content/`, never edited by hand. Play
+demands a public policy URL, so that page is a published promise while the app
+screen is a second copy of the same words; `__tests__/legalPages.test.ts` fails
+when the two drift, which makes regenerating part of any change to the wording.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
