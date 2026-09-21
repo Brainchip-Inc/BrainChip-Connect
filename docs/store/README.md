@@ -16,7 +16,6 @@ complete, so the listing is what unblocks testers rather than a launch chore.
 | Feature graphic, 1024x500 | `fastlane/metadata/android/en-US/images/featureGraphic.png` |
 | Phone screenshots, 1080x1920 | `fastlane/metadata/android/en-US/images/phoneScreenshots/` |
 | Privacy policy page | `docs/legal/privacy-policy.html` |
-| Terms page | `docs/legal/terms-and-conditions.html` |
 | Data safety answers | `docs/store/data-safety.md` |
 | Pre-registration QR code | `docs/store/pre-registration-qr.svg`, `.png` |
 
@@ -44,9 +43,9 @@ magick ios/BrainChipConnect/Images.xcassets/AppIcon.appiconset/Icon-1024.png \
   -strip PNG32:fastlane/metadata/android/en-US/images/icon.png
 ```
 
-**Feature graphic.** Built from `src/app/assets/images/00_Start/NeuronLogo.svg`,
-the same mark the icon uses, on a BrainChip blue gradient. No text, so it never
-needs translating.
+**Feature graphic.** The official `_BrainChip_LOGO - Light.png` lockup on a
+BrainChip blue gradient. The logo file is a brand asset held outside this
+repository, so regenerating it means getting that file from the brand owner.
 
 **Screenshots.** Real captures from a Samsung SM-S711U over
 `adb exec-out screencap -p`, with an AkidaTag board connected over Bluetooth
@@ -57,13 +56,19 @@ pixel is redrawn, retouched or staged.
 
 **Legal pages.** Generated, never hand-written. See below.
 
-## The legal pages regenerate, they are not edited
+## The privacy policy page regenerates, it is not edited
 
-`docs/legal/*.html` is rendered from `src/app/content/` by
+`docs/legal/privacy-policy.html` is rendered from `src/app/content/` by
 `npm run legal:render`, so the hosted page and the in-app screen cannot
-disagree. `__tests__/legalPages.test.ts` fails if the committed pages drift from
-the content, which makes regenerating part of any change to the wording. Never
-edit the HTML by hand.
+disagree. `__tests__/legalPages.test.ts` fails if the committed page drifts
+from the content, which makes regenerating part of any change to the wording.
+Never edit the HTML by hand.
+
+Only the policy is published. Play requires a privacy policy URL and asks for
+no terms, and the app already shows its own terms on first run, so hosting a
+second page would only be another copy to keep in step. `DOCUMENTS` in
+`scripts/render-legal-pages.js` is where the terms would go back if that
+changes.
 
 The text itself is legal copy under separate review. Regenerating publishes it;
 it does not author it.

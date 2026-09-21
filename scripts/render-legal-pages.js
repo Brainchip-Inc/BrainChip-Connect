@@ -18,16 +18,14 @@ const { renderLegalPage } = require('./legalPageTemplate');
 const PRODUCT_NAME = 'BrainChip Connect';
 const OUTPUT_DIRECTORY = 'docs/legal';
 
+// Only the Privacy Policy is published. Play requires it at a public URL; it
+// asks for no terms, and the app already shows its own on first run. Adding
+// `termsAndConditions.ts` here is all it would take if that changes.
 const DOCUMENTS = [
   {
     modulePath: 'src/app/content/privacyPolicy.ts',
     exportName: 'PRIVACY_POLICY',
     pageName: 'privacy-policy.html',
-  },
-  {
-    modulePath: 'src/app/content/termsAndConditions.ts',
-    exportName: 'TERMS_AND_CONDITIONS',
-    pageName: 'terms-and-conditions.html',
   },
 ];
 
