@@ -14,22 +14,30 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+/** One bundled legal document, rendered to the page committed under `docs/legal/`. */
+interface RenderedLegalPage {
+  pageName: string;
+  html: string;
+}
+
 const {
   renderLegalPages,
   OUTPUT_DIRECTORY,
-} = require('../scripts/render-legal-pages');
+} = require('../scripts/render-legal-pages') as {
+  renderLegalPages: () => RenderedLegalPage[];
+  OUTPUT_DIRECTORY: string;
+};
 
 describe('hosted legal pages', () => {
-  it.each(renderLegalPages())(
-    'docs/legal/$pageName matches the text bundled in the app',
-    ({ pageName, html }: { pageName: string; html: string }) => {
+  for (const { pageName, html } of renderLegalPages()) {
+    it(`${OUTPUT_DIRECTORY}/${pageName} matches the text bundled in the app`, () => {
       const committed = readFileSync(
         join(__dirname, '..', OUTPUT_DIRECTORY, pageName),
         'utf8',
       );
       expect(committed).toBe(html);
-    },
-  );
+    });
+  }
 
   it('publishes the wording of the policy rather than a summary of it', () => {
     const [privacyPolicy] = renderLegalPages();
