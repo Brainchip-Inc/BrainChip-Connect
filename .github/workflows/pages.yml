@@ -1,0 +1,93 @@
+# Publishes the app's pages to GitHub Pages, which is where Google Play's
+# required privacy policy URL points.
+#
+# The site is `docs/pages/` and nothing else. The rest of `docs/` is the store
+# listing pack, the release procedure and internal notes, none of which may
+# reach the open internet while this repository is not public, so the artifact
+# names that one directory rather than `docs/`.
+#
+# The pages are rendered here rather than copied from the checkout. The hosted
+# policy and the screen inside the app are two copies of one text, and rendering
+# is what keeps them the same; a run whose render disagrees with the committed
+# pages fails instead of publishing either version.
+
+name: Publish pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/app/content/**'
+      - 'src/types/legalContent.ts'
+      - 'scripts/render-pages.js'
+      - 'scripts/pageTemplate.js'
+      - 'docs/pages/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# One deployment at a time, and never cancelled: the site is a URL Play holds,
+# so a half-replaced site is worse than a late one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Render the pages
+    runs-on: ubuntu-latest
+    # The job that runs `npm ci`, and so third-party install scripts, can read
+    # the repository and nothing else. Publishing rights live in `deploy`,
+    # which checks out no code.
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Render the pages
+        run: npm run pages:render
+
+      - name: Check the committed pages match the render
+        run: |
+          set -eu
+          drift=$(git status --porcelain -- docs/pages)
+          if [ -n "$drift" ]; then
+            echo "::error::docs/pages does not match what the renderer produces. Run 'npm run pages:render' and commit the result."
+            echo "$drift"
+            git diff -- docs/pages
+            exit 1
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload the pages
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/pages
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
