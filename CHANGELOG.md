@@ -20,6 +20,8 @@ full procedure.
 
 ## [Unreleased]
 
+## [1.0.0+0] - 2026-09-20
+
 ### Added
 
 - **Devices:** discovery of BrainChip boards over BLE by the AKD1500
