@@ -15,7 +15,7 @@ complete, so the listing is what unblocks testers rather than a launch chore.
 | Store icon, 512x512, 32-bit PNG | `fastlane/metadata/android/en-US/images/icon.png` |
 | Feature graphic, 1024x500 | `fastlane/metadata/android/en-US/images/featureGraphic.png` |
 | Phone screenshots, 1080x1920 | `fastlane/metadata/android/en-US/images/phoneScreenshots/` |
-| Privacy policy page | `docs/legal/privacy-policy.html` |
+| Privacy policy page | `docs/pages/privacy-policy.html` |
 | Data safety answers | `docs/store/data-safety.md` |
 | Pre-registration QR code | `docs/store/pre-registration-qr.svg`, `.png` |
 
@@ -54,20 +54,20 @@ and the Samsung edge-panel handle) and the result is matted onto a 1080x1920
 canvas, because Play wants 9:16 and the phone's own screen is 9:19.5. No app
 pixel is redrawn, retouched or staged.
 
-**Legal pages.** Generated, never hand-written. See below.
+**Pages.** Generated, never hand-written. See below.
 
 ## The privacy policy page regenerates, it is not edited
 
-`docs/legal/privacy-policy.html` is rendered from `src/app/content/` by
-`npm run legal:render`, so the hosted page and the in-app screen cannot
-disagree. `__tests__/legalPages.test.ts` fails if the committed page drifts
+`docs/pages/privacy-policy.html` is rendered from `src/app/content/` by
+`npm run pages:render`, so the hosted page and the in-app screen cannot
+disagree. `__tests__/pages.test.ts` fails if the committed page drifts
 from the content, which makes regenerating part of any change to the wording.
 Never edit the HTML by hand.
 
 Only the policy is published. Play requires a privacy policy URL and asks for
 no terms, and the app already shows its own terms on first run, so hosting a
 second page would only be another copy to keep in step. `DOCUMENTS` in
-`scripts/render-legal-pages.js` is where the terms would go back if that
+`scripts/render-pages.js` is where the terms would go back if that
 changes.
 
 The text itself is legal copy under separate review. Regenerating publishes it;
@@ -79,11 +79,11 @@ puts the policy at
 Console needs that URL in two places, App content → Privacy policy and the
 store listing.
 
-The published site is `docs/legal/` and nothing else, served from its root:
+The published site is `docs/pages/` and nothing else, served from its root:
 `index.html` beside `privacy-policy.html`, both generated. Pointing Pages at
 `docs/` instead would put this pack, the release procedure and the rest of the
 folder on the open internet while the repository is not public, so the workflow
-names the one directory. Adding a file to `docs/legal/` publishes it.
+names the one directory. Adding a file to `docs/pages/` publishes it.
 
 ## Open before public release
 

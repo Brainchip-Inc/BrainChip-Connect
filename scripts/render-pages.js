@@ -1,12 +1,12 @@
 /**
- * Write the pages of the published legal site.
+ * Write the pages of the published site.
  *
  * Google Play needs a privacy policy at a public URL, and that page must not be
- * allowed to drift from the one the app shows. Run `npm run legal:render` after
- * changing anything in `src/app/content/`; `__tests__/legalPages.test.ts` fails
+ * allowed to drift from the one the app shows. Run `npm run pages:render` after
+ * changing anything in `src/app/content/`; `__tests__/pages.test.ts` fails
  * when the committed pages no longer match it.
  *
- * `docs/legal/` is the whole of the site `.github/workflows/pages.yml`
+ * `docs/pages/` is the whole of the site `.github/workflows/pages.yml`
  * publishes, so every file this writes is public and nothing else in `docs/`
  * is.
  *
@@ -17,13 +17,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const ts = require('typescript');
-const {
-  renderLegalPage,
-  renderLegalIndexPage,
-} = require('./legalPageTemplate');
+const { renderPage, renderIndexPage } = require('./pageTemplate');
 
 const PRODUCT_NAME = 'BrainChip Connect';
-const OUTPUT_DIRECTORY = 'docs/legal';
+const OUTPUT_DIRECTORY = 'docs/pages';
 
 // Only the Privacy Policy is published. Play requires it at a public URL; it
 // asks for no terms, and the app already shows its own on first run. Adding
@@ -70,14 +67,14 @@ const loadTypeScriptExport = (modulePath, exportName) => {
  *
  * @returns {Array<{pageName: string, html: string}>} Each page and its markup.
  */
-const renderLegalPages = () => {
+const renderPages = () => {
   const documents = DOCUMENTS.map(({ modulePath, exportName, pageName }) => ({
     pageName,
     document: loadTypeScriptExport(modulePath, exportName),
   }));
   const indexPage = {
     pageName: 'index.html',
-    html: renderLegalIndexPage(
+    html: renderIndexPage(
       documents.map(({ pageName, document }) => ({
         pageName,
         title: document.title,
@@ -89,19 +86,19 @@ const renderLegalPages = () => {
   return [
     ...documents.map(({ pageName, document }) => ({
       pageName,
-      html: renderLegalPage(document, PRODUCT_NAME),
+      html: renderPage(document, PRODUCT_NAME),
     })),
     indexPage,
   ];
 };
 
 /**
- * Write every rendered page into `docs/legal/`, reporting each one written.
+ * Write every rendered page into `docs/pages/`, reporting each one written.
  */
 const main = () => {
   const directory = path.join(repositoryRoot, OUTPUT_DIRECTORY);
   fs.mkdirSync(directory, { recursive: true });
-  for (const { pageName, html } of renderLegalPages()) {
+  for (const { pageName, html } of renderPages()) {
     fs.writeFileSync(path.join(directory, pageName), html, 'utf8');
     console.log(`wrote ${OUTPUT_DIRECTORY}/${pageName}`);
   }
@@ -109,4 +106,4 @@ const main = () => {
 
 if (require.main === module) main();
 
-module.exports = { renderLegalPages, OUTPUT_DIRECTORY };
+module.exports = { renderPages, OUTPUT_DIRECTORY };

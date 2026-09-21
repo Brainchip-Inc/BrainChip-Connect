@@ -4,7 +4,7 @@
  * The hosted page and the in-app screen have to say the same thing, so both are
  * rendered from `src/app/content/`. Nothing here adds wording of its own: the
  * page is the document, laid out. The markup is self-contained, because the
- * app is offline by design and a legal page that reaches out for a font or a
+ * app is offline by design and a page that reaches out for a font or a
  * stylesheet would be the only part of the product that does.
  *
  * @format
@@ -251,7 +251,7 @@ const STYLES = `      :root {
  * @param {string} productName - The app the document belongs to, shown above the title.
  * @returns {string} The whole page, ending in a newline.
  */
-const renderLegalPage = (document, productName) => {
+const renderPage = (document, productName) => {
   const updated = formatDate(document.last_updated);
   return `<!doctype html>
 <html lang="en">
@@ -356,7 +356,7 @@ const renderDocumentLink = document => `        <a href="${escapeHtml(
         </a>`;
 
 /**
- * Render the root page of the published legal site.
+ * Render the root page of the published site.
  *
  * Anyone who trims the policy URL back to the site root lands here, a Play
  * reviewer included, so the root is a page rather than a 404.
@@ -366,7 +366,7 @@ const renderDocumentLink = document => `        <a href="${escapeHtml(
  * @param {string} productName - The app the documents belong to.
  * @returns {string} The whole page, ending in a newline.
  */
-const renderLegalIndexPage = (documents, productName) => `<!doctype html>
+const renderIndexPage = (documents, productName) => `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -399,4 +399,4 @@ ${documents.map(renderDocumentLink).join('\n')}
 </html>
 `;
 
-module.exports = { renderLegalPage, renderLegalIndexPage };
+module.exports = { renderPage, renderIndexPage };
