@@ -1,1 +1,1 @@
-Run, update and watch edge AI models on your BrainChip board over Bluetooth.
+Set up, update and watch BrainChip edge AI devices. 100% on-device, no cloud.

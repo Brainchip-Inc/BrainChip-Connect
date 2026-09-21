@@ -1,56 +1,61 @@
-BrainChip Connect is the companion app for BrainChip development boards built
-around the AKD1500 accelerator, including the AkidaTag and the BrainBoard1500.
-It connects over Bluetooth Low Energy and puts everything the board can tell
-you on the phone in your hand.
+BrainChip Connect is the companion app for devices built on the Akida AKD1500
+neuromorphic accelerator, including the AkidaTag reference platform and the
+BrainBoard1500. It pairs over Bluetooth Low Energy and puts the device's
+configuration, its models and its live results on the phone in your hand.
 
-There is no server behind it. The app has no backend, no account and no network
-permission in a released build. It talks to nothing but your board.
+100% ON-DEVICE
+Inference runs on the Akida accelerator inside the device, not in the cloud and
+not on your phone. The app itself has no backend, no account and no network
+permission in a released build, so nothing it shows you can be sent anywhere.
+There is no cloud dependency to opt out of, because there is no cloud.
 
-FIND AND CONNECT
-Scan for boards nearby and connect with one tap. The app recognises BrainChip
-hardware by the accelerator id the board advertises, so it finds your board
-whatever that board happens to be named. Once connected you can read its serial
-number, firmware version, Bluetooth protocol and battery level.
+CONNECT
+Scan for devices nearby and pair with one tap. The app recognises BrainChip
+hardware by the accelerator id it advertises, so it finds yours whatever the
+device happens to be called. Once connected you can read its serial number,
+firmware version, Bluetooth protocol and battery level.
 
-RUN AN APPLICATION
-See the applications your board carries and what each one is: the model it runs,
-the shape of its input, how many classes it knows and, for keyword spotting, the
-exact list of words it listens for. Start one with Run Application and the app
-loads that model into the Akida accelerator, showing you the wait while the
-board swaps it in.
+LOAD A MODEL
+See the applications a device carries and what each one is: the model it runs,
+the shape of its input, how many classes it knows and, for keyword spotting,
+the exact list of words it listens for. Run Application loads the chosen model
+into the Akida accelerator and shows you the wait while the device swaps it in.
 
 WATCH RESULTS AS THEY HAPPEN
-Keyword spotting shows the word the board heard and how confident it was, beside
-a live trace of the microphone the board is listening on. Human detection shows
-what the camera found, with a live preview image streamed from the board itself.
-Every reading is the board's own. The app draws what it is sent and invents
+Keyword spotting shows the word the device heard and how confident it was,
+beside a live trace of the microphone it is listening on. Human detection shows
+what the camera found, with a live preview streamed from the device itself.
+Every reading is the device's own: the app draws what it is sent and invents
 nothing.
 
-TUNE AND TEACH
-Adjust the detector running on the board without rebuilding its firmware: RMS
-threshold, debounce time, smoothing, score threshold, chiming threshold and
-speech timeout, applied to the board and put back to their defaults whenever you
-want. Switch on Edge Learning and teach the board a new sound on the spot.
+TEACH IT YOUR VOICE
+Switch on Edge Learning and the device learns from what it hears, on the spot
+and on its own silicon. No retraining in the cloud, and nothing sent away to
+learn from.
+
+TUNE THE DETECTOR
+Change how the device decides, without rebuilding its firmware: RMS threshold,
+debounce time, smoothing, score threshold, chiming threshold and speech
+timeout. Each one is sent to the device and acknowledged by it, and the
+defaults are one tap away.
 
 KEEP A RECORD
-The app keeps an event history of what each board reported, so you can look back
-over what happened while you were not watching.
+An event history of what each device reported, held on your phone, so you can
+look back over what happened while you were not watching.
 
 UPDATE OVER THE AIR
-Update board firmware and swap the AI model over Bluetooth, from a package you
-pick out of your phone's own storage. Each update reports what the board
+Update device firmware and swap the AI model over Bluetooth, from a package you
+pick out of your phone's own storage. Each update reports what the device
 actually did with it: whether the file was stored and verified, and whether the
 new model was programmed into the accelerator and proven to infer. A model that
 is stored but will not run is reported as exactly that, rather than as a
 success.
 
-PRIVACY
-No analytics, no crash reporting, no telemetry, no account and no server. A
-released build declares no internet permission at all, so the app cannot open a
-network connection even if something asked it to. It holds three permissions:
-Bluetooth scan, Bluetooth connect and notifications. Nothing you do in the app
-is collected, shared or sold.
+PERMISSIONS
+Three, and no more: Bluetooth scan, Bluetooth connect and notifications. No
+analytics, no crash reporting, no telemetry, no account and no server. Nothing
+you do in the app is collected, shared or sold.
 
 WHAT YOU NEED
-A BrainChip board carrying the AKD1500 accelerator, and an Android phone running
-Android 13 or later with Bluetooth switched on.
+A BrainChip device carrying the AKD1500 accelerator, and an Android phone
+running Android 13 or later with Bluetooth switched on.
