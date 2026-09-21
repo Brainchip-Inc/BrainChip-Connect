@@ -6,6 +6,10 @@
  * changing anything in `src/app/content/`; `__tests__/legalPages.test.ts` fails
  * when the committed pages no longer match it.
  *
+ * `docs/legal/` is the whole of the site `.github/workflows/pages.yml`
+ * publishes, so every file this writes is public and nothing else in `docs/`
+ * is.
+ *
  * @format
  */
 

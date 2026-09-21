@@ -73,11 +73,17 @@ changes.
 The text itself is legal copy under separate review. Regenerating publishes it;
 it does not author it.
 
-Hosting: `docs/` on the default branch is the cheapest home, since GitHub Pages
-can serve this repository once it is public, which puts the policy at
-`https://<owner>.github.io/<repo>/legal/privacy-policy.html`. Anywhere that
-serves a stable public URL over HTTPS does just as well. The Console needs the
-final URL in two places, App content → Privacy policy and the store listing.
+Hosting is GitHub Pages, published by `.github/workflows/pages.yml`, which
+puts the policy at
+`https://brainchip-inc.github.io/BrainChip-Connect/privacy-policy.html`. The
+Console needs that URL in two places, App content → Privacy policy and the
+store listing.
+
+The published site is `docs/legal/` and nothing else, served from its root:
+`index.html` beside `privacy-policy.html`, both generated. Pointing Pages at
+`docs/` instead would put this pack, the release procedure and the rest of the
+folder on the open internet while the repository is not public, so the workflow
+names the one directory. Adding a file to `docs/legal/` publishes it.
 
 ## Open before public release
 
