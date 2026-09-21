@@ -79,6 +79,28 @@ can serve this repository once it is public, which puts the policy at
 serves a stable public URL over HTTPS does just as well. The Console needs the
 final URL in two places, App content → Privacy policy and the store listing.
 
+## Open before public release
+
+The Privacy Policy wording is going to legal review before the app is released
+publicly, and it is expected to change there. Two things are already known to
+need correcting in `src/app/content/privacyPolicy.ts`, and both are held for
+that review rather than being edited piecemeal:
+
+- The "Sensor Data" item lists environmental sensor readings. The app reads
+  none: there is no environmental sensor code in `src/` and no characteristic
+  delivers one. That reference goes.
+- The same item lists IMU readings. The accelerometer and gyroscope charts on
+  the live screen are filled by `simulateData` in `useLiveSensorStore`, not
+  read from the board, so the claim is ahead of the build.
+
+The same list appears on the in-app About screen via `useAboutStore.ts`, so a
+change to one has to be made in the other or the app will contradict its own
+policy.
+
+Neither affects the Data Safety answers. Play counts data as collected when it
+leaves the device, the policy states plainly that nothing does, and a release
+build has no `INTERNET` permission to make it possible.
+
 ## The pre-registration QR code
 
 Encodes `https://play.google.com/store/apps/details?id=com.brainchip.connect`,
