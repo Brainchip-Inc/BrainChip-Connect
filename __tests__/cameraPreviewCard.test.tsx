@@ -39,7 +39,8 @@ jest.mock('../src/services/ble/bleManager', () => ({
   __esModule: true,
   default: {
     sendCommand: jest.fn(async () => {}),
-    subscribeToNotifications: jest.fn(async () => ({ remove: jest.fn() })),
+    subscribeToNotifications: jest.fn(() => ({ remove: jest.fn() })),
+    removeSubscription: jest.fn(),
     subscribeToEdgeLearningAck: jest.fn(() => ({ remove: jest.fn() })),
     getAckEdgeMode: jest.fn(() => 'edge'),
     getAckEdgeStartMode: jest.fn(() => 'edge-start'),
@@ -300,7 +301,7 @@ describe('the human detection dashboard', () => {
     const shown = textOf(renderer);
     expect(shown).toContain('Camera');
     expect(shown).toContain('Start streaming to see what the camera sees.');
-    expect(shown).toContain('No frame scored yet');
+    expect(shown).toContain('No person detected yet');
     expect(shown).not.toContain('Live Camera Feed');
     await unmount(renderer);
   });

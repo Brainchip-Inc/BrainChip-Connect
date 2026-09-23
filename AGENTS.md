@@ -162,13 +162,35 @@ Two things about the preview are deliberate and look like bugs:
   does one small copy per notification and encodes only once per whole image.
   Anything heavier there shows up as a lagging detection, not as a slow
   preview.
-- **The vision board reports every frame, about eleven times a second, for
-  as long as it runs**, streaming or not. Anything the app does per detection
-  report has to be cheap at that rate: rewriting the event history file per
-  report saturated the JavaScript thread and left the app deaf to touches
-  within a minute. `deservesHistoryEntry` in `useBleCommandStore` records
-  only a change of reading for such a board, and `useEventStore` writes the
-  file at most once a second; `__tests__/detectionFlood.test.ts` pins both.
+- **Both demos report events, not state.** "What the board reports" in that
+  README is the contract: a keyword when one is heard, `person` once when
+  someone arrives, and nothing while they stay or after they leave. The
+  shipped firmware never sends `no_person`, so a banner that shows only the
+  label reads as frozen from the first detection on, which is why
+  `DetectionBanner` shows how long ago the report arrived and why every
+  report is a history entry. An earlier build of the board reported every
+  frame, eleven times a second, and rewriting the history file per report
+  left the app deaf to touches within a minute; `useEventStore` still writes
+  the file at most once a second, and `__tests__/detectionFlood.test.ts` pins
+  both rules.
+
+## One device session per connection, started in one place
+
+`followConnection` in `useBleCommandStore.ts` is the only thing that starts or
+ends a device session: it follows `connectedDevice` in `useBleStore`, and
+`App.tsx` calls it once. Screens read the session and never start one. A
+screen effect used to do this, and disconnecting from the Profile screen pushed
+the device list over the old dashboard instead of resetting to it, so every
+reconnect had one more mounted dashboard starting a session; and because
+`startNotifications` checked for an existing monitor before an await and
+recorded the new one after it, each of those starts opened its own monitor.
+Every notification was then parsed, stored and rendered once per monitor,
+which repeated history entries, garbled the application list, and slowed the
+app a little more with each cycle until the detection banner looked frozen.
+`__tests__/deviceSession.test.ts` pins one monitor across connect, disconnect
+and reconnect. Anything that leaves the connected board goes through
+`BleConnectionHelper.returnToDeviceList`, a navigation reset, never a `navigate`
+to the device list.
 
 ## Starting an application is a model swap, and the app shows the wait
 

@@ -568,11 +568,19 @@ class BleService {
     });
   };
 
-  // Receiving data from the device
-  subscribeToNotifications = async (
+  /**
+   * Listen to the board's notify characteristic, parsing every frame.
+   *
+   * This opens a monitor and returns at once; nothing about it waits, so a
+   * caller can hold the subscription in the same tick it asked for it.
+   *
+   * @param deviceId - Board to listen to.
+   * @param onData - Receives every frame the parser makes something of.
+   */
+  subscribeToNotifications = (
     deviceId: string,
     onData: (data: BleData) => void,
-  ): Promise<Subscription> => {
+  ): Subscription => {
     const subscription = this.bleManager.monitorCharacteristicForDevice(
       deviceId,
       this.serviceUUID,
@@ -1283,16 +1291,14 @@ class BleService {
 
       timer = setTimeout(() => finish(null), timeoutMs);
 
-      this.subscribeToNotifications(deviceId, data => {
+      subscription = this.subscribeToNotifications(deviceId, data => {
         if (data.type === 'DEVICE_INFO' && data.data.serial) {
           finish(String(data.data.serial).trim().toLowerCase());
         }
-      })
-        .then(sub => {
-          subscription = sub;
-          return this.sendCommand(deviceId, BleCommand.DEVICE_INFO);
-        })
-        .catch(() => finish(null));
+      });
+      this.sendCommand(deviceId, BleCommand.DEVICE_INFO).catch(() =>
+        finish(null),
+      );
     });
 
   /**

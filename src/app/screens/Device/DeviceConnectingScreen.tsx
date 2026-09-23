@@ -9,7 +9,6 @@ import { RootParamList } from '../../../../App';
 import BleService from '../../../services/ble/bleManager';
 import { useBleStore } from '../../store/useBleStore';
 import { Colors } from '../../theme/theme';
-import { useBleCommandStore } from '../../store/useBleCommandStore';
 
 type DeviceConnectingRouteProp = RouteProp<RootParamList, 'DeviceConnecting'>;
 
@@ -109,8 +108,6 @@ const DeviceConnectingScreen: React.FC = () => {
           serviceUUIDs: serviceUUIDs,
         });
         setConnectionState('connected');
-
-        useBleCommandStore.getState().startNotifications(deviceId);
 
         // Navigate to Device Applications
         setTimeout(() => {

@@ -10,7 +10,7 @@ import {
   LayoutDashboard,
   Mic,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { RootParamList } from '../../../../App';
+import DetectionBanner from '../../../components/common/DetectionBanner';
 import DeviceInfoModal from '../../../components/common/DeviceInfoModal';
 import BottomNavigationBar from '../../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../../components/custom/DeviceHeader';
@@ -84,6 +85,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     stopApp,
     latestDetection,
     confidence,
+    receivedAt,
     requestAppInfo,
     batteryStateLabel,
     appTransition,
@@ -157,16 +159,6 @@ const DeviceApplicationsScreen: React.FC = () => {
     if (parsed <= 50) return Colors.warning;
     return Colors.success;
   };
-
-  useEffect(() => {
-    if (!connectedDevice) return;
-
-    useBleCommandStore.getState().startDeviceSession(connectedDevice);
-
-    return () => {
-      useBleCommandStore.getState().endDeviceSession();
-    };
-  }, [connectedDevice]);
 
   const handleDeploy = async (app: AppsList) => {
     if (!deviceId) {
@@ -339,42 +331,13 @@ const DeviceApplicationsScreen: React.FC = () => {
 
         {/* Active Block */}
         {isActive && (
-          <View
-            style={[
-              styles.activeBlock,
-              {
-                borderColor: theme.colors.primary,
-                backgroundColor: 'rgba(0,97,237,0.05)',
-              },
-            ]}
-          >
-            {latestDetection && latestDetection !== 'Waiting...' ? (
-              <View style={styles.activeRow}>
-                <Text
-                  style={[styles.activeValue, { color: theme.colors.primary }]}
-                >
-                  "{latestDetection}" detected
-                </Text>
-                <Text
-                  style={[
-                    styles.activePercent,
-                    { color: theme.colors.secondary },
-                  ]}
-                >
-                  {confidence ?? 0}% Confidence
-                </Text>
-              </View>
-            ) : (
-              <Text
-                style={[
-                  styles.activeValue,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                No keyword detected
-              </Text>
-            )}
-          </View>
+          <DetectionBanner
+            appId={app.id}
+            label={latestDetection}
+            confidence={confidence}
+            receivedAt={receivedAt}
+            style={styles.activeBlock}
+          />
         )}
 
         {/* Action Buttons */}
@@ -620,10 +583,7 @@ const styles = StyleSheet.create({
   appDesc: { fontSize: 13, lineHeight: 20, fontWeight: '400', marginTop: 4 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   activeBadge: { fontSize: 12, fontWeight: '600' },
-  activeBlock: { marginTop: 12, padding: 12, borderWidth: 1 },
-  activeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  activeValue: { fontSize: 12, fontWeight: '600' },
-  activePercent: { fontSize: 12, fontWeight: '600' },
+  activeBlock: { marginTop: 12 },
   infoBlock: { marginTop: 12 },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   bullet: { fontSize: 12, marginRight: 8 },

@@ -3,7 +3,7 @@ import { Subscription } from 'react-native-ble-plx';
 import BleService from '../../services/ble/bleManager';
 import { BleCommand } from '../../services/ble/bleCommands';
 import { BleData } from '../../types/bleData';
-import { BLEDevice } from './useBleStore';
+import { BLEDevice, useBleStore } from './useBleStore';
 import { useEventsStore } from './useEventStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 import { AppsList, WavePayload } from '../../services/ble/bleParser';
@@ -86,30 +86,6 @@ const previewAssembler = new PreviewAssembler();
 // dropped rather than shown.
 const DEVICE_SERIAL_PATTERN = /^[0-9a-f]{16}$/;
 
-/**
- * Applications whose board reports a reading for every frame it scores, many
- * times a second, rather than only when something is detected.
- */
-const REPORTS_EVERY_FRAME = new Set<string>(['vision']);
-
-/**
- * Say whether a detection report belongs in the event history.
- *
- * A keyword board speaks only when it hears a keyword, so every report is an
- * event. A vision board reports what it sees in every frame, and a reading is
- * state rather than an event: what is worth recording is the reading
- * changing, not the board saying the same thing eleven times a second.
- *
- * @param appId - The application the report came from.
- * @param previousLabel - The reading the app held before this report.
- * @param label - The reading in this report.
- */
-export const deservesHistoryEntry = (
-  appId: string,
-  previousLabel: string | undefined,
-  label: string,
-): boolean => !REPORTS_EVERY_FRAME.has(appId) || label !== previousLabel;
-
 interface BleCommandState {
   connectedDevice: BLEDevice | null;
 
@@ -155,7 +131,7 @@ interface BleCommandState {
   endDeviceSession: () => void;
 
   // 🔹 Internal
-  startNotifications: (deviceId: string) => Promise<void>;
+  startNotifications: (deviceId: string) => void;
   stopNotifications: () => void;
 
   // 🔹 Commands
@@ -233,7 +209,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     // the dashboard's Start/Stop Inference control will drive it.
     set({ connectedDevice: device, isInferenceRunning: true });
 
-    await get().startNotifications(device.id);
+    get().startNotifications(device.id);
 
     // The serial is only available over the connection, so ask for it as soon
     // as there is one. Writes are serialised by the command queue, so this
@@ -258,6 +234,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       activeApp: null,
       latestDetection: undefined,
       confidence: undefined,
+      receivedAt: null,
       kwsConfig: {},
       kwsConfigDraft: {},
       kwsConfigPending: new Set<KwsParamId>(),
@@ -271,12 +248,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     previewAssembler.reset();
   },
 
-  // ✅ Start subscription once
-  startNotifications: async (deviceId: string) => {
+  // Opens the one notification monitor a session has. Checking for an
+  // existing one and recording the new one happen in the same synchronous
+  // step, so two starts in the same tick still end with one monitor.
+  startNotifications: (deviceId: string) => {
     if (get().subscription) return;
 
     try {
-      const sub = await BleService.subscribeToNotifications(
+      const sub = BleService.subscribeToNotifications(
         deviceId,
         (data: BleData) => {
           if (!data) return;
@@ -320,7 +299,6 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 ? Number(detectionData[1])
                 : Number((Math.random() * 100).toFixed(2));
               const appId = get().activeApp ?? 'unknown';
-              const previousDetection = get().latestDetection;
 
               set({
                 latestDetection: detection,
@@ -328,15 +306,13 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
                 receivedAt: new Date(),
               });
 
-              if (deservesHistoryEntry(appId, previousDetection, detection)) {
-                useEventsStore.getState().addEvent({
-                  appId,
-                  title: detection,
-                  timestamp: Date.now(),
-                  confidence: conf,
-                  status: conf < 80 ? 'warn' : 'ok',
-                });
-              }
+              useEventsStore.getState().addEvent({
+                appId,
+                title: detection,
+                timestamp: Date.now(),
+                confidence: conf,
+                status: conf < 80 ? 'warn' : 'ok',
+              });
               break;
             }
 
@@ -600,11 +576,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     const sub = get().subscription;
 
     if (sub) {
-      try {
-        sub.remove();
-      } catch {
-        if (__DEV__) console.warn('Subscription already removed');
-      }
+      BleService.removeSubscription(sub);
     }
     set({ subscription: null });
   },
@@ -932,3 +904,25 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     }
   },
 }));
+
+/**
+ * Keep the device session in step with the connection.
+ *
+ * One session exists per connected board: it starts when a board connects,
+ * ends when the board goes, and moves when the board comes back under another
+ * address. Screens read the session and never start one, so however many of
+ * them are mounted, the board is listened to exactly once.
+ *
+ * @returns A function that stops following the connection.
+ */
+export const followConnection = (): (() => void) =>
+  useBleStore.subscribe((state, previous) => {
+    if (state.connectedDevice === previous.connectedDevice) {
+      return;
+    }
+    const session = useBleCommandStore.getState();
+    session.endDeviceSession();
+    if (state.connectedDevice) {
+      session.startDeviceSession(state.connectedDevice);
+    }
+  });

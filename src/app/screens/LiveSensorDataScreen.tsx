@@ -28,6 +28,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polyline } from 'react-native-svg';
 import CameraPreview from '../../components/common/CameraPreview';
+import DetectionBanner from '../../components/common/DetectionBanner';
 import AppControlsSection from '../../components/custom/AppControlsSection';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
@@ -43,29 +44,6 @@ import { useBleCommandStore } from '../store/useBleCommandStore';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 40 - 32; // margins (20*2) + card padding
 const CHART_HEIGHT = 120;
-
-/** How the two classes the human detection model scores read on screen. */
-const VISION_DETECTION_WORDING: Record<string, string> = {
-  person: 'Person detected',
-  no_person: 'No person detected',
-};
-
-/**
- * Put a vision detection label into words.
- *
- * @param label - The class label the board reported.
- */
-const describeVisionDetection = (label: string): string =>
-  VISION_DETECTION_WORDING[label] ?? `"${label}" detected`;
-
-/**
- * Say whether a detection label is a real result rather than the store's
- * placeholder from before the first one arrived.
- *
- * @param label - What the store holds as the latest detection.
- */
-const isDetectionLabel = (label: string | undefined): label is string =>
-  label !== undefined && !label.startsWith('Waiting');
 
 // ─── Reusable Section Row (same as SettingsScreen's SettingRow) ───────────────
 const SectionHeader = ({
@@ -189,8 +167,6 @@ const LiveSensorDataScreen = () => {
     startStreaming,
     stopStreaming,
     simulateData,
-    keywordConfidence,
-    detectedWord,
     anomalyScore,
     systemStatus,
     accel,
@@ -201,12 +177,13 @@ const LiveSensorDataScreen = () => {
   // Read PCM samples directly from the BLE command store so the chart updates
   // at the ~16 fps cadence the firmware sends, instead of the 1 Hz simulator.
   const micWave = useBleCommandStore(s => s.micWave);
-  // Vision results and preview frames come straight from the BLE command store
-  // for the same reason: the board scores many frames a second, and the 1 Hz
-  // simulator tick would show a detection long after the camera moved on.
+  // Detections and preview frames come straight from the BLE command store
+  // for the same reason: a report shown a second late reads as a report the
+  // board never made.
   const cameraPreview = useBleCommandStore(s => s.cameraPreview);
   const latestDetection = useBleCommandStore(s => s.latestDetection);
-  const latestConfidence = useBleCommandStore(s => s.confidence);
+  const confidence = useBleCommandStore(s => s.confidence);
+  const receivedAt = useBleCommandStore(s => s.receivedAt);
   const [edgeLearningMode, setEdgeLearningMode] = useState(false);
 
   const activeApp = useBleCommandStore(state => state.activeApp);
@@ -284,43 +261,15 @@ const LiveSensorDataScreen = () => {
 
   // ─── Detection Card ─────────────────────────────────────────────────────────
   const renderModelOutput = () => {
-    if (appType === 'keyword') {
+    if (appType === 'keyword' || appType === 'vision') {
       return (
-        <View
-          style={[
-            styles.detectionBlock,
-            styles.detectionBlockTint,
-            { borderColor: theme.colors.primary },
-          ]}
-        >
-          {detectedWord && detectedWord !== 'Waiting...' ? (
-            <View style={styles.detectionRow}>
-              <Text
-                style={[styles.detectionValue, { color: theme.colors.primary }]}
-              >
-                "{detectedWord}" detected
-              </Text>
-              <Text
-                style={[
-                  styles.detectionPercent,
-                  { color: theme.colors.secondary },
-                ]}
-              >
-                {keywordConfidence ? keywordConfidence.toFixed(1) : '0.0'}%
-                Confidence
-              </Text>
-            </View>
-          ) : (
-            <Text
-              style={[
-                styles.detectionValue,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              No keyword detected
-            </Text>
-          )}
-        </View>
+        <DetectionBanner
+          appId={appType}
+          label={latestDetection}
+          confidence={confidence}
+          receivedAt={receivedAt}
+          style={styles.detectionBlock}
+        />
       );
     }
 
@@ -345,45 +294,6 @@ const LiveSensorDataScreen = () => {
             color={Colors.success}
             style={styles.progress}
           />
-        </View>
-      );
-    }
-
-    if (appType === 'vision') {
-      return (
-        <View
-          style={[
-            styles.detectionBlock,
-            styles.detectionBlockTint,
-            { borderColor: theme.colors.primary },
-          ]}
-        >
-          {isDetectionLabel(latestDetection) ? (
-            <View style={styles.detectionRow}>
-              <Text
-                style={[styles.detectionValue, { color: theme.colors.primary }]}
-              >
-                {describeVisionDetection(latestDetection)}
-              </Text>
-              <Text
-                style={[
-                  styles.detectionPercent,
-                  { color: theme.colors.secondary },
-                ]}
-              >
-                {(latestConfidence ?? 0).toFixed(1)}% Confidence
-              </Text>
-            </View>
-          ) : (
-            <Text
-              style={[
-                styles.detectionValue,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              No frame scored yet
-            </Text>
-          )}
         </View>
       );
     }
@@ -722,19 +632,8 @@ const styles = StyleSheet.create({
   },
 
   detectionBlock: {
-    padding: 12,
-    borderWidth: 1,
     marginBottom: 12,
   },
-  detectionBlockTint: {
-    backgroundColor: 'rgba(0,97,237,0.05)',
-  },
-  detectionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  detectionValue: { fontSize: 12, fontWeight: '600' },
-  detectionPercent: { fontSize: 12, fontWeight: '600' },
 
   keywordText: {
     fontFamily: 'Sora',

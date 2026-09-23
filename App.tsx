@@ -1,6 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ import PermissionsScreen from './src/app/screens/Start/PermissionScreen';
 import PrivacyPolicyScreen from './src/app/screens/Start/PrivacyPolicyScreen';
 import TermsAndConditionsScreen from './src/app/screens/Start/TermsAndConditionsScreen';
 import UserProfileScreen from './src/app/screens/UserProfileScreen';
+import { followConnection } from './src/app/store/useBleCommandStore';
 import { AppType } from './src/app/store/useLiveSensorStore';
 import BrainChipTheme from './src/app/theme/theme';
 import FirmwareUpdateScreen from './src/app/screens/FirmwareUpdateScreen';
@@ -86,6 +87,8 @@ const Stack = createNativeStackNavigator<RootParamList>();
 const navigationRef = React.createRef<any>();
 
 const App = () => {
+  useEffect(followConnection, []);
+
   return (
     <SafeAreaProvider>
       <PaperProvider theme={BrainChipTheme}>

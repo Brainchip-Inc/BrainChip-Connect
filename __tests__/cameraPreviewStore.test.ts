@@ -30,13 +30,15 @@ jest.mock('../src/services/ble/bleManager', () => ({
   __esModule: true,
   default: {
     sendCommand: (...args: unknown[]) => mockSendCommand(...(args as [])),
-    subscribeToNotifications: async (
+    subscribeToNotifications: (
       _deviceId: string,
       onData: (data: BleData) => void,
     ) => {
       notify = onData;
       return { remove: jest.fn() };
     },
+    removeSubscription: (subscription: { remove: () => void }) =>
+      subscription.remove(),
   },
 }));
 
