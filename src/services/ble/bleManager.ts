@@ -12,6 +12,7 @@ import {
   FirmwareUpdateOutcome,
   FirmwareUpdatePhase,
 } from '../../types/firmwareUpdate';
+import { EdgeCommand } from '../../types/edgeLearning';
 import { ModelUpdateOutcome } from '../../types/modelUpdate';
 import { McubootImage, parseMcubootImage } from '../firmware/mcubootImage';
 import { advertisesAkidaAccelerator } from './akidaAcceleratorAdvertisement';
@@ -2408,9 +2409,13 @@ class BleService {
     return this.ACK_EDGE_START_COMMAND;
   }
 
-  /* ===============================
-   Send Edge Command (0/1/2/3)
-   =============================== */
+  /**
+   * How long the board gets to acknowledge an edge learning write before the
+   * app calls it unanswered. A healthy board answers within milliseconds. A
+   * board whose firmware has hung on the command never answers, and the link
+   * itself only reports the loss once its supervision timeout has run out.
+   */
+  private readonly EDGE_COMMAND_TIMEOUT_MS = 5000;
 
   private edgeAckResolver: (() => void) | null = null;
 
@@ -2420,7 +2425,13 @@ class BleService {
         if (this.edgeAckResolver === settle) {
           this.edgeAckResolver = null;
         }
-        reject(new Error('Edge ACK timeout'));
+        reject(
+          new Error(
+            `The board did not report that learning started within ${
+              timeoutMs / 1000
+            } seconds.`,
+          ),
+        );
       }, timeoutMs);
 
       const settle = () => {
@@ -2474,38 +2485,74 @@ class BleService {
     return edgeSubscription;
   };
 
-  async sendEdgeCommand(deviceId: string, value: number) {
-    try {
-      const connected = await this.isDeviceConnected(deviceId);
+  /**
+   * Write one edge learning command and wait for the board to acknowledge it.
+   *
+   * The acknowledgement is the ATT write response, so this resolves only once
+   * the board has actually taken the command; `StartLearning` also waits for
+   * the board to report that learning began. Nothing the caller shows may
+   * change before this resolves, because a board that has stopped answering
+   * must not be shown as one that took the command.
+   *
+   * @param deviceId - Board to command.
+   * @param command - Which edge learning action to request.
+   * @throws Error saying what went wrong in words meant for the user: the
+   *   board is not connected, it did not acknowledge in time, or it never
+   *   reported that learning started.
+   */
+  async sendEdgeCommand(
+    deviceId: string,
+    command: EdgeCommand,
+  ): Promise<void> {
+    const connected = await this.isDeviceConnected(deviceId);
+    if (!connected) {
+      throw new Error('The board is not connected.');
+    }
 
-      if (!connected) {
-        throw new Error('Device disconnected');
-      }
-
-      const buffer = Buffer.from([value]);
-
-      await this.bleManager.writeCharacteristicWithResponseForDevice(
+    await this.withinEdgeCommandTimeout(
+      this.bleManager.writeCharacteristicWithResponseForDevice(
         deviceId,
         this.edgeCommandServiceUUID,
         this.edgeCharUUID,
-        buffer.toString('base64'),
-      );
+        Buffer.from([command]).toString('base64'),
+      ),
+    );
 
-      // console.log('[EDGE] Command sent:', value);
-
-      // wait only for learning command
-      if (value === 1) {
-        // console.log('[EDGE] Waiting for learning ACK...');
-        await this.waitForEdgeAck();
-        // console.log('[EDGE] Learning completed');
-      }
-    } catch (error: any) {
-      // console.log('[EDGE] Command failed:', error?.message || error);
-
-      // propagate error to UI
-      throw new Error(error?.message || 'Failed to send edge command');
+    if (command === EdgeCommand.StartLearning) {
+      await this.waitForEdgeAck();
     }
   }
+
+  /**
+   * Settle with the write, or reject once the board has stayed silent for
+   * `EDGE_COMMAND_TIMEOUT_MS`.
+   *
+   * @param write - The pending characteristic write.
+   */
+  private withinEdgeCommandTimeout = async (
+    write: Promise<unknown>,
+  ): Promise<void> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const silence = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `It did not acknowledge the command within ${
+                this.EDGE_COMMAND_TIMEOUT_MS / 1000
+              } seconds.`,
+            ),
+          ),
+        this.EDGE_COMMAND_TIMEOUT_MS,
+      );
+    });
+
+    try {
+      await Promise.race([write, silence]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   private safeDelete = async (path?: string) => {
     if (!path) return;

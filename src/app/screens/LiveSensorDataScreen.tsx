@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import {
+  ActivityIndicator,
   Button,
   ProgressBar,
   Switch,
@@ -33,6 +34,11 @@ import AppControlsSection from '../../components/custom/AppControlsSection';
 import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BleService from '../../services/ble/bleManager';
+import {
+  describeEdgeCommand,
+  describeEdgeCommandFailure,
+} from '../../services/ble/edgeLearningAnnouncement';
+import { EdgeCommand } from '../../types/edgeLearning';
 import { RouteName, ROUTES } from '../../types/routes';
 import { nameForDevice, useBleStore } from '../store/useBleStore';
 import { AppType, useLiveSensorStore } from '../store/useLiveSensorStore';
@@ -185,6 +191,8 @@ const LiveSensorDataScreen = () => {
   const confidence = useBleCommandStore(s => s.confidence);
   const receivedAt = useBleCommandStore(s => s.receivedAt);
   const [edgeLearningMode, setEdgeLearningMode] = useState(false);
+  const [pendingEdgeCommand, setPendingEdgeCommand] =
+    useState<EdgeCommand | null>(null);
 
   const activeApp = useBleCommandStore(state => state.activeApp);
   const isInferenceRunning = useBleCommandStore(s => s.isInferenceRunning);
@@ -239,24 +247,54 @@ const LiveSensorDataScreen = () => {
     return () => sub.remove();
   }, [deviceId]);
 
-  const sendEdgeCmd = async (value: number) => {
+  /**
+   * Send one edge learning command and say so if the board does not take it.
+   *
+   * The controls keep showing the state the board last confirmed until this
+   * resolves, so a board that has stopped answering is never shown as one
+   * that took the command.
+   *
+   * @param command - The command to write.
+   * @returns Whether the board acknowledged it.
+   */
+  const sendEdgeCommand = async (command: EdgeCommand): Promise<boolean> => {
+    setPendingEdgeCommand(command);
     try {
-      if (__DEV__) console.log('Sending EDGE command:', value);
-
-      await BleService.sendEdgeCommand(deviceId, value);
-    } catch (err) {
-      if (__DEV__) console.error('Edge command error', err);
-
-      Alert.alert('Command Failed', 'Unable to send command to the device.');
+      await BleService.sendEdgeCommand(deviceId, command);
+      return true;
+    } catch (error) {
+      const { title, message } = describeEdgeCommandFailure(
+        command,
+        boardName,
+        error instanceof Error ? error.message : String(error),
+      );
+      Alert.alert(title, message);
+      return false;
+    } finally {
+      setPendingEdgeCommand(null);
     }
-    if (value === 2 || value === 3)
-      Alert.alert('Command Send', 'Command Send successfully');
   };
 
-  const handleMode = () => {
-    const newMode = !edgeLearningMode;
-    sendEdgeCmd(0); // Switch to inference or edge learning mode
-    setEdgeLearningMode(newMode);
+  const handleToggleEdgeLearning = async () => {
+    if (await sendEdgeCommand(EdgeCommand.ToggleLearningMode)) {
+      setEdgeLearningMode(mode => !mode);
+    }
+  };
+
+  /**
+   * Send a class command, which the board takes silently, and confirm it.
+   *
+   * @param command - Delete the current class or move to the next one.
+   */
+  const handleClassCommand = async (
+    command: EdgeCommand.DeleteClass | EdgeCommand.NextClass,
+  ) => {
+    if (await sendEdgeCommand(command)) {
+      Alert.alert(
+        'Command sent',
+        `Your ${boardName} took the ${describeEdgeCommand(command)} command.`,
+      );
+    }
   };
 
   // ─── Detection Card ─────────────────────────────────────────────────────────
@@ -455,29 +493,53 @@ const LiveSensorDataScreen = () => {
   };
 
   const renderEdgeLearning = () => {
+    const waitingForBoard = pendingEdgeCommand !== null;
     return (
       <>
         <View style={styles.edgeHeaderRow}>
           <SectionHeader icon={<Box size={20} />} title="Edge Learning" />
-          <Switch
-            value={edgeLearningMode}
-            onValueChange={handleMode}
-            trackColor={{ false: '#ccc', true: Colors.primary }}
-            thumbColor="#fff"
-          />
+          <View style={styles.edgeSwitchRow}>
+            {pendingEdgeCommand === EdgeCommand.ToggleLearningMode && (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            )}
+            <Switch
+              value={edgeLearningMode}
+              disabled={waitingForBoard}
+              onValueChange={handleToggleEdgeLearning}
+              trackColor={{ false: '#ccc', true: Colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
         </View>
+        {waitingForBoard && (
+          <Text style={styles.edgeWaiting}>
+            Waiting for {boardName} to confirm…
+          </Text>
+        )}
         {edgeLearningMode && (
           <View style={styles.trainingButtons}>
-            <Button mode="contained" onPress={() => sendEdgeCmd(1)}>
+            <Button
+              mode="contained"
+              loading={pendingEdgeCommand === EdgeCommand.StartLearning}
+              disabled={waitingForBoard}
+              onPress={() => sendEdgeCommand(EdgeCommand.StartLearning)}
+            >
               Start Learning
             </Button>
-            <Button mode="contained" onPress={() => sendEdgeCmd(3)}>
+            <Button
+              mode="contained"
+              loading={pendingEdgeCommand === EdgeCommand.NextClass}
+              disabled={waitingForBoard}
+              onPress={() => handleClassCommand(EdgeCommand.NextClass)}
+            >
               Next Class
             </Button>
             <Button
               mode="contained"
               buttonColor={Colors.error}
-              onPress={() => sendEdgeCmd(2)}
+              loading={pendingEdgeCommand === EdgeCommand.DeleteClass}
+              disabled={waitingForBoard}
+              onPress={() => handleClassCommand(EdgeCommand.DeleteClass)}
             >
               Delete Class
             </Button>
@@ -764,6 +826,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  edgeSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  edgeWaiting: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: Colors.text.secondary,
     marginTop: 4,
   },
 
