@@ -233,6 +233,30 @@ overlay on the main one, declaring
 manifest sets neither, so no `tools:replace`, and therefore no `tools`
 namespace, is required.
 
+## The custom recipe a sideloaded debug build needs
+
+A debug APK built with a plain `./gradlew assembleDebug` still needs Metro
+reachable at install time: the React Native Gradle plugin only registers a
+JavaScript-bundling task for a variant that is *not* listed in the `react`
+block's `debuggableVariants` in `android/app/build.gradle`, which by default
+is just `["debug"]`. Handing someone that APK with no dev server running
+reproduces exactly the failure "The app is offline by design" describes for a
+missing debug manifest: a red screen, except this one reads
+`Unable to load script` for the opposite reason, no JavaScript is bundled in
+at all rather than no permission to fetch it.
+
+`scripts/build-standalone-debug-apk.sh` is how to hand someone a debug build
+that runs with no cable, no dev server and no laptop. It runs
+`react-native bundle` into `android/app/src/main/assets` and
+`android/app/src/main/res` itself before calling `assembleDebug`. That works
+without touching `debuggableVariants`, because the Gradle plugin's own
+bundling task is the only thing that would otherwise remove what the script
+just placed there, and that task does not exist for a debuggable variant. A
+normal `npm run android` against a running Metro is unaffected: nothing here
+changes what Gradle does, only what is already sitting in those two folders
+before it runs. The generated bundle and image assets are gitignored, so
+running the script leaves nothing to commit.
+
 ## The only truth about permissions is the merged manifest
 
 The app ships exactly three user-facing permissions, `BLUETOOTH_SCAN` with

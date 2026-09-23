@@ -309,6 +309,15 @@ Install:
 adb install android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+This APK still needs a Metro dev server reachable at install time: a debug
+build fetches its JavaScript at run time instead of bundling it in, and
+without Metro running it red-screens with `Unable to load script`. To hand
+someone a debug build they can run with no cable, no dev server and no
+laptop, build it with `scripts/build-standalone-debug-apk.sh` instead, which
+bundles the JavaScript in first. See "The custom recipe a sideloaded debug
+build needs" in `AGENTS.md` for why a plain `assembleDebug` cannot do this on
+its own.
+
 ### 🔹 Release APK
 
 #### Generate Keystore (one-time)
