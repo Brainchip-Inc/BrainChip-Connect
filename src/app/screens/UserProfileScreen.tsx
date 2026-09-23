@@ -22,6 +22,7 @@ import BleService from '../../services/ble/bleManager';
 import { RouteName, ROUTES } from '../../types/routes';
 import { useBleStore } from '../store/useBleStore';
 import { Colors } from '../theme/theme';
+import BleConnectionHelper from '../utils/BleConnectionHelper';
 
 const Section = ({ title, children }: any) => (
   <View style={{ marginBottom: 20 }}>
@@ -76,7 +77,7 @@ const UserProfileScreen = ({ navigation }: any) => {
                 [
                   {
                     text: 'OK',
-                    onPress: () => navigation.navigate('DeviceDiscovery'),
+                    onPress: BleConnectionHelper.returnToDeviceList,
                   },
                 ],
               );

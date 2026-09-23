@@ -170,6 +170,24 @@ Two things about the preview are deliberate and look like bugs:
   only a change of reading for such a board, and `useEventStore` writes the
   file at most once a second; `__tests__/detectionFlood.test.ts` pins both.
 
+## One device session per connection, started in one place
+
+`followConnection` in `useBleCommandStore.ts` is the only thing that starts or
+ends a device session: it follows `connectedDevice` in `useBleStore`, and
+`App.tsx` calls it once. Screens read the session and never start one. A
+screen effect used to do this, and disconnecting from the Profile screen pushed
+the device list over the old dashboard instead of resetting to it, so every
+reconnect had one more mounted dashboard starting a session; and because
+`startNotifications` checked for an existing monitor before an await and
+recorded the new one after it, each of those starts opened its own monitor.
+Every notification was then parsed, stored and rendered once per monitor,
+which repeated history entries, garbled the application list, and slowed the
+app a little more with each cycle until the detection banner looked frozen.
+`__tests__/deviceSession.test.ts` pins one monitor across connect, disconnect
+and reconnect. Anything that leaves the connected board goes through
+`BleConnectionHelper.returnToDeviceList`, a navigation reset, never a `navigate`
+to the device list.
+
 ## Starting an application is a model swap, and the app shows the wait
 
 Only one model fits in the Akida fabric, so Run Application on a

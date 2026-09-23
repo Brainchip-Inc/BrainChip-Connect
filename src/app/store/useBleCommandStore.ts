@@ -3,7 +3,7 @@ import { Subscription } from 'react-native-ble-plx';
 import BleService from '../../services/ble/bleManager';
 import { BleCommand } from '../../services/ble/bleCommands';
 import { BleData } from '../../types/bleData';
-import { BLEDevice } from './useBleStore';
+import { BLEDevice, useBleStore } from './useBleStore';
 import { useEventsStore } from './useEventStore';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 import { AppsList, WavePayload } from '../../services/ble/bleParser';
@@ -155,7 +155,7 @@ interface BleCommandState {
   endDeviceSession: () => void;
 
   // 🔹 Internal
-  startNotifications: (deviceId: string) => Promise<void>;
+  startNotifications: (deviceId: string) => void;
   stopNotifications: () => void;
 
   // 🔹 Commands
@@ -233,7 +233,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     // the dashboard's Start/Stop Inference control will drive it.
     set({ connectedDevice: device, isInferenceRunning: true });
 
-    await get().startNotifications(device.id);
+    get().startNotifications(device.id);
 
     // The serial is only available over the connection, so ask for it as soon
     // as there is one. Writes are serialised by the command queue, so this
@@ -258,6 +258,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       activeApp: null,
       latestDetection: undefined,
       confidence: undefined,
+      receivedAt: null,
       kwsConfig: {},
       kwsConfigDraft: {},
       kwsConfigPending: new Set<KwsParamId>(),
@@ -271,12 +272,14 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     previewAssembler.reset();
   },
 
-  // ✅ Start subscription once
-  startNotifications: async (deviceId: string) => {
+  // Opens the one notification monitor a session has. Checking for an
+  // existing one and recording the new one happen in the same synchronous
+  // step, so two starts in the same tick still end with one monitor.
+  startNotifications: (deviceId: string) => {
     if (get().subscription) return;
 
     try {
-      const sub = await BleService.subscribeToNotifications(
+      const sub = BleService.subscribeToNotifications(
         deviceId,
         (data: BleData) => {
           if (!data) return;
@@ -600,11 +603,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     const sub = get().subscription;
 
     if (sub) {
-      try {
-        sub.remove();
-      } catch {
-        if (__DEV__) console.warn('Subscription already removed');
-      }
+      BleService.removeSubscription(sub);
     }
     set({ subscription: null });
   },
@@ -932,3 +931,25 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
     }
   },
 }));
+
+/**
+ * Keep the device session in step with the connection.
+ *
+ * One session exists per connected board: it starts when a board connects,
+ * ends when the board goes, and moves when the board comes back under another
+ * address. Screens read the session and never start one, so however many of
+ * them are mounted, the board is listened to exactly once.
+ *
+ * @returns A function that stops following the connection.
+ */
+export const followConnection = (): (() => void) =>
+  useBleStore.subscribe((state, previous) => {
+    if (state.connectedDevice === previous.connectedDevice) {
+      return;
+    }
+    const session = useBleCommandStore.getState();
+    session.endDeviceSession();
+    if (state.connectedDevice) {
+      session.startDeviceSession(state.connectedDevice);
+    }
+  });

@@ -10,7 +10,7 @@ import {
   LayoutDashboard,
   Mic,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -157,16 +157,6 @@ const DeviceApplicationsScreen: React.FC = () => {
     if (parsed <= 50) return Colors.warning;
     return Colors.success;
   };
-
-  useEffect(() => {
-    if (!connectedDevice) return;
-
-    useBleCommandStore.getState().startDeviceSession(connectedDevice);
-
-    return () => {
-      useBleCommandStore.getState().endDeviceSession();
-    };
-  }, [connectedDevice]);
 
   const handleDeploy = async (app: AppsList) => {
     if (!deviceId) {

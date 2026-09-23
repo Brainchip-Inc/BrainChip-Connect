@@ -34,13 +34,15 @@ jest.mock('../src/services/ble/bleManager', () => ({
   __esModule: true,
   default: {
     sendCommand: jest.fn(async () => {}),
-    subscribeToNotifications: async (
+    subscribeToNotifications: (
       _deviceId: string,
       onData: (data: BleData) => void,
     ) => {
       notify = onData;
       return { remove: jest.fn() };
     },
+    removeSubscription: (subscription: { remove: () => void }) =>
+      subscription.remove(),
   },
 }));
 
@@ -90,7 +92,7 @@ beforeEach(async () => {
     connectedDevice: BOARD,
     latestDetection: 'Waiting...',
   });
-  await useBleCommandStore.getState().startNotifications(BOARD.id);
+  useBleCommandStore.getState().startNotifications(BOARD.id);
 });
 
 afterEach(async () => {

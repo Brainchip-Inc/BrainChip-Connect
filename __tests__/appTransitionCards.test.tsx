@@ -33,7 +33,8 @@ jest.mock('../src/services/ble/bleManager', () => ({
   __esModule: true,
   default: {
     sendCommand: jest.fn(async () => {}),
-    subscribeToNotifications: jest.fn(async () => ({ remove: jest.fn() })),
+    subscribeToNotifications: jest.fn(() => ({ remove: jest.fn() })),
+    removeSubscription: jest.fn(),
     subscribeToEdgeLearningAck: jest.fn(() => ({ remove: jest.fn() })),
     getAckEdgeMode: jest.fn(() => 'edge'),
     getAckEdgeStartMode: jest.fn(() => 'edge-start'),
