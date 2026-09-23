@@ -7,9 +7,6 @@ interface SensorState {
   isStreaming: boolean;
   appType: AppType | null;
 
-  keywordConfidence: number | undefined;
-  detectedWord: string | undefined;
-
   anomalyScore: number;
   systemStatus: string;
 
@@ -25,9 +22,6 @@ interface SensorState {
 export const useLiveSensorStore = create<SensorState>((set, _get) => ({
   isStreaming: false,
   appType: null,
-
-  keywordConfidence: undefined,
-  detectedWord: 'Waiting',
 
   anomalyScore: 12,
   systemStatus: 'Normal',
@@ -60,8 +54,6 @@ export const useLiveSensorStore = create<SensorState>((set, _get) => ({
     // if (!get().isStreaming) return; // need to confirm once
 
     set({
-      detectedWord: useBleCommandStore.getState().latestDetection,
-      keywordConfidence: useBleCommandStore.getState().confidence,
       anomalyScore: Math.random() * 30,
 
       micWave: useBleCommandStore.getState().micWave ?? new Int16Array(),

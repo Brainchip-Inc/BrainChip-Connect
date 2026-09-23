@@ -1,15 +1,16 @@
 /**
- * Drives the BLE command store with a board that reports a detection for
- * every frame it scores, and checks that the app stays cheap enough to keep
- * answering the user.
+ * Drives the BLE command store with a board that reports detections, and
+ * checks that every report reaches the screen and the history while the
+ * history file is written no more than once a second.
  *
- * The human detection board sends "person" or "no_person" about eleven times
- * a second for as long as it runs. Every report used to rewrite the whole
- * event history file, which was built for a keyword board that speaks a few
- * times a minute, and at eleven writes a second the app stopped answering
- * touches within a minute. These cases pin the two rules that keep it
- * answering: only a change of reading is an event, and the history is written
- * at most once a second however many events arrive.
+ * Both demos on a BrainBoard1500 report events: a keyword when one is heard, a
+ * person when one arrives, and nothing in between. Every report is therefore a
+ * history entry, including the same reading twice running, which for the
+ * vision model is a person who left and came back. What is kept from an
+ * earlier board that reported every frame is the write rule: the file holds
+ * the whole history, and rewriting it per report saturated the JavaScript
+ * thread until the app stopped answering touches, so however many reports
+ * arrive in a second, the file is written once.
  *
  * @format
  */
@@ -46,10 +47,7 @@ jest.mock('../src/services/ble/bleManager', () => ({
   },
 }));
 
-const {
-  useBleCommandStore,
-  deservesHistoryEntry,
-} = require('../src/app/store/useBleCommandStore');
+const { useBleCommandStore } = require('../src/app/store/useBleCommandStore');
 const {
   useEventsStore,
   SAVE_DELAY_MS,
@@ -63,7 +61,7 @@ const BOARD = {
   serviceUUIDs: null,
 };
 
-/** Reports per second the human detection board was measured sending. */
+/** Reports per second an earlier human detection board was measured sending. */
 const REPORTS_PER_SECOND = 11;
 
 /** A detection text frame, as the parser hands it to the store. */
@@ -84,7 +82,7 @@ const settle = async () => {
   await Promise.resolve();
 };
 
-beforeEach(async () => {
+beforeEach(() => {
   jest.useFakeTimers();
   mockWriteFile.mockClear();
   useEventsStore.setState({ events: [], todayEvents: [] });
@@ -101,32 +99,23 @@ afterEach(async () => {
   jest.useRealTimers();
 });
 
-describe('a board that reports what it sees in every frame', () => {
+describe('a board that reports a person when one arrives', () => {
   beforeEach(() => {
     useBleCommandStore.setState({ activeApp: 'vision' });
   });
 
-  it('shows every report but records only a change of reading', async () => {
-    // Half a minute of an empty room, one person walking through, and the
-    // room empty again: three readings, three events, 330 reports.
-    const seconds = 30;
-    for (let second = 0; second < seconds; second++) {
-      const label = second >= 10 && second < 20 ? 'person' : 'no_person';
-      for (let frame = 0; frame < REPORTS_PER_SECOND; frame++) {
-        notify(report(label, 90 + frame));
-      }
-      expect(useBleCommandStore.getState().latestDetection).toBe(label);
-      expect(useBleCommandStore.getState().confidence).toBe(
-        90 + REPORTS_PER_SECOND - 1,
-      );
-      jest.advanceTimersByTime(1000);
-      await settle();
-    }
+  it('shows and records every report, including the same person coming back', () => {
+    notify(report('person', 66.16));
+    notify(report('person', 96.09));
+    notify(report('person', 54.54));
 
+    expect(useBleCommandStore.getState().latestDetection).toBe('person');
+    expect(useBleCommandStore.getState().confidence).toBe(54.54);
+    expect(useBleCommandStore.getState().receivedAt).toBeInstanceOf(Date);
     expect(recorded().map((event: { title: string }) => event.title)).toEqual([
-      'no_person',
       'person',
-      'no_person',
+      'person',
+      'person',
     ]);
   });
 
@@ -148,23 +137,22 @@ describe('a board that reports what it sees in every frame', () => {
     expect(JSON.parse(written)[0].items).toHaveLength(REPORTS_PER_SECOND);
   });
 
-  it('keeps the history file bounded by the changes over a long run', async () => {
-    // Ten minutes at eleven reports a second is 6,600 reports. Written per
-    // report that is 6,600 rewrites of a growing file; as changes, it is one.
-    for (let second = 0; second < 600; second++) {
+  it('keeps writing once a second however long the reports go on', async () => {
+    const seconds = 60;
+    for (let second = 0; second < seconds; second++) {
       for (let frame = 0; frame < REPORTS_PER_SECOND; frame++) {
-        notify(report('no_person'));
+        notify(report('person'));
       }
       jest.advanceTimersByTime(1000);
       await settle();
     }
 
-    expect(recorded()).toHaveLength(1);
-    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+    expect(recorded()).toHaveLength(seconds * REPORTS_PER_SECOND);
+    expect(mockWriteFile).toHaveBeenCalledTimes(seconds);
   });
 });
 
-describe('a board that speaks only when it hears something', () => {
+describe('a board that reports a keyword when it hears one', () => {
   beforeEach(() => {
     useBleCommandStore.setState({ activeApp: 'keyword' });
   });
@@ -179,15 +167,6 @@ describe('a board that speaks only when it hears something', () => {
       'yes',
       'yes',
     ]);
-  });
-
-  it('is the rule the store applies, spelled out', () => {
-    expect(deservesHistoryEntry('keyword', 'yes', 'yes')).toBe(true);
-    expect(deservesHistoryEntry('vision', 'no_person', 'no_person')).toBe(
-      false,
-    );
-    expect(deservesHistoryEntry('vision', 'no_person', 'person')).toBe(true);
-    expect(deservesHistoryEntry('vision', undefined, 'no_person')).toBe(true);
   });
 });
 

@@ -301,7 +301,7 @@ describe('the human detection dashboard', () => {
     const shown = textOf(renderer);
     expect(shown).toContain('Camera');
     expect(shown).toContain('Start streaming to see what the camera sees.');
-    expect(shown).toContain('No frame scored yet');
+    expect(shown).toContain('No person detected yet');
     expect(shown).not.toContain('Live Camera Feed');
     await unmount(renderer);
   });
