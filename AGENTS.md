@@ -203,6 +203,33 @@ show the wait from; nothing is timed on the phone. `DEPLOY_ACK_TIMEOUT_MS`
 there is what the load has to fit inside, so shortening it breaks the
 BrainBoard1500 before it breaks anything else.
 
+## Edge learning commands are button presses, and the board's answer is the write response
+
+The four codes in `src/types/edgeLearning.ts` are not instructions: the
+AkidaTag firmware feeds each one into the same state machine as a press of
+its physical buttons, so code 0 toggles between inference and class selection
+in either direction and codes 1 to 3 mean nothing outside class selection.
+The app cannot read that state back, so the only proof the board took a
+command is the ATT write response, and `sendEdgeCommand` in
+`src/services/ble/bleManager.ts` bounds that wait with
+`EDGE_COMMAND_TIMEOUT_MS`. The Edge Learning switch and buttons on the
+keyword dashboard change only after it resolves, and
+`describeEdgeCommandFailure` is the one place a command the board did not
+take is put into words; `__tests__/edgeLearningControls.test.tsx` and
+`__tests__/edgeCommandTimeout.test.ts` pin both.
+
+The timeout exists because of a known fault in the AkidaTag firmware, main
+lineage 1.2.0+0 as of September 2026: code 0 never gets a write response.
+With keyword inference running the handler hangs and the board's 8 s
+watchdog reboots it, so the phone sees a link loss about 12 s after the tap;
+with inference stopped the handler dereferences a null state entry and the
+board reboots at once, a link loss 4 s after the tap. The board comes back
+advertising on its own each time. Both paths are reproducible with a plain
+BLE client and no app, and with the `kws_edge_learning` package installed, so
+nothing on this side can make edge learning work until that firmware is
+fixed; the app's job is to say the board did not answer instead of showing
+the switch on.
+
 ## The app is offline by design
 
 There is no backend. The app was cut over from an internal VPN-only server
