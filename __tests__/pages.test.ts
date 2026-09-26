@@ -1,7 +1,7 @@
 /**
  * Pins the hosted pages to the text the app ships.
  *
- * Google Play's listing points at `docs/pages/privacy-policy.html`, so that
+ * Google Play's listing points at the site's `privacy-policy.html`, so that
  * page is a published promise while the app screen reads
  * `src/app/content/privacyPolicy.ts`. Two copies of a legal document drift
  * silently and nothing else in the build would notice, so this test is the
@@ -14,10 +14,10 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-/** One bundled legal document, rendered to the page committed under `docs/pages/`. */
+/** One bundled legal document, rendered to the page committed in the site. */
 interface RenderedPage {
   pageName: string;
-  html: string;
+  markdown: string;
 }
 
 const {
@@ -29,21 +29,21 @@ const {
 };
 
 describe('hosted pages', () => {
-  for (const { pageName, html } of renderPages()) {
+  for (const { pageName, markdown } of renderPages()) {
     it(`${OUTPUT_DIRECTORY}/${pageName} matches the text bundled in the app`, () => {
       const committed = readFileSync(
         join(__dirname, '..', OUTPUT_DIRECTORY, pageName),
         'utf8',
       );
-      expect(committed).toBe(html);
+      expect(committed).toBe(markdown);
     });
   }
 
   it('publishes the wording of the policy rather than a summary of it', () => {
     const [privacyPolicy] = renderPages();
-    expect(privacyPolicy.html).toContain(
+    expect(privacyPolicy.markdown).toContain(
       'We do not collect, store, or transmit your personal data to external servers.',
     );
-    expect(privacyPolicy.html).toContain('We do not share, sell, or transmit');
+    expect(privacyPolicy.markdown).toContain('We do not share, sell, or transmit');
   });
 });
