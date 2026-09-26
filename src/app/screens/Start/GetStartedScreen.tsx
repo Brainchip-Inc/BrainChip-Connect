@@ -4,11 +4,8 @@ import { Text, Button } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Activity, Bluetooth, Download, LayoutGrid } from 'lucide-react-native';
 
-import BLE from '../../assets/images/00_Start/BLE.svg';
-import AIAppControl from '../../assets/images/00_Start/AIAppControl.svg';
-import OTA from '../../assets/images/00_Start/OTA.svg';
-import SensorData from '../../assets/images/00_Start/SensorData.svg';
 import { RootParamList } from '../../../../App';
 import { getAcceptanceState } from '../../store/acceptanceStorage';
 import BleService from '../../../services/ble/bleManager';
@@ -17,24 +14,26 @@ const FEATURES = [
   {
     title: 'Bluetooth Low Energy',
     subtitle: 'Wireless connectivity optimized for minimal power consumption',
-    Icon: BLE,
+    Icon: Bluetooth,
   },
   {
     title: 'AI Application Control',
     subtitle: 'Deploy and manage neuromorphic models on device',
-    Icon: AIAppControl,
+    Icon: LayoutGrid,
   },
   {
     title: 'Real-time Sensor Data',
     subtitle: 'Stream and visualize sensor readings with low latency',
-    Icon: SensorData,
+    Icon: Activity,
   },
   {
     title: 'Over-the-Air Updates',
     subtitle: 'Seamless firmware updates without physical access',
-    Icon: OTA,
+    Icon: Download,
   },
 ];
+
+const FEATURE_ICON_STROKE_WIDTH = 1.5;
 
 const GetStartedScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
@@ -57,6 +56,7 @@ const GetStartedScreen: React.FC = () => {
   const cardGap = isVeryCompact ? 6 : isCompact ? 8 : 12;
   const cardVerticalPadding = isVeryCompact ? 8 : isCompact ? 10 : 14;
   const iconBoxSize = isVeryCompact ? 40 : isCompact ? 48 : 56;
+  const iconSize = isVeryCompact ? 24 : isCompact ? 28 : 32;
 
   return (
     <View
@@ -117,7 +117,11 @@ const GetStartedScreen: React.FC = () => {
                     { width: iconBoxSize, height: iconBoxSize },
                   ]}
                 >
-                  <Icon />
+                  <Icon
+                    size={iconSize}
+                    color="#000"
+                    strokeWidth={FEATURE_ICON_STROKE_WIDTH}
+                  />
                 </View>
 
                 <View style={styles.cardText}>

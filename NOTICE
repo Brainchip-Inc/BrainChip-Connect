@@ -174,9 +174,6 @@ The following are BrainChip work, included under this repository's licence.
     src/app/assets/images/00_Start/BrainChipLogo.svg, BrainChipLogo.png
     src/app/assets/images/00_Start/NeuronLogo.svg, NeuronLogo.png
     src/app/assets/images/00_Start/Logo.png
-    src/app/assets/images/00_Start/AIAppControl.svg, BLE.svg, OTA.svg,
-      SensorData.svg: the four Get Started illustrations, each an exported
-      design frame wrapping a raster image.
     android/app/src/main/res/mipmap-*/ic_launcher*.png
     ios/BrainChipConnect/Images.xcassets/AppIcon.appiconset/Icon-*.png
 
