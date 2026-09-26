@@ -50,11 +50,12 @@ what broke is enough for us to work from.
 
 ## Questions and ideas
 
-TBD: Developer Hub link. The BrainChip Developer Hub has the tools, model zoo and
-documentation for the wider Akida platform.
-
-TBD: community link. The BrainChip community is the place for questions, ideas,
-and showing us what you have built.
+The [BrainChip Developer Hub](https://developer.brainchip.com/signup/) has the
+tools, model zoo and documentation for the wider Akida platform, and
+[AkidaTag's own page](https://developer.brainchip.com/akida-tag/) there is the
+place to start with the board. The
+[BrainChip Discord](https://discord.com/invite/9bmd9g52vn) is the place for
+questions, ideas, and showing us what you have built.
 
 ## Building on this work
 

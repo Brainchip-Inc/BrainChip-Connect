@@ -14,12 +14,10 @@
   <img src="https://img.shields.io/badge/hardware-AKD1500%20boards-FF6A00.svg" alt="Hardware: AKD1500 boards"/>
 </p>
 
-<!-- TBD: the three link targets below wait on confirmation of the public
-     Developer Hub page, the community link and the shop or preorder page. -->
 <p align="center">
-  <a href="TBD"><img src="https://img.shields.io/badge/BrainChip%20Developer%20Hub-TBD-0061ED.svg" alt="BrainChip Developer Hub"/></a>
-  <a href="TBD"><img src="https://img.shields.io/badge/Community-TBD-5865F2.svg" alt="BrainChip community"/></a>
-  <a href="TBD"><img src="https://img.shields.io/badge/Shop-TBD-FF6A00.svg" alt="BrainChip Shop"/></a>
+  <a href="https://developer.brainchip.com/akida-tag/"><img src="https://img.shields.io/badge/BrainChip%20Developer%20Hub-AkidaTag-0061ED.svg" alt="AkidaTag on the BrainChip Developer Hub"/></a>
+  <a href="https://discord.com/invite/9bmd9g52vn"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2.svg?logo=discord&logoColor=white" alt="Join the BrainChip Discord"/></a>
+  <a href="https://play.google.com/store/apps/details?id=com.brainchip.connect"><img src="https://img.shields.io/badge/Google%20Play-pre--register-34A853.svg?logo=googleplay&logoColor=white" alt="Pre-register on Google Play"/></a>
 </p>
 
 # BrainChip Connect: the companion app for Akida edge AI devices
@@ -39,8 +37,11 @@ BrainChip Connect is the phone app for BrainChip's edge AI devices built on the
 Energy**, shows what the board's AI application reports, switches the board
 between applications, and sends firmware and AI model updates to it from a
 package on the phone. It is the companion app for the
-**[AkidaTag](https://github.com/Brainchip-Inc/AkidaTag)**, and it recognises any
-board that advertises the AKD1500 accelerator.
+**[AkidaTag](https://developer.brainchip.com/akida-tag/)**, and it recognises any
+board that advertises the AKD1500 accelerator, including the
+[BrainBoard1500](https://github.com/Brainchip-Inc/brainboard1500_arduino_library)
+carried by an Arduino Nicla Vision, whose keyword spotting and person detection
+demo it drives for reference.
 
 > **The app is offline by design.** There is no account, no server and no
 > download; released builds declare no internet permission and communicate
@@ -61,7 +62,7 @@ released once there is an Apple developer account (see
   application loads its model into the accelerator; the app shows that wait.
 - **See what the board detects.** Keyword spotting and person detection
   reports are shown as they arrive and kept as a history, with a live camera
-  preview for the vision demo.
+  preview for the BrainBoard1500 vision demo.
 - **Edge learning controls.** The keyword demo's on-device learning is driven
   from the phone with the same commands as the board's physical buttons.
 - **Firmware updates.** A signed MCUboot firmware image is chosen from the
@@ -69,9 +70,8 @@ released once there is an Apple developer account (see
 - **AI model updates.** A model package is unpacked on the phone and streamed
   to the board with the transfer protocol the firmware specifies, and the app
   reports whether the board stored it and whether it runs.
-- **Device settings and status.** Device details, power mode, sensor
-  configuration, factory reset and unpairing, with the terms and privacy
-  policy bundled in the app.
+- **Device settings and status.** Device details, power mode, factory reset
+  and unpairing, with the terms and privacy policy bundled in the app.
 
 ## How it works
 
@@ -134,7 +134,7 @@ is checked in. The packages the app imports directly:
 | `@react-native-documents/picker`, `react-native-fs` | Picking and reading firmware and model packages              |
 | `react-native-zip-archive`, `js-yaml`               | Unpacking a model package and reading its `info.yaml`        |
 | `crc-32`, `buffer`, `cbor-x`, `react-native-base64` | Byte handling: CRCs, framing and encoding for the wire       |
-| `@react-native-community/slider`                    | The sensor configuration controls                            |
+| `@react-native-community/slider`                    | Slider control                                               |
 
 `NOTICE` lists every fetched component and its licence.
 
@@ -252,10 +252,19 @@ GitHub release. The version comes from the root `VERSION` file alone.
 
 ## Get the hardware
 
-- **AkidaTag**, the board this app ships for: firmware and documentation in
-  the [AkidaTag repository](https://github.com/Brainchip-Inc/AkidaTag).
-  TBD: preorder page.
-- **AKD1500**, the accelerator every supported board carries. TBD: shop link.
+- **AkidaTag**, the board this app ships for. Its page on the
+  [BrainChip Developer Hub](https://developer.brainchip.com/akida-tag/) is the
+  place to start, and its firmware and documentation are in the
+  [AkidaTag repository](https://github.com/Brainchip-Inc/AkidaTag).
+- **BrainBoard1500 with an Arduino Nicla Vision**, for demonstration and
+  reference. The
+  [BrainBoard1500 Arduino library](https://github.com/Brainchip-Inc/brainboard1500_arduino_library)
+  carries the `bb15_nicla_vision_connect` example, which advertises as
+  `BrainBoard1500`, takes its keyword spotting and person detection models from
+  this app over Bluetooth, and reports detections and a camera preview back to
+  it. Its README specifies the preview frame the app draws.
+- **AKD1500**, the accelerator every supported board carries. The Developer
+  Hub has the tools and the model zoo for it.
 
 ## Community and support
 
@@ -263,9 +272,13 @@ Hit a problem connecting to a board, or anything else in this repository?
 **[Open an issue](https://github.com/Brainchip-Inc/BrainChip-Connect/issues)**
 and say what you did, what happened, and which phone and board you used.
 
-- TBD: Developer Hub link, for tools, the model zoo and Akida Cloud
-- TBD: community link, for discussion and community help
-- TBD: Google Play listing
+- [Sign up for the BrainChip Developer Hub](https://developer.brainchip.com/signup/)
+  for tools, the model zoo and documentation for the wider Akida platform
+- [Join the BrainChip Discord](https://discord.com/invite/9bmd9g52vn) for
+  discussion and community help
+- [Pre-register on Google Play](https://play.google.com/store/apps/details?id=com.brainchip.connect)
+  to be told when the app is released; the listing is pre-registration only
+  for now, so the app cannot be installed from it yet
 - [brainchip.com](https://brainchip.com) for the company, the products and how
   to get in touch
 
@@ -273,6 +286,13 @@ and say what you did, what happened, and which phone and board you used.
 
 This repository is licensed under the **Apache License 2.0**. See
 [LICENSE](LICENSE).
+
+The app and its source are published as a reference: something to learn from,
+to reuse in an app of your own that talks to these boards, or to build a demo
+on. As the licence sets out in its sections 7 and 8, they are provided **as
+is**, without warranty of any kind, and BrainChip is not liable for what is
+built from them or how they are redistributed; using or redistributing them is
+at your own risk.
 
 It checks in no third-party library. `npm ci`, Gradle and CocoaPods fetch what
 the app is built from, and each component keeps its own terms. The two patches
