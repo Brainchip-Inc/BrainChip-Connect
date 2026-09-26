@@ -1,0 +1,28 @@
+---
+title: BrainChip Connect
+description: Documentation for BrainChip Connect, the companion app for AkidaTag.
+template: splash
+hero:
+  title: BrainChip Connect documentation
+  tagline: The companion phone app for AkidaTag. Pick the guide for what you are doing.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <LinkCard
+    title="End-user guide"
+    description="Install the app, connect an AkidaTag, run the demos, and update its firmware and models over Bluetooth."
+    href="user-guide/"
+  />
+  <LinkCard
+    title="Developer guide"
+    description="Build and run the app from source, learn how it talks to AkidaTag, and extend it with your own screens and demos."
+    href="developer-guide/"
+  />
+  <LinkCard
+    title="Privacy Policy"
+    description="The policy the app shows on first run and from the Profile screen, word for word."
+    href="privacy-policy.html"
+  />
+</CardGrid>
