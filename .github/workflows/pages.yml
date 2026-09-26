@@ -1,12 +1,13 @@
-# Publishes the app's pages to GitHub Pages, which is where Google Play's
-# required privacy policy URL points.
+# Publishes the documentation site to GitHub Pages, which is where Google
+# Play's required privacy policy URL points.
 #
-# Only `docs/pages/` is the website root; other documentation is not deployed.
+# Only the built output of `site/` is the website root; other documentation
+# is not deployed.
 #
-# The pages are rendered here rather than copied from the checkout. The hosted
-# policy and the screen inside the app are two copies of one text, and rendering
-# is what keeps them the same; a run whose render disagrees with the committed
-# pages fails instead of publishing either version.
+# The Privacy Policy page is rendered here rather than taken from the checkout.
+# The hosted policy and the screen inside the app are two copies of one text,
+# and rendering is what keeps them the same; a run whose render disagrees with
+# the committed page fails instead of publishing either version.
 
 name: Publish pages
 
@@ -14,11 +15,11 @@ on:
   push:
     branches: [main]
     paths:
+      - 'site/**'
       - 'src/app/content/**'
       - 'src/types/legalContent.ts'
       - 'scripts/render-pages.js'
-      - 'scripts/pageTemplate.js'
-      - 'docs/pages/**'
+      - 'scripts/legalMarkdown.js'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -30,7 +31,7 @@ concurrency:
 
 jobs:
   build:
-    name: Render the pages
+    name: Build the site
     runs-on: ubuntu-latest
     # The job that runs `npm ci`, and so third-party install scripts, can read
     # the repository and nothing else. Publishing rights live in `deploy`,
@@ -45,34 +46,44 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            site/package-lock.json
 
-      - name: Install dependencies
+      - name: Install the app's dependencies
         run: npm ci
 
-      - name: Render the pages
+      - name: Render the legal pages
         run: npm run pages:render
 
       - name: Check the committed pages match the render
         run: |
           set -eu
-          drift=$(git status --porcelain -- docs/pages)
+          drift=$(git status --porcelain -- site/src/content/docs)
           if [ -n "$drift" ]; then
-            echo "::error::docs/pages does not match what the renderer produces. Run 'npm run pages:render' and commit the result."
+            echo "::error::The committed legal pages do not match what the renderer produces. Run 'npm run pages:render' and commit the result."
             echo "$drift"
-            git diff -- docs/pages
+            git diff -- site/src/content/docs
             exit 1
           fi
+
+      - name: Install the site's dependencies
+        working-directory: site
+        run: npm ci
+
+      - name: Build the site
+        working-directory: site
+        run: npm run build
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 
-      - name: Upload the pages
+      - name: Upload the site
         uses: actions/upload-pages-artifact@v5
         with:
-          path: docs/pages
+          path: site/dist
 
   deploy:
     name: Publish to GitHub Pages
