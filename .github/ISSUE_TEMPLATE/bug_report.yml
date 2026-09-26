@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in the app or the repository does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A clear description of what broke is enough to work from; you do not need to diagnose the cause.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: Samsung Galaxy S23 FE, Android 15
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version and build
+      description: Shown on the About screen inside the app.
+      placeholder: 1.0.0, build 2026.08.26
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Board and firmware version
+      description: Which board you were connected to, and its firmware version if you know it.
+      placeholder: AkidaTag, firmware 1.2.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt
+      description: The smallest `adb logcat` excerpt that shows the failure.
+      render: text

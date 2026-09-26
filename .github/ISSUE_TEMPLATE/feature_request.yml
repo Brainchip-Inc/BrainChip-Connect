@@ -1,0 +1,36 @@
+name: Feature request
+description: Something the app could do, or do better.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pull requests that add value to the app are welcome, and an issue first is the quickest way to find out whether a change is a fit. See CONTRIBUTING.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would like the app to do
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: What it lets you do that you cannot do today.
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: Which board this is for, if it is specific to one.
+      placeholder: AkidaTag
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to build it?
+      options:
+        - I would like to open a pull request for this
+        - I am suggesting it for the maintainers
+    validations:
+      required: true
