@@ -1,0 +1,289 @@
+BrainChip Connect
+Copyright [TBD: copyright holder and year]
+
+This product includes software developed at [TBD: copyright holder].
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+BrainChip Connect is a React Native app. The repository ships the app's own
+source, its native Android and iOS projects, and a small number of files that
+came from elsewhere or carry their own terms; those are listed first. Every
+library the app is built from is fetched at build time and is not
+redistributed by this repository; those are listed afterwards, and each keeps
+its own terms.
+
+--------------------------------------------------------------------------------
+Patches to third-party packages
+--------------------------------------------------------------------------------
+
+`patches/` holds two patch-package patches. `npm ci` applies them to the
+installed copies of the packages named below (`package.json` line 10,
+`"postinstall": "patch-package"`). Each patch is a change to that package's
+own source and is offered under that package's licence, not this
+repository's.
+
+  patches/react-native-ble-plx+3.5.0.patch
+    Package:   react-native-ble-plx 3.5.0
+    Upstream:  https://github.com/dotintent/react-native-ble-plx
+    Changes:   android/src/main/java/com/bleplx/utils/SafePromise.java, so a
+               promise is never rejected with a null or empty error code.
+    Licence:   Apache License, Version 2.0, as the package's LICENSE file
+               states: "Copyright 2016 Polidea, Copyright 2021 intent
+               sp. z o.o." The package's package.json declares "MIT" in
+               its license field instead; both statements are the package's
+               own and are recorded here as found.
+
+  patches/react-native-screens+4.27.0.patch
+    Package:   react-native-screens 4.27.0
+    Upstream:  https://github.com/software-mansion/react-native-screens
+    Changes:   type-only edits under src/fabric/ so React Native 0.83's
+               codegen accepts the native command signatures.
+    Licence:   MIT License. Copyright (c) 2018 Software Mansion.
+
+`ios/Podfile` lines 35 to 49 rewrite one line of `Pods/fmt/include/fmt/base.h`
+after `pod install`, so the {fmt} library builds with the Apple Clang that
+ships with Xcode 26. {fmt} (https://github.com/fmtlib/fmt) is fetched by
+CocoaPods through React Native's `fmt.podspec` and is not redistributed here;
+its licence is the MIT-style licence in its own repository.
+
+--------------------------------------------------------------------------------
+React Native project template
+--------------------------------------------------------------------------------
+
+The `android/` and `ios/` projects, and the configuration files at the root
+of the repository, began from the React Native community template and were
+then edited for this app.
+
+  Upstream:  https://github.com/react-native-community/template
+  Licence:   MIT License. Copyright (c) 2018 react-native-community.
+
+  Files still byte-for-byte identical to the template:
+    android/app/proguard-rules.pro
+    android/app/src/main/res/drawable/rn_edit_text_material.xml
+    android/app/debug.keystore                       (see "Key material")
+    android/gradle/wrapper/gradle-wrapper.jar        (see "Gradle wrapper")
+
+  Files that began from the template and were edited:
+    android/app/build.gradle
+    android/app/src/main/AndroidManifest.xml
+    android/app/src/main/java/com/brainchip/connect/MainActivity.kt
+    android/app/src/main/java/com/brainchip/connect/MainApplication.kt
+    android/app/src/main/res/values/strings.xml
+    android/app/src/main/res/values/styles.xml
+    android/build.gradle
+    android/gradle.properties
+    android/gradlew
+    android/gradlew.bat
+    android/settings.gradle
+    ios/.xcode.env
+    ios/BrainChipConnect.xcodeproj/
+    ios/BrainChipConnect/AppDelegate.swift
+    ios/BrainChipConnect/Info.plist
+    ios/BrainChipConnect/LaunchScreen.storyboard
+    ios/BrainChipConnect/PrivacyInfo.xcprivacy
+    ios/Podfile
+    .bundle/config, .eslintrc.js, .prettierrc.js, .ruby-version,
+    .watchmanconfig, Gemfile, app.json, babel.config.js, index.js,
+    jest.config.js, metro.config.js, tsconfig.json
+
+  The launcher and app icons under `android/app/src/main/res/mipmap-*/` and
+  `ios/BrainChipConnect/Images.xcassets/AppIcon.appiconset/` are not the
+  template's; they are BrainChip's own artwork (see "BrainChip's own
+  assets").
+
+--------------------------------------------------------------------------------
+Android Open Source Project
+--------------------------------------------------------------------------------
+
+  Path:      android/app/src/main/res/drawable/rn_edit_text_material.xml
+  Origin:    a copy of `abc_edit_text_material` from the Android support
+             library, carried by the React Native template. The file's own
+             header, lines 2 to 14, states:
+               Copyright (C) 2014 The Android Open Source Project
+               Licensed under the Apache License, Version 2.0
+  Licence:   Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+Gradle wrapper
+--------------------------------------------------------------------------------
+
+  Paths:     android/gradlew
+             android/gradlew.bat
+             android/gradle/wrapper/gradle-wrapper.jar
+             android/gradle/wrapper/gradle-wrapper.properties
+  Upstream:  https://gradle.org, generated by Gradle 9.0.0 as
+             `gradle-wrapper.properties` line 3 records.
+  Licence:   Apache License, Version 2.0. `gradlew` lines 4 to 18 and
+             `gradlew.bat` lines 7 to 21 carry Gradle's header,
+             "Copyright 2015 the original authors", with
+             `SPDX-License-Identifier: Apache-2.0`. `gradlew.bat` lines 1
+             to 4 additionally carry the React Native template's own header,
+             "Copyright (c) Meta Platforms, Inc. and affiliates", under the
+             MIT License.
+
+--------------------------------------------------------------------------------
+Lucide icons
+--------------------------------------------------------------------------------
+
+Two icons in the permissions screen are Lucide's `bluetooth` and `bell`
+icons, exported from a design file at 28 pixels rather than drawn here. The
+path data in each file, line 3, is Lucide's scaled by 28/24.
+
+  Paths:     src/app/assets/images/00_Permissions/Bluetooth Icon.svg
+             src/app/assets/images/00_Permissions/NotificationsIcon.svg
+  Upstream:  https://github.com/lucide-icons/lucide
+  Licence:   ISC License.
+               Copyright (c) for portions of Lucide are held by Cole Bemis
+               2013-2023 as part of Feather (MIT). All other copyright (c)
+               for Lucide are held by Lucide Contributors 2025.
+               Permission to use, copy, modify, and/or distribute this
+               software for any purpose with or without fee is hereby
+               granted, provided that the above copyright notice and this
+               permission notice appear in all copies.
+
+Every other icon the app draws comes from the `lucide-react-native` package
+at build time, under the same licence; see "Fetched at build time".
+
+--------------------------------------------------------------------------------
+Key material
+--------------------------------------------------------------------------------
+
+  Path:      android/app/debug.keystore
+
+This is the Android debug signing key that every React Native project and
+Android toolchain ships, byte-for-byte identical to the copy in the React
+Native template. Its password is `android` and its alias is
+`androiddebugkey`, as `android/app/build.gradle` lines 112 to 115 spell out,
+and its self-signed certificate names "CN=Android Debug, OU=Android,
+O=Unknown, C=US", created on 31 December 2013. It signs development builds only and protects nothing.
+
+No release signing key, upload key, service account or API key is in this
+repository. The release build reads its keystore from the environment
+(`android/app/build.gradle`), and `.gitignore` refuses `*.keystore` and
+`*.jks` apart from this one file.
+
+--------------------------------------------------------------------------------
+BrainChip's own assets
+--------------------------------------------------------------------------------
+
+The following are BrainChip work, included under this repository's licence.
+
+  Logos and artwork
+    .github/assets/brainchip-logo.svg, .github/assets/brainchip-logo-dark.svg
+      The BrainChip logo, in the light and dark variants the README
+      switches between.
+    src/app/assets/images/00_Start/BrainChipLogo.svg, BrainChipLogo.png
+    src/app/assets/images/00_Start/NeuronLogo.svg, NeuronLogo.png
+    src/app/assets/images/00_Start/Logo.png
+    src/app/assets/images/00_Start/AIAppControl.svg, BLE.svg, OTA.svg,
+      SensorData.svg: the four Get Started illustrations, each an exported
+      design frame wrapping a raster image.
+    android/app/src/main/res/mipmap-*/ic_launcher*.png
+    ios/BrainChipConnect/Images.xcassets/AppIcon.appiconset/Icon-*.png
+
+  Store listing
+    fastlane/metadata/android/en-US/: the listing text, the store icon
+      resampled from the app icon above, the feature graphic built on the
+      BrainChip logo lockup, and screenshots captured from the app itself.
+      `docs/store/README.md` records how each was made.
+    docs/store/pre-registration-qr.svg, .png: a QR code generated for the
+      listing.
+
+  Legal text
+    src/app/content/privacyPolicy.ts and termsAndConditions.ts, and the
+    pages rendered from them under docs/pages/.
+
+  Test fixtures
+    __tests__/fixtures/kws_program_info.bin and kws_edge_learning_info.yaml:
+    model metadata in the format of the AkidaTag firmware,
+    https://github.com/Brainchip-Inc/AkidaTag.
+
+  Fonts
+    None are bundled. The styles name the Inter and Sora families, but no
+    font file ships in the repository and no platform font registration
+    exists, so the app renders in each platform's default typeface. See
+    "The custom font families are not bundled" in AGENTS.md.
+
+--------------------------------------------------------------------------------
+Fetched at build time
+--------------------------------------------------------------------------------
+
+Nothing below is redistributed by this repository. Each is downloaded by the
+build from its own registry, under its own terms, and is compiled or bundled
+into the app that the build produces.
+
+  npm packages
+    `npm ci` installs the 993 packages pinned in `package-lock.json`, from
+    the npm registry, under each package's own licence. The direct
+    dependencies, with the licence each declares in its package.json, are:
+
+      @react-native-async-storage/async-storage 2.2.0   MIT
+      @react-native-community/slider 5.2.1              MIT
+      @react-native-documents/picker 12.0.2             MIT
+      @react-native/new-app-screen 0.83.1               MIT
+      @react-navigation/native 7.3.17                   MIT
+      @react-navigation/native-stack 7.18.9             MIT
+      @react-navigation/stack 7.10.23                   MIT
+      buffer 6.0.3                                      MIT
+      cbor-x 1.6.6                                      MIT
+      crc-32 1.2.2                                      Apache-2.0
+      js-yaml 4.3.1                                     MIT
+      lottie-react-native 7.3.8                         Apache-2.0
+      lucide-react-native 0.562.0                       ISC
+      react 19.2.0                                      MIT
+      react-native 0.83.10                              MIT
+      react-native-base64 0.2.2                         MIT
+      react-native-ble-plx 3.5.0                        MIT declared; LICENSE
+                                                        file is Apache-2.0
+      react-native-fs 2.20.0                            MIT
+      react-native-gesture-handler 2.32.0               MIT
+      react-native-logs 5.6.0                           MIT
+      react-native-paper 5.15.3                         MIT
+      react-native-safe-area-context 5.9.1              MIT
+      react-native-screens 4.27.0                       MIT
+      react-native-svg 15.15.5                          MIT
+      react-native-svg-transformer 1.5.3                MIT
+      react-native-vector-icons 10.3.0                  MIT
+      react-native-zip-archive 7.1.1                    MIT
+      zustand 5.0.15                                    MIT
+
+    The development dependencies (Babel, the React Native CLI and presets,
+    ESLint, Jest, Prettier, TypeScript, patch-package and type packages) are
+    MIT or Apache-2.0 and are not part of the app that ships.
+
+    Across the whole locked tree, the licence fields read: MIT 848,
+    ISC 59, BSD-3-Clause 29, Apache-2.0 24, BSD-2-Clause 19, CC0-1.0 3,
+    "MIT OR CC0-1.0" 3, 0BSD 2, BlueOak-1.0.0 2, CC-BY-4.0 1
+    (caniuse-lite), Python-2.0 1 (argparse), "MIT OR Apache-2.0" 1,
+    "Public Domain" 1 (jsonify). None declares a copyleft licence.
+
+  Hermes
+    React Native's JavaScript engine, built into the app by the React Native
+    Gradle plugin and the `hermes-engine` pod. MIT License, Meta Platforms,
+    Inc.
+
+  Android artifacts, from Maven Central and Google's Maven repository
+    Resolved by Gradle from `android/build.gradle` and each npm package's
+    own `android/build.gradle`, among them `com.facebook.react:react-android`
+    and `hermes-android` (MIT), `com.polidea.rxandroidble2:rxandroidble
+    1.17.2` (Apache-2.0, required by react-native-ble-plx), AndroidX
+    (Apache-2.0) and the Kotlin standard library (Apache-2.0). The Gradle
+    distribution itself is downloaded by the wrapper (Apache-2.0).
+
+  iOS pods, from the CocoaPods trunk and React Native's own podspecs
+    Resolved by `pod install` from `ios/Podfile`: React Native's pods and
+    the third-party libraries it depends on through the podspecs under
+    `node_modules/react-native/third-party-podspecs/`, which declare boost
+    (Boost Software License), DoubleConversion (MIT), fast_float (MIT), fmt
+    (MIT), glog (the licence in its COPYING file) and RCT-Folly (Apache
+    License, Version 2.0), plus hermes-engine (MIT) and each npm package's
+    own pod.
+
+  Ruby gems
+    `bundle install` fetches the gems pinned in `Gemfile.lock`, chiefly
+    CocoaPods (MIT) and fastlane (MIT). They run the build and the release
+    and are not part of the app.
+
+  Tools
+    The Android SDK, NDK and build tools, Xcode, Node.js and npm are
+    installed by the developer under their own terms and are not part of
+    this repository.
