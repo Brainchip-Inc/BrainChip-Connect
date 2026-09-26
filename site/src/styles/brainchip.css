@@ -49,7 +49,14 @@
 
   --sl-font: 'Inter';
   --brainchip-font-headings: 'Sora', var(--sl-font-system);
-  --sl-text-h1: 2.75rem;
+  --sl-text-h1: var(--sl-text-4xl);
+}
+
+/* The template's title size needs a wide screen: on a phone a long title would break mid-word. */
+@media (min-width: 50rem) {
+  :root {
+    --sl-text-h1: 2.75rem;
+  }
 }
 
 /* Dark scheme: Starlight's default, so it sits on :root. */
