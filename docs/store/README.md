@@ -15,7 +15,7 @@ complete, so the listing is what unblocks testers rather than a launch chore.
 | Store icon, 512x512, 32-bit PNG | `fastlane/metadata/android/en-US/images/icon.png` |
 | Feature graphic, 1024x500 | `fastlane/metadata/android/en-US/images/featureGraphic.png` |
 | Phone screenshots, 1080x1920 | `fastlane/metadata/android/en-US/images/phoneScreenshots/` |
-| Privacy policy page | `docs/pages/privacy-policy.html` |
+| Privacy policy page | `site/src/content/docs/privacy-policy.md`, published as `privacy-policy.html` |
 | Data safety answers | `docs/store/data-safety.md` |
 | Pre-registration QR code | `docs/store/pre-registration-qr.svg`, `.png` |
 
@@ -54,15 +54,15 @@ and the Samsung edge-panel handle) and the result is matted onto a 1080x1920
 canvas, because Play wants 9:16 and the phone's own screen is 9:19.5. No app
 pixel is redrawn, retouched or staged.
 
-**Pages.** Generated, never hand-written. See below.
+**Pages.** The policy page is generated, never hand-written. See below.
 
 ## The privacy policy page regenerates, it is not edited
 
-`docs/pages/privacy-policy.html` is rendered from `src/app/content/` by
-`npm run pages:render`, so the hosted page and the in-app screen cannot
+`site/src/content/docs/privacy-policy.md` is rendered from `src/app/content/`
+by `npm run pages:render`, so the hosted page and the in-app screen cannot
 disagree. `__tests__/pages.test.ts` fails if the committed page drifts
 from the content, which makes regenerating part of any change to the wording.
-Never edit the HTML by hand.
+Never edit the Markdown by hand.
 
 Only the policy is published. Play requires a privacy policy URL and asks for
 no terms, and the app already shows its own terms on first run, so hosting a
@@ -74,16 +74,16 @@ The text itself is legal copy under separate review. Regenerating publishes it;
 it does not author it.
 
 Hosting is GitHub Pages, published by `.github/workflows/pages.yml`, which
-puts the policy at
+builds the documentation site in `site/` and puts the policy at
 `https://brainchip-inc.github.io/BrainChip-Connect/privacy-policy.html`. The
 Console needs that URL in two places, App content → Privacy policy and the
 store listing.
 
-The published site is `docs/pages/` and nothing else, served from its root:
-`index.html` beside `privacy-policy.html`, both generated. Pointing Pages at
-`docs/` instead would put this pack, the release procedure and the rest of the
-folder on the open internet while the repository is not public, so the workflow
-names the one directory. Adding a file to `docs/pages/` publishes it.
+The published site is `site/` and nothing else: the guides, the policy and
+the landing page that links them. Pointing Pages at `docs/` instead would put
+this pack, the release procedure and the rest of the folder on the open
+internet while the repository is not public, so the workflow builds the one
+directory. Adding a page under `site/src/content/docs/` publishes it.
 
 ## Open before public release
 
