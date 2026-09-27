@@ -1,10 +1,7 @@
 # Publishes the app's pages to GitHub Pages, which is where Google Play's
 # required privacy policy URL points.
 #
-# The site is `docs/pages/` and nothing else. The rest of `docs/` is the store
-# listing pack, the release procedure and internal notes, none of which may
-# reach the open internet while this repository is not public, so the artifact
-# names that one directory rather than `docs/`.
+# Only `docs/pages/` is the website root; other documentation is not deployed.
 #
 # The pages are rendered here rather than copied from the checkout. The hosted
 # policy and the screen inside the app are two copies of one text, and rendering
