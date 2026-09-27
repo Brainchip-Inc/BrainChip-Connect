@@ -1,6 +1,8 @@
 module.exports = {
   root: true,
   extends: '@react-native',
+  // The documentation site is its own npm project with its own toolchain.
+  ignorePatterns: ['site/'],
   overrides: [
     {
       // Jest's setup file runs in the test environment, not the app's.

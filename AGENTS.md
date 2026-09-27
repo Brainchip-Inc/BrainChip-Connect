@@ -111,7 +111,13 @@ protocol behavior, then validate hardware changes on a phone and board through
 connect, run, stop, disconnect and reconnect. Native changes also need a build
 on the affected platform. Do not edit `CHANGELOG.md` or generated files by hand.
 If reviewed legal wording changes, update its source in `src/app/content/` and
-run `npm run pages:render`; `__tests__/pages.test.ts` checks the generated pages.
+run `npm run pages:render`; `__tests__/pages.test.ts` checks the generated page.
+
+The documentation site is `site/`, a Starlight project with its own
+`package.json`, built and published by `.github/workflows/pages.yml`. The
+Privacy Policy page in it is the rendered one above and is never edited by
+hand; the guides beside it under `site/src/content/docs/` are written by hand,
+and any page added there is published by the next run.
 
 ## How the app talks to a board
 

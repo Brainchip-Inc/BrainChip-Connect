@@ -1,14 +1,13 @@
 /**
- * Write the pages of the published site.
+ * Write the legal pages of the documentation site.
  *
  * Google Play needs a privacy policy at a public URL, and that page must not be
  * allowed to drift from the one the app shows. Run `npm run pages:render` after
  * changing anything in `src/app/content/`; `__tests__/pages.test.ts` fails
  * when the committed pages no longer match it.
  *
- * `docs/pages/` is the whole of the site `.github/workflows/pages.yml`
- * publishes, so every file this writes is public and nothing else in `docs/`
- * is.
+ * The site itself is `site/`, built by `.github/workflows/pages.yml`, and the
+ * pages written here are Markdown sources in it beside the hand-written guides.
  *
  * @format
  */
@@ -17,10 +16,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const ts = require('typescript');
-const { renderPage, renderIndexPage } = require('./pageTemplate');
+const { renderMarkdownPage } = require('./legalMarkdown');
 
 const PRODUCT_NAME = 'BrainChip Connect';
-const OUTPUT_DIRECTORY = 'docs/pages';
+const OUTPUT_DIRECTORY = 'site/src/content/docs';
 
 // Only the Privacy Policy is published. Play requires it at a public URL; it
 // asks for no terms, and the app already shows its own on first run. Adding
@@ -29,7 +28,7 @@ const DOCUMENTS = [
   {
     modulePath: 'src/app/content/privacyPolicy.ts',
     exportName: 'PRIVACY_POLICY',
-    pageName: 'privacy-policy.html',
+    pageName: 'privacy-policy.md',
   },
 ];
 
@@ -60,46 +59,28 @@ const loadTypeScriptExport = (modulePath, exportName) => {
 };
 
 /**
- * Render every legal document to its page, and the root page that links them.
+ * Render every legal document to its page.
  *
- * The root page comes last, so a caller wanting the first document can take the
- * head of the list.
- *
- * @returns {Array<{pageName: string, html: string}>} Each page and its markup.
+ * @returns {Array<{pageName: string, markdown: string}>} Each page and its Markdown.
  */
-const renderPages = () => {
-  const documents = DOCUMENTS.map(({ modulePath, exportName, pageName }) => ({
+const renderPages = () =>
+  DOCUMENTS.map(({ modulePath, exportName, pageName }) => ({
     pageName,
-    document: loadTypeScriptExport(modulePath, exportName),
-  }));
-  const indexPage = {
-    pageName: 'index.html',
-    html: renderIndexPage(
-      documents.map(({ pageName, document }) => ({
-        pageName,
-        title: document.title,
-        lastUpdated: document.last_updated,
-      })),
+    markdown: renderMarkdownPage(
+      loadTypeScriptExport(modulePath, exportName),
       PRODUCT_NAME,
+      modulePath,
     ),
-  };
-  return [
-    ...documents.map(({ pageName, document }) => ({
-      pageName,
-      html: renderPage(document, PRODUCT_NAME),
-    })),
-    indexPage,
-  ];
-};
+  }));
 
 /**
- * Write every rendered page into `docs/pages/`, reporting each one written.
+ * Write every rendered page into the site, reporting each one written.
  */
 const main = () => {
   const directory = path.join(repositoryRoot, OUTPUT_DIRECTORY);
   fs.mkdirSync(directory, { recursive: true });
-  for (const { pageName, html } of renderPages()) {
-    fs.writeFileSync(path.join(directory, pageName), html, 'utf8');
+  for (const { pageName, markdown } of renderPages()) {
+    fs.writeFileSync(path.join(directory, pageName), markdown, 'utf8');
     console.log(`wrote ${OUTPUT_DIRECTORY}/${pageName}`);
   }
 };

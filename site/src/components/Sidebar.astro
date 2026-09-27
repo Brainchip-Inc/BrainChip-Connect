@@ -1,0 +1,13 @@
+---
+/**
+ * Starlight's sidebar with the site's name above the navigation. The top bar
+ * carries only the wordmark, so the name lives here, linking back to the
+ * landing page.
+ */
+import Default from '@astrojs/starlight/components/Sidebar.astro';
+
+const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
+---
+
+<a href={siteTitleHref} class="brainchip-sidebar-title" translate="no">{siteTitle}</a>
+<Default />

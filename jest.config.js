@@ -5,6 +5,9 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community|-documents)?|@react-navigation|react-native-.*|lucide-react-native|cbor-x)/)',
   ],
+  // The documentation site is its own npm project; keep its tree out of the
+  // module map so its dependencies are neither crawled nor tested.
+  modulePathIgnorePatterns: ['<rootDir>/site/'],
   setupFiles: [
     require.resolve('react-native/jest/setup.js'),
     '<rootDir>/jest.setup.js',
