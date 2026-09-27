@@ -27,8 +27,6 @@ BrainChip Connect is licensed under the [Apache License 2.0](https://github.com/
 4. [Add a screen or a demo](/BrainChip-Connect/developer-guide/add-a-screen-or-demo.html):
    what a new screen needs, and what a new application on the board needs
    from the app.
-5. [Tests and the checks a pull request must pass](/BrainChip-Connect/developer-guide/tests-and-checks.html):
-   what runs locally and in CI, and what to change when publishing a fork.
 
 ## Before you start
 

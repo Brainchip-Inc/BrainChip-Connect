@@ -11,7 +11,7 @@ sidebar:
 | --- | --- |
 | `App.tsx`, `index.js` | The entry point and the navigator, with every screen registered on one native stack. |
 | `src/` | The app itself. See below. |
-| `__tests__/` | The Jest tests. Several of them pin wire formats shared with the boards; the [tests chapter](/BrainChip-Connect/developer-guide/tests-and-checks.html) lists them. |
+| `__tests__/` | The Jest tests. Several of them pin wire formats shared with the boards. |
 | `android/`, `ios/` | The native projects. The Android debug manifest that development builds need is local-only and described in the [build chapter](/BrainChip-Connect/developer-guide/build-and-run.html#android). |
 | `patches/` | Patches that `npm ci` applies with patch-package: one to `react-native-ble-plx` for an Android crash on a rejected promise, and one to `react-native-screens`. |
 | `scripts/` | `build-standalone-debug-apk.sh`, `clean_generated_files.sh`, the renderer that turns the in-app legal text into this site's Privacy Policy page, and the release helpers. |
