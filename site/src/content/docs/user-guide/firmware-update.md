@@ -15,7 +15,10 @@ AkidaTag firmware is published as releases of the
 [Brainchip-Inc/AkidaTag](https://github.com/Brainchip-Inc/AkidaTag/releases)
 repository. Download `akidatag-<version>.signed.bin`, the asset described
 there as the signed firmware for update over Bluetooth, to the phone. The app
-also accepts a `.zip` that contains a single `.bin` image.
+also accepts a `.zip` that contains a single `.bin` image. The same release
+carries the model packages described in [Load a model](/BrainChip-Connect/user-guide/model-update.html).
+This guide describes the firmware on that repository's `main` branch; TBD:
+the version of the release that carries it.
 
 :::caution[The image must be signed for your board]
 A board accepts only firmware signed with the key its bootloader trusts. A

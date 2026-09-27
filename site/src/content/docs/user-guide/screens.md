@@ -55,7 +55,8 @@ These entries live inside the app. It does not post system notifications.
 ## Settings
 
 - **Power Mode** opens a chooser with **Performance**, **Balanced** and
-  **Power Save**. In this version the choice is not sent to the board.
+  **Power Save**. In this version the choice is not sent to the board; that
+  is planned for a later version.
 - **Firmware Update** sends new firmware to the board. See
   [Update the AkidaTag firmware](/BrainChip-Connect/user-guide/firmware-update.html).
 - **Model Update** sends a model package to the board. See
@@ -83,7 +84,8 @@ Tap the board's name in the header on Home, Settings or Profile. The sheet
 shows the name and a hardware summary: the nRF5340 microcontroller, the
 AKD1500 AI processor and Bluetooth 5.3 LE. That summary describes the
 AkidaTag and reads the same for every board. The name can be edited in the
-sheet, but in this version the change is not sent to the board.
+sheet, but in this version the change is not sent to the board; renaming a
+board from the app is planned for a later version.
 
 :::note[Screenshots to come]
 TBD: screenshots of the Notifications, Profile, About and Device Information

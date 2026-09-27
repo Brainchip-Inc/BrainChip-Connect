@@ -14,7 +14,6 @@ follows later.
 The Google Play listing is open for pre-registration. Register at
 [play.google.com/store/apps/details?id=com.brainchip.connect](https://play.google.com/store/apps/details?id=com.brainchip.connect)
 and Google Play installs the app on your phone when it is released.
-TBD: the release date.
 :::
 
 The app needs Android 13 or later. It uses Bluetooth Low Energy and nothing

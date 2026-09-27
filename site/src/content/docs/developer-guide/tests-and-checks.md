@@ -84,5 +84,8 @@ and a mismatch there builds fine and fails at launch with no view mounted.
 | The Privacy Policy and the terms | `src/app/content/`, shown on first run and hosted from this site. Legal text under BrainChip's review; a fork carries its own. |
 | The store listing | `fastlane/metadata/android/`. |
 
-TBD: BrainChip's policy on what a published fork must change, and how it
-may refer to BrainChip Connect and the Akida name.
+A fork published as its own app must use its own application ID and bundle
+identifier, its own name and icon, and its own Privacy Policy and Terms. It
+must not use the BrainChip or Akida names or the BrainChip logo in its name,
+icon or store listing. It may say that it is based on BrainChip Connect and
+link to this repository.

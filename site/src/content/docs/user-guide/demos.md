@@ -56,8 +56,12 @@ From top to bottom:
 The detector only listens for speech once the microphone signal is above the
 RMS threshold, smooths each new score with the previous ones, and reports a
 keyword once its smoothed score has reached the score threshold for the
-chiming threshold's number of consecutive results. TBD: what the debounce
-time and the speech timeout control.
+chiming threshold's number of consecutive results. After it reports a
+keyword, the board ignores the microphone for the debounce time, so one word
+cannot be reported twice. Once the signal has crossed the RMS threshold, the
+speech timeout is how long it may stay below the threshold before the board
+decides no keyword was said, discards what it had heard so far and goes back
+to waiting.
 
 Edit a value and tap **Apply**; the board confirms each change, and any it
 refuses is listed with the reason. **Reset** restores the defaults on the
@@ -88,15 +92,6 @@ The switch and buttons step through the board's learning modes:
 Each control changes only once the board has confirmed the command. If the
 board does not answer, the app says so and leaves the switch as it was.
 Learned keywords survive a restart and a firmware update.
-
-:::caution[Known fault in AkidaTag firmware 1.2.0]
-On AkidaTag firmware 1.2.0, the released version as of September 2026,
-switching Edge Learning on makes the board restart instead of answering. The
-app reports **No answer from AkidaTag** and then **Device Disconnected**, and
-the board comes back on its own. Edge learning cannot be used with that
-firmware. The fix is in the AkidaTag source but not yet in a released
-firmware. TBD: the firmware version that carries the fix.
-:::
 
 ## Nicla Vision with BrainBoard1500
 

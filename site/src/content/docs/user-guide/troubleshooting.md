@@ -24,7 +24,7 @@ sidebar:
 | **No keyword detected yet** stays, and the board's red LED never flashes | The board is not hearing the keyword. | Speak clearly and close to the microphone. Lower the RMS threshold or the score threshold in App Controls. |
 | The red LED flashes but the app shows nothing | The board hears keywords but is not reporting them to the phone. | Tap **Run Application** on the Keyword Spotting card; the board reports keywords only after that. |
 | **Battery request failed** | The board did not answer the battery request. | Disconnect and reconnect. |
-| **No answer from AkidaTag** after an Edge Learning control | The board did not confirm the command. On firmware 1.2.0 the board restarts instead; see the [known fault](/BrainChip-Connect/user-guide/demos.html#edge-learning). | Reconnect. Edge learning needs the `kws_edge_learning` model and a firmware with the fix. |
+| **No answer from AkidaTag** after an Edge Learning control | The board did not confirm the command within five seconds. With a model that is not built for edge learning the board ignores every learning command. | Check that the `kws_edge_learning` model is installed, then try again; if the board has gone, reconnect. |
 | **Nothing has arrived yet. The firmware on this board may not send a preview.** | Five seconds of streaming brought no camera frame. | Only the Nicla Vision human detection demo sends a preview; an AkidaTag has no camera. |
 | A BrainBoard1500 disappears from the list after **Device Disconnected** | The board is still connected to the phone and so has stopped advertising. | Close and reopen the app. The board needs nothing done to it. |
 

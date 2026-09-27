@@ -17,19 +17,15 @@ single folder: `info.yaml`, which describes the model, and a matching pair
 all three are present before it sends anything.
 
 For an AkidaTag the name is `kws`, so the pair is `kws_program_info.bin` and
-`kws_program_data.bin`. TBD: where model packages for the AkidaTag are
-published.
+`kws_program_data.bin`. AkidaTag model packages are published as `.zip`
+assets of the firmware releases on the
+[Brainchip-Inc/AkidaTag releases page](https://github.com/Brainchip-Inc/AkidaTag/releases),
+beside the firmware image. Download the package to the phone. TBD: the
+version of the first release that carries the packages.
 
 An AkidaTag package will not load on a BrainBoard1500: the two boards carry
 different Akida engine versions, and a model has to be built for the engine
 on the board that runs it.
-
-:::caution[AkidaTag firmware 1.2.0 cannot take a model from this app]
-The model transfer the app uses was added to the AkidaTag firmware after the
-1.2.0 release. On a board running firmware 1.2.0 a model update from the app
-fails. Update the firmware first. TBD: the first firmware release that
-carries the new transfer.
-:::
 
 ## Send it
 
