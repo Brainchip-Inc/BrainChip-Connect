@@ -11,6 +11,9 @@ extending it with a screen or a demo of their own. The app is a React Native
 project in TypeScript, one codebase for Android and iOS, and its source is at
 [github.com/Brainchip-Inc/BrainChip-Connect](https://github.com/Brainchip-Inc/BrainChip-Connect).
 
+BrainChip Connect is licensed under the [Apache License 2.0](https://github.com/Brainchip-Inc/BrainChip-Connect/blob/main/LICENSE).
+[NOTICE](https://github.com/Brainchip-Inc/BrainChip-Connect/blob/main/NOTICE) lists third-party components.
+
 ## The chapters
 
 1. [Repository layout](/BrainChip-Connect/developer-guide/repository-layout.html):
@@ -24,8 +27,6 @@ project in TypeScript, one codebase for Android and iOS, and its source is at
 4. [Add a screen or a demo](/BrainChip-Connect/developer-guide/add-a-screen-or-demo.html):
    what a new screen needs, and what a new application on the board needs
    from the app.
-5. [Tests and the checks a pull request must pass](/BrainChip-Connect/developer-guide/tests-and-checks.html):
-   what runs locally and in CI, and what to change when publishing a fork.
 
 ## Before you start
 
