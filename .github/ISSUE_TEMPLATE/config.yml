@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://discord.com/invite/9bmd9g52vn
+    about: The BrainChip Discord is the place for questions, ideas, and showing us what you have built.
+  - name: AkidaTag on the Developer Hub
+    url: https://developer.brainchip.com/akida-tag/
+    about: Guides, tools and documentation for the board and the wider Akida platform.
