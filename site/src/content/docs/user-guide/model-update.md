@@ -17,11 +17,12 @@ single folder: `info.yaml`, which describes the model, and a matching pair
 all three are present before it sends anything.
 
 For an AkidaTag the name is `kws`, so the pair is `kws_program_info.bin` and
-`kws_program_data.bin`. AkidaTag model packages are published as `.zip`
-assets of the firmware releases on the
-[Brainchip-Inc/AkidaTag releases page](https://github.com/Brainchip-Inc/AkidaTag/releases),
-beside the firmware image. Download the package to the phone. TBD: the
-version of the first release that carries the packages.
+`kws_program_data.bin`. Every AkidaTag firmware release carries two
+packages beside the firmware image: `akidatag-kws-model.zip`, the keyword
+spotting model, and `akidatag-kws-edge-learning-model.zip`, the keyword
+spotting model built for edge learning. Download the one you want from the
+[latest release](https://github.com/Brainchip-Inc/AkidaTag/releases/latest)
+to the phone.
 
 An AkidaTag package will not load on a BrainBoard1500: the two boards carry
 different Akida engine versions, and a model has to be built for the engine
@@ -61,6 +62,3 @@ both blinking three times when the model is running, and red on alone if the
 transfer failed. A Nicla Vision with a BrainBoard1500 blinks its LED blue
 quickly during a transfer.
 
-:::note[Screenshots to come]
-TBD: screenshots of the Model Update sheet, the sending step and an outcome.
-:::

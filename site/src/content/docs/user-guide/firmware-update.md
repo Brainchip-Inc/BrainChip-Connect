@@ -12,13 +12,13 @@ nothing.
 ## Get the firmware file
 
 AkidaTag firmware is published as releases of the
-[Brainchip-Inc/AkidaTag](https://github.com/Brainchip-Inc/AkidaTag/releases)
-repository. Download `akidatag-<version>.signed.bin`, the asset described
-there as the signed firmware for update over Bluetooth, to the phone. The app
-also accepts a `.zip` that contains a single `.bin` image. The same release
+[Brainchip-Inc/AkidaTag](https://github.com/Brainchip-Inc/AkidaTag)
+repository. From the
+[latest release](https://github.com/Brainchip-Inc/AkidaTag/releases/latest),
+download `akidatag-<version>.signed.bin`, the asset described there as the
+signed firmware for update over Bluetooth, to the phone. The app also
+accepts a `.zip` that contains a single `.bin` image. The same release
 carries the model packages described in [Load a model](/BrainChip-Connect/user-guide/model-update.html).
-This guide describes the firmware on that repository's `main` branch; TBD:
-the version of the release that carries it.
 
 :::caution[The image must be signed for your board]
 A board accepts only firmware signed with the key its bootloader trusts. A
@@ -71,7 +71,3 @@ The model and any learned keywords stay on the board. The keyword spotting
 settings under App Controls return to their defaults whenever the firmware
 version changes.
 
-:::note[Screenshots to come]
-TBD: screenshots of the Firmware Update sheet, the sending step and an
-outcome.
-:::

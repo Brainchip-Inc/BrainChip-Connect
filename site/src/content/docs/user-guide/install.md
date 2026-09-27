@@ -7,8 +7,8 @@ sidebar:
 
 ## Get the app
 
-BrainChip Connect is published on Google Play for Android. An iOS version
-follows later.
+BrainChip Connect is on Google Play for Android and is coming soon to the
+iOS App Store.
 
 :::note[Pre-registration]
 The Google Play listing is open for pre-registration. Register at
@@ -37,10 +37,6 @@ says exactly what that covers.
 
 Once both documents are accepted the two checkboxes do not appear again.
 Both documents can be read at any time from the **Profile** tab.
-
-:::note[Screenshot to come]
-TBD: screenshots of the Get Started and Permissions Required screens.
-:::
 
 ## The permissions
 

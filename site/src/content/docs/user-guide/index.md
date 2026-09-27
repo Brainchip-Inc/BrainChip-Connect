@@ -30,10 +30,16 @@ Bluetooth demo sketch; what is different on that board is collected in
 
 ## Where else to look
 
-- The AkidaTag itself: TBD: AkidaTag documentation site URL. The
-  [AkidaTag page on the BrainChip Developer Hub](https://developer.brainchip.com/akida-tag/)
-  is the product page.
+- The AkidaTag itself: its
+  [documentation site](https://brainchip-inc.github.io/AkidaTag/), and the
+  [AkidaTag page on the BrainChip Developer Hub](https://developer.brainchip.com/akida-tag/),
+  which is the product page.
 - Help and questions: the [BrainChip Discord](https://discord.com/invite/9bmd9g52vn).
+- Bugs in the app: open an issue on
+  [GitHub](https://github.com/Brainchip-Inc/BrainChip-Connect/issues).
+- Security problems: report them privately through the repository's
+  **Security** tab, under **Report a vulnerability**, rather than in a
+  public issue.
 - The app's source code:
   [github.com/Brainchip-Inc/BrainChip-Connect](https://github.com/Brainchip-Inc/BrainChip-Connect),
   with a [developer guide](/BrainChip-Connect/developer-guide.html) for

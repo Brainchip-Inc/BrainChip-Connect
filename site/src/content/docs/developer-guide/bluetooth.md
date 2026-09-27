@@ -13,9 +13,11 @@ this page points at them rather than repeating them.
 
 :::note[The AkidaTag side]
 The AkidaTag firmware is at
-[github.com/Brainchip-Inc/AkidaTag](https://github.com/Brainchip-Inc/AkidaTag).
-TBD: AkidaTag developer documentation URL. Until then, the files named below
-are the authoritative counterparts, read-only from this repository.
+[github.com/Brainchip-Inc/AkidaTag](https://github.com/Brainchip-Inc/AkidaTag)
+and its documentation at
+[brainchip-inc.github.io/AkidaTag](https://brainchip-inc.github.io/AkidaTag/).
+The files named below are the authoritative counterparts, read-only from
+this repository.
 :::
 
 ## How a board is recognised

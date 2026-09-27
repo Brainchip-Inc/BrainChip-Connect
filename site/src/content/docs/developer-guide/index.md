@@ -32,8 +32,12 @@ project in TypeScript, one codebase for Android and iOS, and its source is at
 - [CONTRIBUTING.md](https://github.com/Brainchip-Inc/BrainChip-Connect/blob/main/CONTRIBUTING.md)
   is the commit convention and the merge rules, enforced in CI.
 - [AGENTS.md](https://github.com/Brainchip-Inc/BrainChip-Connect/blob/main/AGENTS.md)
-  in the repository root holds the project's sharp edges: the things that
-  are easy to get wrong and cost a working transfer rather than failing
-  loudly. Read it before touching the Bluetooth layer.
+  in the repository root holds the project notes that travel with the code:
+  setting up, the checks, how the app talks to a board and what adding a demo
+  involves. Read it before touching the Bluetooth layer.
+- Bugs go to [GitHub issues](https://github.com/Brainchip-Inc/BrainChip-Connect/issues)
+  and questions to the [BrainChip Discord](https://discord.com/invite/9bmd9g52vn).
+  A security problem is reported privately through the repository's
+  **Security** tab, under **Report a vulnerability**, never in a public issue.
 - The [user guide](/BrainChip-Connect/user-guide.html) describes what
   every screen does from the user's side.

@@ -71,9 +71,11 @@ defaults when its firmware version changes.
 ### Edge Learning
 
 An AkidaTag can learn up to three new keywords on the device itself, using
-the AKD1500's on-chip learning. It needs a model built for edge learning, the
-`kws_edge_learning` package. With any other model the board ignores the
-learning commands.
+the AKD1500's on-chip learning. It needs the model built for edge learning,
+`akidatag-kws-edge-learning-model.zip` from the
+[latest firmware release](https://github.com/Brainchip-Inc/AkidaTag/releases/latest),
+loaded as described in [Load a model](/BrainChip-Connect/user-guide/model-update.html).
+With any other model the board ignores the learning commands.
 
 The switch and buttons step through the board's learning modes:
 
@@ -123,7 +125,3 @@ These are the differences from the AkidaTag.
   sketch offers neither. Everything else works: battery, the application
   list, the microphone waveform and App Controls.
 
-:::note[Screenshot to come]
-TBD: screenshot of the Vision Human Detection dashboard with the camera
-preview.
-:::

@@ -87,7 +87,3 @@ AkidaTag and reads the same for every board. The name can be edited in the
 sheet, but in this version the change is not sent to the board; renaming a
 board from the app is planned for a later version.
 
-:::note[Screenshots to come]
-TBD: screenshots of the Notifications, Profile, About and Device Information
-screens.
-:::

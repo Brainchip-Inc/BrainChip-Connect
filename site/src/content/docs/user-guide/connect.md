@@ -7,8 +7,10 @@ sidebar:
 
 ## Before you start
 
-- The AkidaTag must be powered. While it waits for a phone its green LED
-  blinks slowly; the other patterns are listed under
+- The AkidaTag must be powered. The box holds the board and its enclosure
+  and nothing else: no battery, no camera and no USB-C cable, so bring a
+  USB-C cable to power it. While it waits for a phone its green LED blinks
+  slowly; the other patterns are listed under
   [What the AkidaTag LEDs mean](/BrainChip-Connect/user-guide/troubleshooting.html#what-the-akidatag-leds-mean).
 - Bluetooth must be on, on the phone.
 
@@ -52,10 +54,6 @@ Application**, the Home tab. No pairing code is asked for.
 
 If the board cannot be reached within twenty seconds the app shows
 **Connection Failed**. Tap **OK** to return to the device list and try again.
-
-:::note[Screenshot to come]
-TBD: screenshot of the Connecting screen.
-:::
 
 ## Once connected
 
