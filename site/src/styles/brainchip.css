@@ -3,8 +3,8 @@
  * template (theme "BrainChip", 2026-03-20): black text on white, the theme's
  * accents, Sora SemiBold headings, Inter body text, a black band across the
  * top carrying the white wordmark, and the symbol from the wordmark as the
- * list bullet. The template defines no dark scheme, so the dark colours below
- * are the same palette on a slate derived from the template's #323F4F.
+ * list bullet. The template defines no dark scheme; the dark scheme below is
+ * the same palette inverted, white text on black, as asked for in review.
  *
  * Everything the look needs sits next to this file: the fonts in ../fonts and
  * the logo files in ../assets, so the set can be copied into another site.
@@ -59,21 +59,22 @@
   }
 }
 
-/* Dark scheme: Starlight's default, so it sits on :root. */
+/* Dark scheme: Starlight's default, so it sits on :root. White text on black. */
 :root,
 ::backdrop {
   --sl-color-white: #ffffff;
-  --sl-color-gray-1: #e7ebf1;
-  --sl-color-gray-2: #c9d0db;
-  --sl-color-gray-3: #97a1b1;
-  --sl-color-gray-4: #66717f;
-  --sl-color-gray-5: #3f4a5a;
-  --sl-color-gray-6: #262f3b;
-  --sl-color-black: #151b24;
+  --sl-color-gray-1: #f2f2f2;
+  --sl-color-gray-2: #e0e0e0;
+  --sl-color-gray-3: #b0b0b0;
+  --sl-color-gray-4: #7a7a7a;
+  --sl-color-gray-5: #3a3a3a;
+  --sl-color-gray-6: #1c1c1c;
+  --sl-color-black: #000000;
 
   --sl-color-accent-low: #0c2b5e;
   --sl-color-accent: var(--brainchip-blue);
   --sl-color-accent-high: #a9c8ff;
+  --sl-color-text: #ffffff;
   --sl-color-text-accent: #7fafff;
 
   --sl-color-blue-low: #0c2b5e;
@@ -93,11 +94,11 @@
   --sl-color-red-high: #ffc2d4;
 
   --sl-color-bg-nav: var(--brainchip-black);
-  --sl-color-bg-sidebar: #10151c;
-  --sl-color-bg-inline-code: #262f3b;
-  --sl-color-hairline: #262f3b;
-  --sl-color-hairline-light: #3f4a5a;
-  --sl-color-hairline-shade: #0b0e13;
+  --sl-color-bg-sidebar: #0d0d0d;
+  --sl-color-bg-inline-code: #1c1c1c;
+  --sl-color-hairline: #2a2a2a;
+  --sl-color-hairline-light: #3a3a3a;
+  --sl-color-hairline-shade: #000000;
 }
 
 /* Light scheme: the template's own colours. */
@@ -230,9 +231,34 @@
   list-style-image: url('../assets/brainchip-bullet.svg');
 }
 
-/* The template's followed-hyperlink colour. */
-.sl-markdown-content a:visited:not(:where(.not-content *)) {
-  color: var(--brainchip-followed-link);
+/* Room between sections, so a page reads as a document rather than a list. */
+.sl-markdown-content :is(h2):not(:where(.not-content *)) {
+  margin-top: 2.5em;
+}
+
+.sl-markdown-content :is(h3, h4):not(:where(.not-content *)) {
+  margin-top: 1.75em;
+}
+
+.sl-markdown-content :is(p, li):not(:where(.not-content *)) {
+  line-height: 1.7;
+}
+
+.sl-markdown-content :is(table, .starlight-aside, .expressive-code, img, figure):not(:where(.not-content *)) {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding: 0.75rem 1rem;
+}
+
+.sl-markdown-content .starlight-aside:not(:where(.not-content *)) {
+  padding: 1.25rem 1.5rem;
+}
+
+.sl-markdown-content li:not(:where(.not-content *)) + li {
+  margin-top: 0.5rem;
 }
 
 /* The black band at the foot of every template slide. */
