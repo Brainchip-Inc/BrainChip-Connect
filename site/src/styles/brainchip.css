@@ -162,24 +162,26 @@
   color: var(--brainchip-white);
 }
 
-.site-title {
-  color: var(--brainchip-white);
-}
-
 .site-title img {
   height: 1.75rem;
 }
 
-/* On a phone the wordmark alone is the header; the title stays for screen readers. */
-@media (max-width: 30rem) {
-  .site-title span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
+/* The site's name heads the sidebar, since the top bar carries only the wordmark. */
+.brainchip-sidebar-title {
+  display: block;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  font-family: var(--brainchip-font-headings);
+  font-size: var(--sl-text-h4);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--sl-color-white);
+  text-decoration: none;
+}
+
+.brainchip-sidebar-title:hover {
+  color: var(--sl-color-text-accent);
 }
 
 .header site-search > button {
