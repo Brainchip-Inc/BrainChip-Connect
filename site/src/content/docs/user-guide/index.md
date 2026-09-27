@@ -1,5 +1,5 @@
 ---
-title: End-user guide
+title: User guide
 description: How to use BrainChip Connect with an AkidaTag, from installing the app to loading a model.
 sidebar:
   order: 0

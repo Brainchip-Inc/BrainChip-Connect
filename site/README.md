@@ -1,7 +1,7 @@
 # The BrainChip Connect documentation site
 
 The public documentation at https://brainchip-inc.github.io/BrainChip-Connect/:
-the end-user guide, the developer guide and the Privacy Policy. It is a
+the user guide, the developer guide and the Privacy Policy. It is a
 [Starlight](https://starlight.astro.build) site, written in Markdown under
 `src/content/docs/`, and `.github/workflows/pages.yml` builds and publishes it
 on every push to `main` that touches it.

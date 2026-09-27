@@ -35,5 +35,5 @@ project in TypeScript, one codebase for Android and iOS, and its source is at
   in the repository root holds the project's sharp edges: the things that
   are easy to get wrong and cost a working transfer rather than failing
   loudly. Read it before touching the Bluetooth layer.
-- The [end-user guide](/BrainChip-Connect/user-guide.html) describes what
+- The [user guide](/BrainChip-Connect/user-guide.html) describes what
   every screen does from the user's side.

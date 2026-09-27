@@ -31,7 +31,7 @@ export default defineConfig({
       ],
       sidebar: [
         {
-          label: 'End-user guide',
+          label: 'User guide',
           items: [{ autogenerate: { directory: 'user-guide' } }],
         },
         {
