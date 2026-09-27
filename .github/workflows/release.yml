@@ -218,13 +218,13 @@ jobs:
         run: npm ci
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: .ruby-version
           bundler-cache: true
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
       # Both keys land outside the workspace, so nothing can read them as
       # project input or carry them out in a build artifact. Each is checked
