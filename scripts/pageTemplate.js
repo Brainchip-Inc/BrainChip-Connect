@@ -299,6 +299,10 @@ ${document.sections.map(renderSection).join('\n')}
 // The root page carries no document of its own, so it adds the card and link
 // rules the document pages have no use for.
 const INDEX_STYLES = `
+      header {
+        margin: 0 0 24px;
+      }
+
       .documents {
         display: grid;
         gap: 16px;
@@ -371,10 +375,10 @@ const renderIndexPage = (documents, productName) => `<!doctype html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Legal | ${escapeHtml(productName)}</title>
+    <title>${escapeHtml(productName)}</title>
     <meta
       name="description"
-      content="The published legal documents for ${escapeHtml(productName)}."
+      content="Privacy policy for the ${escapeHtml(productName)} app."
     />
     <style>
 ${STYLES}
@@ -385,11 +389,6 @@ ${INDEX_STYLES}
     <main>
       <header>
         <p class="eyebrow">${escapeHtml(productName)}</p>
-        <h1>Legal</h1>
-        <p class="updated">
-          The documents below carry the same text as the matching screens inside
-          ${escapeHtml(productName)}.
-        </p>
       </header>
       <nav class="documents">
 ${documents.map(renderDocumentLink).join('\n')}
