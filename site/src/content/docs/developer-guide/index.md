@@ -11,6 +11,9 @@ extending it with a screen or a demo of their own. The app is a React Native
 project in TypeScript, one codebase for Android and iOS, and its source is at
 [github.com/Brainchip-Inc/BrainChip-Connect](https://github.com/Brainchip-Inc/BrainChip-Connect).
 
+BrainChip Connect is licensed under the [Apache License 2.0](https://github.com/Brainchip-Inc/BrainChip-Connect/blob/main/LICENSE).
+[NOTICE](https://github.com/Brainchip-Inc/BrainChip-Connect/blob/main/NOTICE) lists third-party components.
+
 ## The chapters
 
 1. [Repository layout](/BrainChip-Connect/developer-guide/repository-layout.html):
