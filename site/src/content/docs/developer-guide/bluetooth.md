@@ -102,12 +102,13 @@ into a PNG data URI, because React Native cannot draw raw pixels.
 `__tests__/cameraPreview.test.ts` pins the layout byte by byte and
 `__tests__/grayscalePng.test.ts` checks the PNG against Node's own zlib.
 
-Frames are skipped on purpose: the board sends its newest frame and drops
-chunks in flight rather than stall the detector, so an image overtaken before
-it is whole is discarded. Detections share the characteristic with the
-chunks, so the chunk handler does one small copy per notification and
-encodes only once per whole image; anything heavier there shows up as a
-lagging detection.
+The preview is a sample of the frames on purpose: Bluetooth carries far fewer
+images a second than the board scores, so the board sends one whole image at
+a time and does not queue the frames it scores meanwhile. A chunk can still go
+missing on the way, so an image overtaken before it is whole is discarded.
+Detections share the characteristic with the chunks, so the chunk handler does
+one small copy per notification and encodes only once per whole image;
+anything heavier there shows up as a lagging detection.
 
 ## The firmware update
 

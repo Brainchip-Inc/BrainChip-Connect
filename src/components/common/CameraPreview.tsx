@@ -48,7 +48,8 @@ export const PREVIEW_COPY = {
     'Nothing has arrived yet. The firmware on this board may not send a preview.',
   caption: (frame: CameraPreviewFrame) =>
     `${frame.width} × ${frame.height} grayscale, as the model sees it. ` +
-    'Frames are skipped so detection keeps its pace.',
+    'The live preview shows a sample of the frames Akida scores, to fit ' +
+    'Bluetooth bandwidth.',
 };
 
 /**
@@ -101,7 +102,8 @@ const useLongWait = (waiting: boolean): boolean => {
  * Before streaming it says how to start. While streaming and waiting for the
  * first frame it says so, and after a while adds that the board may not be
  * sending one. Once frames arrive it shows the newest, at a whole-number
- * scale, with a caption saying what it is and that gaps are expected.
+ * scale, with a caption saying what it is and that it is a sample of the
+ * frames.
  */
 const CameraPreview = ({
   frame,
