@@ -2,9 +2,9 @@
  * Renders the two screens that show the board changing application.
  *
  * The application card's wording during a start is pinned as rendered rather
- * than as a constant, because a card that stays silent for the two seconds a
- * model swap takes is what this work exists to fix, and the dashboard's
- * inference button has to say the same thing at the same time.
+ * than as a constant, because a card that stays silent while a model swap
+ * runs is what this work exists to fix, and the dashboard's inference button
+ * has to say the same thing at the same time.
  *
  * @format
  */

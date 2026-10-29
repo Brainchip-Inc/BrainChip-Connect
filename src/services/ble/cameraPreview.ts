@@ -2,9 +2,9 @@
  * The camera preview frame, as the BrainBoard1500 Nicla Vision firmware sends
  * it on the notify characteristic it shares with the microphone waveform.
  *
- * The layout is specified in `examples/bb15_nicla_vision_connect/README.md`
- * in the `brainboard1500_arduino_library` repository, under "The camera
- * preview frame". Every chunk repeats the image geometry, so a reader keeps
+ * The layout is specified in
+ * `examples/BrainChip/NiclaVisionConnect/README.md` in the `BrainBoard1500`
+ * repository, under "The camera preview frame". Every chunk repeats the image geometry, so a reader keeps
  * no state beyond the one image it is putting together.
  */
 

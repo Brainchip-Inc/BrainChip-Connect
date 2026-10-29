@@ -3,10 +3,10 @@
  * firmware sends, and the way whole images are put back together from it.
  *
  * The layout is the table under "The camera preview frame" in the example's
- * README in the brainboard1500_arduino_library repository, and `sendPreview`
- * in its `ble_protocol.cpp` is the sender these frames are modelled on. The
- * two halves have to meet on the wire, so the bytes are written out here by
- * offset rather than built with the parser's own helpers.
+ * README in the BrainBoard1500 repository, and `offerPreview` and
+ * `pollPreview` in its `ble_protocol.cpp` are the sender these frames are
+ * modelled on. The two halves have to meet on the wire, so the bytes are
+ * written out here by offset rather than built with the parser's own helpers.
  *
  * @format
  */

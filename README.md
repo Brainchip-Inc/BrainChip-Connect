@@ -39,7 +39,7 @@ between applications, and sends firmware and AI model updates to it from a
 package on the phone. It is the companion app for the
 **[AkidaTag](https://developer.brainchip.com/akida-tag/)**, and it recognises any
 board that advertises the AKD1500 accelerator, including the
-[BrainBoard1500](https://github.com/Brainchip-Inc/brainboard1500_arduino_library)
+[BrainBoard1500](https://github.com/Brainchip-Inc/BrainBoard1500)
 carried by an Arduino Nicla Vision, whose keyword spotting and person detection
 demo it drives for reference.
 
@@ -258,11 +258,12 @@ GitHub release. The version comes from the root `VERSION` file alone.
   [AkidaTag repository](https://github.com/Brainchip-Inc/AkidaTag).
 - **BrainBoard1500 with an Arduino Nicla Vision**, for demonstration and
   reference. The
-  [BrainBoard1500 Arduino library](https://github.com/Brainchip-Inc/brainboard1500_arduino_library)
-  carries the `bb15_nicla_vision_connect` example, which advertises as
-  `BrainBoard1500`, takes its keyword spotting and person detection models from
-  this app over Bluetooth, and reports detections and a camera preview back to
-  it. Its README specifies the preview frame the app draws.
+  [BrainBoard1500 Arduino library](https://github.com/Brainchip-Inc/BrainBoard1500)
+  carries the `examples/BrainChip/NiclaVisionConnect` example, which advertises
+  as `BrainBoard1500`, takes its keyword spotting and person detection models
+  from this app over Bluetooth, and reports detections and a camera preview
+  back to it. The model packages are in that example's `models/` directory, and
+  its README specifies the preview frame the app draws.
 - **AKD1500**, the accelerator every supported board carries. The Developer
   Hub has the tools and the model zoo for it.
 

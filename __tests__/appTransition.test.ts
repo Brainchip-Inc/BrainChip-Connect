@@ -2,8 +2,8 @@
  * Drives the BLE command store through starting and stopping an application,
  * and checks what it says about the board in between.
  *
- * On a BrainBoard1500 a start is a model swap that takes about two seconds,
- * and the store used to say nothing at all for that time. What it says now
+ * On a BrainBoard1500 a start is a model swap the board confirms only once
+ * the new model has run, and the store used to say nothing at all until then. What it says now
  * comes from the gap between the command and the board's acknowledgement, so
  * these cases open that gap, close it each way the board can, and insist the
  * state follows.
