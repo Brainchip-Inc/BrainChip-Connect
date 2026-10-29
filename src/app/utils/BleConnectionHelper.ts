@@ -116,6 +116,11 @@ class BleConnectionHelper {
     });
   };
 
+  /**
+   * React to the board's link dropping, whoever dropped it.
+   *
+   * @param deviceId - Id of the board that disconnected.
+   */
   handleDisconnect = (deviceId: string) => {
     if (__DEV__) console.log('[BLE] Disconnected:', deviceId);
 
@@ -125,6 +130,10 @@ class BleConnectionHelper {
     if (this.isFotaRunning) {
       return;
     }
+
+    // Only the state changes here: the device stays until the user leaves, so
+    // the screen behind the alert still says which board was lost.
+    useBleStore.getState().setConnectionState('disconnected');
 
     if (this.isManualDisconnect) {
       if (__DEV__) console.log('[BLE] Manual disconnect');
