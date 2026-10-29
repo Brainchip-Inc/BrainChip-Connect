@@ -32,6 +32,7 @@ import {
   useBleCommandStore,
 } from '../../store/useBleCommandStore';
 import { useBleStore } from '../../store/useBleStore';
+import { AppType } from '../../store/useLiveSensorStore';
 import { Colors } from '../../theme/theme';
 
 type DeviceApplicationsRouteProp = RouteProp<
@@ -45,6 +46,38 @@ const APP_ICON_MAP: Record<string, typeof Cpu> = {
   anomaly: Activity,
   vision: Eye,
   imu: Activity,
+};
+
+/** How an application card titles the class labels its board reports. */
+type ClassLabelField = {
+  heading: string;
+  formatLabel: (label: string) => string;
+};
+
+/**
+ * Capitalize the first letter of a class label the board sends in lowercase.
+ *
+ * @param label - The label as the board reported it.
+ */
+const capitalize = (label: string): string =>
+  label.charAt(0).toUpperCase() + label.slice(1);
+
+const KEYWORDS_FIELD: ClassLabelField = {
+  heading: 'Keywords',
+  formatLabel: label => label,
+};
+
+/**
+ * Class label fields that differ from keyword spotting's, by application.
+ *
+ * A vision model reports what it detects rather than words it listens for,
+ * so calling its labels keywords misdescribes the demo.
+ */
+const CLASS_LABEL_FIELDS: Partial<Record<AppType, ClassLabelField>> = {
+  vision: {
+    heading: 'Label',
+    formatLabel: label => `${capitalize(label)} detected`,
+  },
 };
 
 /**
@@ -206,6 +239,7 @@ const DeviceApplicationsScreen: React.FC = () => {
     const transition =
       appTransition?.appId === app.id ? appTransition.kind : null;
     const badge = appBadge(isActive, transition);
+    const classLabelField = CLASS_LABEL_FIELDS[app.id] ?? KEYWORDS_FIELD;
     const badgeColor = {
       active: theme.colors.secondary,
       inactive: theme.colors.error,
@@ -286,7 +320,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                   <Text
                     style={[styles.infoText, { color: theme.colors.onSurface }]}
                   >
-                    <Text style={styles.label}>Keywords:</Text>
+                    <Text style={styles.label}>{classLabelField.heading}:</Text>
                   </Text>
                 </View>
                 {app.keywords?.length ? (
@@ -308,7 +342,7 @@ const DeviceApplicationsScreen: React.FC = () => {
                             { color: theme.colors.primary },
                           ]}
                         >
-                          {kw}
+                          {classLabelField.formatLabel(kw)}
                         </Text>
                       </View>
                     ))}
