@@ -98,8 +98,8 @@ Learned keywords survive a restart and a firmware update.
 ## Nicla Vision with BrainBoard1500
 
 An Arduino Nicla Vision carrying a BrainBoard1500 can run BrainChip's
-Bluetooth demo sketch, `bb15_nicla_vision_connect` from the
-[brainboard1500_arduino_library](https://github.com/Brainchip-Inc/brainboard1500_arduino_library)
+Bluetooth demo sketch, `examples/BrainChip/NiclaVisionConnect` from the
+[BrainBoard1500](https://github.com/Brainchip-Inc/BrainBoard1500)
 repository. It advertises as `BrainBoard1500` and works with the same app.
 These are the differences from the AkidaTag.
 
@@ -110,7 +110,7 @@ These are the differences from the AkidaTag.
   model belongs to by its input shape: `[49, 10, 1]` is Keyword Spotting and
   `[96, 96, 3]` is Vision Human Detection. A model survives a power cycle, so
   it only has to be sent once. A model must be built for the Akida engine the
-  sketch carries, 2.5.0; an AkidaTag model will not load on this board.
+  sketch carries, 2.19.3; an AkidaTag model will not load on this board.
 - **Starting an application loads its model** into the accelerator, which is
   why the card reads **Starting** for about two seconds. Only one demo runs
   at a time.

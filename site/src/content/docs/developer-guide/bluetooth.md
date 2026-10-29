@@ -94,8 +94,8 @@ repository: `adv_manufacturer_data[]` for the advertisement and
 
 Human detection preview frames arrive in chunks on the same notify
 characteristic. The layout is specified under "The camera preview frame" in
-`examples/bb15_nicla_vision_connect/README.md` of the
-[brainboard1500_arduino_library](https://github.com/Brainchip-Inc/brainboard1500_arduino_library)
+`examples/BrainChip/NiclaVisionConnect/README.md` of the
+[BrainBoard1500](https://github.com/Brainchip-Inc/BrainBoard1500)
 repository. `cameraPreview.ts` is the app's half of the chunk layout and
 reassembly, and `src/services/image/grayscalePng.ts` turns a whole image
 into a PNG data URI, because React Native cannot draw raw pixels.
