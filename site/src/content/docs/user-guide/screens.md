@@ -24,8 +24,7 @@ On each card:
   card.
 - **Run Application** starts the demo on the board. The card reads
   **Starting** until the board confirms, then **Active**. On a BrainBoard1500
-  the start loads the model into the accelerator first, which takes about two
-  seconds.
+  the start loads the model into the accelerator first.
 - **Stop Application** stops it.
 - The active card also carries the **Detection** banner and the
   **Application Dashboard** button, which opens the demo's own screen. The

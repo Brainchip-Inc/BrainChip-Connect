@@ -104,7 +104,10 @@ repository. It advertises as `BrainBoard1500` and works with the same app.
 These are the differences from the AkidaTag.
 
 - **Two demos, both sent from the app.** No model is built into the sketch.
-  Send the keyword spotting model and the human detection model with
+  The packages are in the example's `models/` directory: one for keyword
+  spotting, and two for human detection, the same model mapped in `AllNps`
+  and `HwPr` modes, either of which runs the demo. Send the keyword spotting
+  package and one human detection package with
   [Model Update](/BrainChip-Connect/user-guide/model-update.html); each one
   that arrives adds its card to the Home tab. The board decides which demo a
   model belongs to by its input shape: `[49, 10, 1]` is Keyword Spotting and
@@ -112,10 +115,10 @@ These are the differences from the AkidaTag.
   it only has to be sent once. A model must be built for the Akida engine the
   sketch carries, 2.19.3; an AkidaTag model will not load on this board.
 - **Starting an application loads its model** into the accelerator, which is
-  why the card reads **Starting** for about two seconds. Only one demo runs
-  at a time.
-- **Vision Human Detection** scores a 96 by 96 crop of the camera about
-  fifteen times a second and reports **Person detected** once when someone
+  why the card reads **Starting** until the board confirms. Only one demo
+  runs at a time.
+- **Vision Human Detection** scores the camera's whole view, squeezed to 96
+  by 96, frame after frame, and reports **Person detected** once when someone
   arrives. Nothing is sent when they leave, so the banner shows how long ago
   the last person was seen and the board's LED is the live indicator. The
   dashboard's **Camera** section shows what the model sees, in grayscale,
