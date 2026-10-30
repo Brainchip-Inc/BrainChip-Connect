@@ -62,6 +62,9 @@ type ClassLabelField = {
 const capitalize = (label: string): string =>
   label.charAt(0).toUpperCase() + label.slice(1);
 
+/** Height of a class label chip, which its heading's line matches. */
+const CHIP_HEIGHT = 26;
+
 const KEYWORDS_FIELD: ClassLabelField = {
   heading: 'Keywords',
   formatLabel: label => label,
@@ -311,53 +314,65 @@ const DeviceApplicationsScreen: React.FC = () => {
                   </View>
                 ))}
 
-                <View style={styles.infoRow}>
+                <View style={[styles.infoRow, styles.classLabelRow]}>
                   <Text
-                    style={[styles.bullet, { color: theme.colors.primary }]}
+                    style={[
+                      styles.bullet,
+                      styles.classLabelText,
+                      { color: theme.colors.primary },
+                    ]}
                   >
                     ✱
                   </Text>
-                  <Text
-                    style={[styles.infoText, { color: theme.colors.onSurface }]}
-                  >
-                    <Text style={styles.label}>{classLabelField.heading}:</Text>
-                  </Text>
-                </View>
-                {app.keywords?.length ? (
-                  <View style={styles.chipRow}>
-                    {app.keywords.map(kw => (
-                      <View
-                        key={kw}
+                  <View style={styles.classLabelLine}>
+                    <Text
+                      style={[
+                        styles.infoText,
+                        styles.classLabelText,
+                        { color: theme.colors.onSurface },
+                      ]}
+                    >
+                      <Text style={styles.label}>
+                        {classLabelField.heading}:
+                      </Text>
+                    </Text>
+                    {app.keywords?.length ? (
+                      <View style={styles.chipRow}>
+                        {app.keywords.map(kw => (
+                          <View
+                            key={kw}
+                            style={[
+                              styles.chip,
+                              {
+                                borderColor: theme.colors.primary,
+                                backgroundColor: 'rgba(0,97,237,0.03)',
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipText,
+                                { color: theme.colors.primary },
+                              ]}
+                            >
+                              {classLabelField.formatLabel(kw)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text
                         style={[
-                          styles.chip,
-                          {
-                            borderColor: theme.colors.primary,
-                            backgroundColor: 'rgba(0,97,237,0.03)',
-                          },
+                          styles.infoText,
+                          styles.classLabelText,
+                          { color: theme.colors.onSurfaceVariant },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            { color: theme.colors.primary },
-                          ]}
-                        >
-                          {classLabelField.formatLabel(kw)}
-                        </Text>
-                      </View>
-                    ))}
+                        -
+                      </Text>
+                    )}
                   </View>
-                ) : (
-                  <Text
-                    style={[
-                      styles.infoText,
-                      styles.keywordsEmpty,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    -
-                  </Text>
-                )}
+                </View>
               </View>
             )}
           </View>
@@ -623,20 +638,17 @@ const styles = StyleSheet.create({
   bullet: { fontSize: 12, marginRight: 8 },
   infoText: { fontSize: 13 },
   label: { fontWeight: '700' },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginLeft: 20,
-    marginBottom: 8,
-  },
+  classLabelRow: { alignItems: 'flex-start' },
+  classLabelLine: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  classLabelText: { lineHeight: CHIP_HEIGHT },
+  chipRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
+    height: CHIP_HEIGHT,
+    justifyContent: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
     borderWidth: 1,
   },
   chipText: { fontSize: 12, fontWeight: '500' },
-  keywordsEmpty: { marginLeft: 20, marginBottom: 8 },
   progress: {
     height: 8,
     marginBottom: 6,

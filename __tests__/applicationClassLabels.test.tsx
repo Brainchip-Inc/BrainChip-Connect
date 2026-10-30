@@ -84,17 +84,19 @@ const textOf = (node: ReactTestRenderer.ReactTestInstance): string =>
         .join(''),
     )
     .join(' ')
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /**
  * Render the application list with one card and open its More Information.
  *
  * @param app - The application the board reported.
- * @returns The text the opened card shows.
+ * @returns The text the opened card shows, and the text of each of its views,
+ *   which is how a heading and the labels sharing its line are found.
  */
 const openInformation = async (
   app: ReturnType<typeof appWithLabels>,
-): Promise<string> => {
+): Promise<{ shown: string; views: string[] }> => {
   useBleCommandStore.setState({ appsList: [app], activeApp: null });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -109,8 +111,11 @@ const openInformation = async (
     .find(button => textOf(button).includes('More Information'));
   await ReactTestRenderer.act(() => moreInformation!.props.onPress());
   const shown = textOf(renderer.root);
+  const views = renderer.root
+    .findAll(node => String(node.type) === 'View')
+    .map(node => textOf(node));
   await ReactTestRenderer.act(() => renderer.unmount());
-  return shown;
+  return { shown, views };
 };
 
 describe('the class labels on an application card', () => {
@@ -118,23 +123,20 @@ describe('the class labels on an application card', () => {
     useBleCommandStore.setState({ appsList: [] });
   });
 
-  it('lists keyword spotting labels as Keywords', async () => {
-    const shown = await openInformation(
+  it('lists keyword spotting labels on the Keywords line', async () => {
+    const { views } = await openInformation(
       appWithLabels('keyword', 'Keyword Spotting', ['yes', 'no']),
     );
 
-    expect(shown).toContain('Keywords:');
-    expect(shown).toContain('yes');
-    expect(shown).toContain('no');
+    expect(views).toContain('Keywords: yes no');
   });
 
   it('does not call what the vision demo detects a keyword', async () => {
-    const shown = await openInformation(
+    const { shown, views } = await openInformation(
       appWithLabels('vision', 'Vision Human Detection', ['person']),
     );
 
     expect(shown).not.toContain('Keywords');
-    expect(shown).toContain('Label:');
-    expect(shown).toContain('Person detected');
+    expect(views).toContain('Label: Person detected');
   });
 });
