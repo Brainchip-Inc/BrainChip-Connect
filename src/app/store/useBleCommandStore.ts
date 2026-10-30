@@ -74,8 +74,17 @@ export interface AppTransition {
   kind: 'starting' | 'stopping';
 }
 
-/** How long to wait for the board to confirm a start or stop. */
-const DEPLOY_ACK_TIMEOUT_MS = 3000;
+/**
+ * How long to wait for the board to confirm a start. The first start of a
+ * model a BrainBoard1500 runs from its SRAM copies the model there from flash
+ * over a 2 MHz bridge, 3.24 s for human detection, and only then confirms.
+ * This covers that copy, even one filling the whole SRAM, plus the Bluetooth
+ * round trip and the board's own start work on a slow phone or busy link.
+ */
+const DEPLOY_START_ACK_TIMEOUT_MS = 10000;
+
+/** How long to wait for the board to confirm a stop, which loads nothing. */
+const DEPLOY_STOP_ACK_TIMEOUT_MS = 3000;
 
 // Preview chunks are put together here, outside the store's state, because a
 // half-built image is nothing the UI should ever see.
@@ -652,7 +661,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       const timeout = new Promise<void>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('DEPLOYSTART ACK timeout')),
-          DEPLOY_ACK_TIMEOUT_MS,
+          DEPLOY_START_ACK_TIMEOUT_MS,
         );
       });
 
@@ -698,7 +707,7 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       const timeout = new Promise<void>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('DEPLOYSTOP ACK timeout')),
-          DEPLOY_ACK_TIMEOUT_MS,
+          DEPLOY_STOP_ACK_TIMEOUT_MS,
         );
       });
 

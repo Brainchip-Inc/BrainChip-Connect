@@ -94,17 +94,50 @@ describe('what the store says while the board changes application', () => {
     expect(useBleCommandStore.getState().activeApp).toBeNull();
   });
 
+  it('waits out a first start that copies the model into SRAM', async () => {
+    useBleCommandStore.setState({ activeApp: null });
+    const started = useBleCommandStore.getState().deployApp('vision');
+    await Promise.resolve();
+
+    await jest.advanceTimersByTimeAsync(3500);
+    expect(useBleCommandStore.getState().appTransition).toEqual({
+      appId: 'vision',
+      kind: 'starting',
+    });
+
+    notify({ type: 'DEPLOYSTART_ACK' });
+    await started;
+
+    expect(useBleCommandStore.getState().appTransition).toBeNull();
+    expect(useBleCommandStore.getState().activeApp).toBe('vision');
+    expect(useBleCommandStore.getState().isInferenceRunning).toBe(true);
+  });
+
   it('gives up the wait, and says so, when the board never answers', async () => {
     useBleCommandStore.setState({ activeApp: null });
     const started = useBleCommandStore.getState().deployApp('keyword');
     await Promise.resolve();
     expect(useBleCommandStore.getState().appTransition).not.toBeNull();
 
-    jest.advanceTimersByTime(3000);
+    const outcome = expect(started).rejects.toThrow('DEPLOYSTART ACK timeout');
+    await jest.advanceTimersByTimeAsync(9999);
+    expect(useBleCommandStore.getState().appTransition).not.toBeNull();
 
-    await expect(started).rejects.toThrow('DEPLOYSTART ACK timeout');
+    await jest.advanceTimersByTimeAsync(1);
+
+    await outcome;
     expect(useBleCommandStore.getState().appTransition).toBeNull();
     expect(useBleCommandStore.getState().activeApp).toBeNull();
+  });
+
+  it('gives up a stop the board never confirms after three seconds', async () => {
+    const stopped = useBleCommandStore.getState().stopApp('vision');
+    await Promise.resolve();
+
+    jest.advanceTimersByTime(3000);
+
+    await expect(stopped).rejects.toThrow('DEPLOYSTOP ACK timeout');
+    expect(useBleCommandStore.getState().appTransition).toBeNull();
   });
 
   it('gives up the wait when the command itself cannot be sent', async () => {
