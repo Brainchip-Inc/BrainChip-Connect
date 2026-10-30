@@ -14,6 +14,11 @@
  * board here delivers each notification to every monitor left open, so a
  * second monitor shows up as a second event.
  *
+ * The session also holds what a board said about itself, and that has to
+ * leave with the board. Its application list used to outlive it, so moving
+ * from a Nicla Vision to an AkidaTag still offered the Nicla Vision's human
+ * detection demo on a board that has none.
+ *
  * @format
  */
 
@@ -65,11 +70,37 @@ const BOARD = {
   serviceUUIDs: null,
 };
 
+/** A Nicla Vision with the BrainBoard 1500, which has both demos. */
+const NICLA_VISION = {
+  device: BOARD,
+  apps: ['Keyword Spotting', 'Vision Human Detection'],
+};
+
+/** An AkidaTag, which has only keyword spotting. */
+const AKIDA_TAG = {
+  device: { ...BOARD, id: 'AA:BB:CC:DD:EE:07', name: 'AkidaTag' },
+  apps: ['Keyword Spotting'],
+};
+
 /** The board sends one detection, which every open monitor receives. */
 const boardReports = (label: string) =>
   monitors.forEach(onData =>
     onData({ type: 'DEPLOYSTART', data: `${label},97.25` }),
   );
+
+/** The board answers the application list, one burst per application. */
+const boardListsApps = (...names: string[]) =>
+  names.forEach(name =>
+    monitors.forEach(onData =>
+      onData({ type: 'APPS', data: `${name},Runs ${name} on the board,512,` }),
+    ),
+  );
+
+/** The names on the application cards, in the order they are shown. */
+const appCards = () =>
+  useBleCommandStore
+    .getState()
+    .appsList.map((app: { name: string }) => app.name);
 
 /** Every event in the history, newest first. */
 const recorded = () =>
@@ -157,6 +188,38 @@ describe('following the connection', () => {
     expect(useBleCommandStore.getState().connectedDevice.id).toBe(
       'AA:BB:CC:DD:EE:03',
     );
+  });
+
+  it.each([
+    ['a Nicla Vision then an AkidaTag', NICLA_VISION, AKIDA_TAG],
+    ['an AkidaTag then a Nicla Vision', AKIDA_TAG, NICLA_VISION],
+  ])(
+    'shows only the applications of the board in hand after %s',
+    (_order, first, second) => {
+      useBleStore.getState().setConnectedDevice(first.device);
+      boardListsApps(...first.apps);
+      expect(appCards()).toEqual(first.apps);
+
+      useBleStore.getState().setConnectedDevice(null);
+      expect(appCards()).toEqual([]);
+
+      useBleStore.getState().setConnectedDevice(second.device);
+      boardListsApps(...second.apps);
+      expect(appCards()).toEqual(second.apps);
+    },
+  );
+
+  it('forgets the old board when another one connects without a gap', () => {
+    useBleStore.getState().setConnectedDevice(NICLA_VISION.device);
+    boardListsApps(...NICLA_VISION.apps);
+    useBleCommandStore.setState({ selectedAppId: 'vision' });
+
+    useBleStore.getState().setConnectedDevice(AKIDA_TAG.device);
+    expect(appCards()).toEqual([]);
+    expect(useBleCommandStore.getState().selectedAppId).toBeNull();
+
+    boardListsApps(...AKIDA_TAG.apps);
+    expect(appCards()).toEqual(AKIDA_TAG.apps);
   });
 
   it('leaves the session alone while the board stays the same', () => {

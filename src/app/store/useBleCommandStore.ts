@@ -235,6 +235,10 @@ export const useBleCommandStore = create<BleCommandState>((set, get) => ({
       latestDetection: undefined,
       confidence: undefined,
       receivedAt: null,
+      // The applications are the ones this board reported. The next board
+      // reports its own, and those may be fewer.
+      appsList: [],
+      selectedAppId: null,
       kwsConfig: {},
       kwsConfigDraft: {},
       kwsConfigPending: new Set<KwsParamId>(),
