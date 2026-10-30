@@ -337,29 +337,27 @@ const DeviceApplicationsScreen: React.FC = () => {
                       </Text>
                     </Text>
                     {app.keywords?.length ? (
-                      <View style={styles.chipRow}>
-                        {app.keywords.map(kw => (
-                          <View
-                            key={kw}
+                      app.keywords.map(kw => (
+                        <View
+                          key={kw}
+                          style={[
+                            styles.chip,
+                            {
+                              borderColor: theme.colors.primary,
+                              backgroundColor: 'rgba(0,97,237,0.03)',
+                            },
+                          ]}
+                        >
+                          <Text
                             style={[
-                              styles.chip,
-                              {
-                                borderColor: theme.colors.primary,
-                                backgroundColor: 'rgba(0,97,237,0.03)',
-                              },
+                              styles.chipText,
+                              { color: theme.colors.primary },
                             ]}
                           >
-                            <Text
-                              style={[
-                                styles.chipText,
-                                { color: theme.colors.primary },
-                              ]}
-                            >
-                              {classLabelField.formatLabel(kw)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
+                            {classLabelField.formatLabel(kw)}
+                          </Text>
+                        </View>
+                      ))
                     ) : (
                       <Text
                         style={[
@@ -641,7 +639,6 @@ const styles = StyleSheet.create({
   classLabelRow: { alignItems: 'flex-start' },
   classLabelLine: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   classLabelText: { lineHeight: CHIP_HEIGHT },
-  chipRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     height: CHIP_HEIGHT,
     justifyContent: 'center',
