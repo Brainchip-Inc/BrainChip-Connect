@@ -20,7 +20,7 @@ import BottomNavigationBar from '../../components/custom/BottomNavigationBar';
 import DeviceHeader from '../../components/custom/DeviceHeader';
 import BleService from '../../services/ble/bleManager';
 import { RouteName, ROUTES } from '../../types/routes';
-import { useBleStore } from '../store/useBleStore';
+import { nameForDevice, useBleStore } from '../store/useBleStore';
 import { Colors } from '../theme/theme';
 import BleConnectionHelper from '../utils/BleConnectionHelper';
 
@@ -47,13 +47,16 @@ const ProfileRow = ({ icon, title, subtitle, onPress }: any) => (
 const UserProfileScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const [activeRoute, setActiveRoute] = useState<RouteName>(ROUTES.PROFILE);
-  const { connectedDevice,setConnectedDevice,setConnectionState } = useBleStore();
+  const { connectedDevice, connectionState, setConnectionState } =
+    useBleStore();
 
   const [unpairModal, setUnpairModal] = useState(false);
   const [showDeviceInfo, setShowDeviceInfo] = useState(false);
 
-  const deviceName = connectedDevice?.name ?? 'Unknown Device';
+  const deviceName = nameForDevice(connectedDevice);
   const deviceId = connectedDevice?.id ?? 'Unknown';
+  const isConnected = connectionState === 'connected';
+  const statusColor = isConnected ? Colors.success : Colors.error;
 
   const handleDisconnect = async () => {
     Alert.alert(
@@ -70,6 +73,9 @@ const UserProfileScreen = ({ navigation }: any) => {
           onPress: async () => {
             try {
               await BleService.disconnectDevice(deviceId);
+              // The device is kept until OK so the screen behind the alert
+              // still names the board it has just let go of.
+              setConnectionState('disconnected');
 
               Alert.alert(
                 'Disconnected',
@@ -90,8 +96,6 @@ const UserProfileScreen = ({ navigation }: any) => {
               );
             } finally {
               setUnpairModal(false);
-              setConnectedDevice(null);
-              setConnectionState("disconnected")
             }
           },
         },
@@ -163,8 +167,12 @@ const UserProfileScreen = ({ navigation }: any) => {
               title={deviceName}
               subtitle={
                 <View style={styles.statusContainer}>
-                  <View style={styles.dot} />
-                  <Text style={styles.statusText}>Connected</Text>
+                  <View
+                    style={[styles.dot, { backgroundColor: statusColor }]}
+                  />
+                  <Text style={[styles.statusText, { color: statusColor }]}>
+                    {isConnected ? 'Connected' : 'Disconnected'}
+                  </Text>
                 </View>
               }
               onPress={() => setShowDeviceInfo(true)}
@@ -309,7 +317,6 @@ const styles = StyleSheet.create({
   dot: {
     width: 6,
     height: 6,
-    backgroundColor: `${Colors.success}`,
     borderRadius: 50,
   },
 
@@ -318,6 +325,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 13,
     lineHeight: 20,
-    color: `${Colors.success}`,
   },
 });

@@ -21,7 +21,9 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
-  const { connectedDevice } = useBleStore();
+  const { connectedDevice, connectionState } = useBleStore();
+  const isConnected = connectionState === 'connected';
+  const statusColor = isConnected ? theme.colors.secondary : theme.colors.error;
   const currentRouteName = useNavigationState(
     state => state.routes[state.index]?.name,
   );
@@ -80,16 +82,13 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({
               {showConnectionStatus && (
                 <View style={styles.statusRow}>
                   <View
-                    style={[
-                      styles.statusDot,
-                      { backgroundColor: theme.colors.secondary },
-                    ]}
+                    style={[styles.statusDot, { backgroundColor: statusColor }]}
                   />
                   <Text
                     variant="labelSmall"
-                    style={{ color: theme.colors.secondary, fontWeight: '600' }}
+                    style={{ color: statusColor, fontWeight: '600' }}
                   >
-                    Connected
+                    {isConnected ? 'Connected' : 'Disconnected'}
                   </Text>
                 </View>
               )}
