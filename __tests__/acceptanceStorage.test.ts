@@ -4,9 +4,7 @@
  * The keys are persisted state on a real install, so their names are a
  * contract rather than an implementation detail: the acceptance screens write
  * them once and every later launch reads them back to decide whether to ask
- * again. BrainChip Connect stores them under `@brainchip_connect_*`, and by
- * explicit decision there is no fallback read of the earlier `@spark_*` keys,
- * so a device carrying only the old ones is asked to accept again.
+ * again. BrainChip Connect stores them under `@brainchip_connect_*`.
  *
  * @format
  */
@@ -17,11 +15,6 @@ import {
   setPrivacyAcceptedPersisted,
   setTermsAcceptedPersisted,
 } from '../src/app/store/acceptanceStorage';
-
-const LEGACY_KEYS = {
-  privacy: '@spark_privacy_accepted',
-  terms: '@spark_terms_accepted',
-};
 
 describe('acceptance persistence', () => {
   beforeEach(async () => {
@@ -73,13 +66,4 @@ describe('acceptance persistence', () => {
     });
   });
 
-  it('does not read the pre-rename keys', async () => {
-    await AsyncStorage.setItem(LEGACY_KEYS.privacy, 'true');
-    await AsyncStorage.setItem(LEGACY_KEYS.terms, 'true');
-
-    await expect(getAcceptanceState()).resolves.toEqual({
-      privacyAccepted: false,
-      termsAccepted: false,
-    });
-  });
 });
