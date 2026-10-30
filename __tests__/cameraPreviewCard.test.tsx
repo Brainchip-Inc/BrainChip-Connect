@@ -207,7 +207,9 @@ describe('the camera preview card', () => {
     expect(textOf(renderer)).toContain(
       '96 × 96 grayscale, as the model sees it',
     );
-    expect(textOf(renderer)).toContain('Frames are skipped');
+    expect(textOf(renderer)).toContain(
+      'The live preview shows a sample of the frames Akida scores',
+    );
     await unmount(renderer);
   });
 

@@ -122,8 +122,9 @@ These are the differences from the AkidaTag.
   arrives. Nothing is sent when they leave, so the banner shows how long ago
   the last person was seen and the board's LED is the live indicator. The
   dashboard's **Camera** section shows what the model sees, in grayscale,
-  while streaming, at about two frames a second. Frames are skipped rather
-  than queued so that detection keeps its pace.
+  while streaming, at about two frames a second. The board scores frames
+  several times faster than that, and the preview shows a sample of them to
+  fit Bluetooth bandwidth.
 - **Not on this board:** Edge Learning and Firmware Update, because the
   sketch offers neither. Everything else works: battery, the application
   list, the microphone waveform and App Controls.

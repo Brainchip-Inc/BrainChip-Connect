@@ -101,11 +101,11 @@ interface ImageInProgress {
 /**
  * Put preview chunks back together into images.
  *
- * The board always sends its newest frame and never queues, and chunks are
- * dropped in flight on purpose so that feeding the preview never stalls the
- * detector. So an image that is still incomplete when a chunk of the next one
- * arrives is thrown away rather than held: showing it later would mean
- * showing something older than what the board has since sent.
+ * The board sends one whole image at a time and never queues: frames it
+ * scores while an image is going out are not sent. A chunk can still go
+ * missing on the way, so an image that is still incomplete when a chunk of
+ * the next one arrives is thrown away rather than held: showing it later would
+ * mean showing something older than what the board has since sent.
  */
 export class PreviewAssembler {
   private inProgress: ImageInProgress | null = null;
