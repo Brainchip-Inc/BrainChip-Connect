@@ -34,6 +34,7 @@ import {
 import { useBleStore } from '../../store/useBleStore';
 import { AppType } from '../../store/useLiveSensorStore';
 import { Colors } from '../../theme/theme';
+import { formatInputShape } from '../../utils/formatInputShape';
 
 type DeviceApplicationsRouteProp = RouteProp<
   RootParamList,
@@ -294,7 +295,7 @@ const DeviceApplicationsScreen: React.FC = () => {
               <View style={styles.infoBlock}>
                 {[
                   ['Model Name', app.modelName],
-                  ['Input Shape', app.inputShape],
+                  ['Input Shape', formatInputShape(app.inputShape)],
                   ['Classes', app.noOfClasses],
                 ].map(([label, value]) => (
                   <View key={label} style={styles.infoRow}>
