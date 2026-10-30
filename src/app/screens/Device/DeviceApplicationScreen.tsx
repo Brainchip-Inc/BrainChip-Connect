@@ -468,7 +468,7 @@ const DeviceApplicationsScreen: React.FC = () => {
         {/* Scrollable App Cards ONLY */}
         <View style={styles.scrollSection}>
           <ScrollView
-            style={{ flex: 1 }}
+            style={styles.appList}
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ gap: 12 }}
           >
@@ -476,7 +476,7 @@ const DeviceApplicationsScreen: React.FC = () => {
           </ScrollView>
         </View>
 
-        {/* Device Status - FIXED at bottom */}
+        {/* Device Status - FIXED below the list */}
         <Text style={styles.statusTitle}>Device Status</Text>
         {batteryError ? (
           <View
@@ -608,12 +608,13 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   scrollSection: {
-    flex: 1,
+    flexShrink: 1,
     position: 'relative',
     borderWidth: 1,
     borderColor: `${Colors.border.light}`,
     backgroundColor: `${Colors.background}`,
   },
+  appList: { flexGrow: 0 },
   appCard: { padding: 15, borderWidth: 1 },
   appHeader: { flexDirection: 'row', gap: 16 },
   iconBox: {
